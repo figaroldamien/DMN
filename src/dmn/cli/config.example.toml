@@ -1,0 +1,13 @@
+market = "cac40"
+start = "2000-01-01"
+sector = "Financials"
+sub_sector = "Banks"
+run_ml = false
+run_dmn = true
+
+[backtest]
+sigma_target_annual = 0.15
+vol_span = 60
+cost_bps = 2.0
+portfolio_vol_target = true
+min_obs = 400
