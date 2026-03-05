@@ -1,39 +1,78 @@
 from __future__ import annotations
 
-import math
-from typing import Tuple
+import time
+import warnings
+from typing import Any, Callable
 
 import pandas as pd
+import torch
 
+from .portfolio import run_portfolio
 from .config import BacktestConfig
-from .features import compute_returns, ewma_vol
+from .metrics import performance_metrics
+from .strategies import (
+    dmn_lstm_positions,
+    ml_supervised_positions,
+    strategy_baz_macd,
+    strategy_long_only,
+    strategy_sgn_12m,
+)
 
 
-def compute_turnover(x: pd.DataFrame, daily_vol: pd.DataFrame, sigma_target_annual: float) -> pd.Series:
-    sigma_tgt_daily = sigma_target_annual / math.sqrt(252)
-    w = (x / (daily_vol + 1e-12)) * sigma_tgt_daily
-    return w.diff().abs().mean(axis=1)
-
-
-def run_portfolio(
+def backtest_all(
     prices: pd.DataFrame,
-    positions: pd.DataFrame,
     cfg: BacktestConfig,
-) -> Tuple[pd.Series, pd.Series, pd.DataFrame]:
-    rets = compute_returns(prices)
-    daily_vol = ewma_vol(rets, span=cfg.vol_span)
-    sigma_tgt_daily = cfg.sigma_target_annual / math.sqrt(252)
+    run_ml: bool = True,
+    run_dmn: bool = True,
+) -> pd.DataFrame:
+    results = []
 
-    scaled_weights = positions * (sigma_tgt_daily / (daily_vol + 1e-12))
-    strat = (scaled_weights.shift(1) * rets).mean(axis=1)
+    def eval_strategy(name: str, strategy_fn: Callable[..., pd.DataFrame], *args: Any, **kwargs: Any):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        x = strategy_fn(*args, **kwargs)
+        strat, turnover, _ = run_portfolio(prices, x, cfg)
+        perf = performance_metrics(strat, turnover)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        elapsed = time.perf_counter() - start_time
+        results.append(
+            {
+                "strategy": name,
+                "ann_return": perf.ann_return,
+                "ann_vol": perf.ann_vol,
+                "sharpe": perf.sharpe,
+                "sortino": perf.sortino,
+                "calmar": perf.calmar,
+                "mdd": perf.mdd,
+                "pct_pos": perf.pct_pos,
+                "avgP_over_avgL": perf.avg_profit_over_avg_loss,
+                "avg_turnover": perf.avg_turnover,
+                "elapsed_s": elapsed,
+            }
+        )
+        print(f"{name}: Sharpe={perf.sharpe:.3f}, elapsed={elapsed:.2f}s")
 
-    turnover = compute_turnover(positions, daily_vol, cfg.sigma_target_annual)
-    cost = (cfg.cost_bps / 1e4) * turnover
-    strat_ex_cost = strat - cost
+    eval_strategy("LongOnly", strategy_long_only, prices)
+    eval_strategy("Sgn12M", strategy_sgn_12m, prices)
+    eval_strategy("MACD_Baz", strategy_baz_macd, prices)
 
-    if cfg.portfolio_vol_target:
-        vol_port = strat_ex_cost.ewm(span=60, adjust=False, min_periods=60).std()
-        scale = (sigma_tgt_daily / (vol_port + 1e-12)).clip(0.0, 5.0)
-        strat_ex_cost = strat_ex_cost * scale
+    if run_ml:
+        try:
+            eval_strategy("ML_LassoReg", ml_supervised_positions, prices, cfg, model_type="lasso_reg")
+            eval_strategy("ML_MLPReg", ml_supervised_positions, prices, cfg, model_type="mlp_reg")
+            eval_strategy("ML_LassoClf", ml_supervised_positions, prices, cfg, model_type="lasso_clf")
+        except Exception as e:
+            warnings.warn(f"Skipping ML baselines due to: {e}")
 
-    return strat_ex_cost, turnover, scaled_weights
+    if run_dmn:
+        try:
+            if cfg.cost_bps > 0:
+                eval_strategy("DMN_LSTM_Sharpe_TurnPen", dmn_lstm_positions, prices, cfg, turnover_lambda=1e-2)
+            else:
+                eval_strategy("DMN_LSTM_Sharpe", dmn_lstm_positions, prices, cfg, turnover_lambda=0.0)
+        except Exception as e:
+            warnings.warn(f"Skipping DMN due to: {e}")
+
+    return pd.DataFrame(results).sort_values("sharpe", ascending=False).reset_index(drop=True)

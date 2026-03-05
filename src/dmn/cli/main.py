@@ -10,8 +10,8 @@ from market_tickers import MARKET_TICKERS
 
 from ..config import RunConfig
 from ..config_io import load_run_config, merge_cli_overrides
+from ..backtest import backtest_all
 from ..data import load_prices_yf
-from ..runner import backtest_all
 from ..universe import resolve_tickers
 
 
@@ -70,5 +70,23 @@ def run(argv: Sequence[str] | None = None) -> int:
     res = backtest_all(prices, cfg.backtest, run_ml=cfg.run_ml, run_dmn=cfg.run_dmn)
     pd.set_option("display.width", 140)
     pd.set_option("display.max_columns", 50)
-    print(res)
+    display_res = res.copy()
+    float_cols = display_res.select_dtypes(include=["float64", "float32"]).columns
+    display_res[float_cols] = display_res[float_cols].round(3)
+    display_res = display_res.rename(
+        columns={
+            "strategy": "strat",
+            "ann_return": "ret",
+            "ann_vol": "vol",
+            "sharpe": "shp",
+            "sortino": "sor",
+            "calmar": "cal",
+            "mdd": "mdd",
+            "pct_pos": "pos",
+            "avgP_over_avgL": "p_l",
+            "avg_turnover": "turn",
+            "elapsed_s": "sec",
+        }
+    )
+    print(display_res.to_string(index=False, col_space=5))
     return 0
