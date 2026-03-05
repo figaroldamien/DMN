@@ -1,4 +1,5 @@
 market = "cac40"
+# ticker = "AAPL" # Utiliser ticker OU market, pas les deux.
 start = "2000-01-01"
 sector = "Financials"
 sub_sector = "Banks"

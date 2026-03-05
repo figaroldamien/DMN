@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .config import BacktestConfig, RunConfig
+from .config import RunConfig
 
 
 def _read_mapping(path: Path) -> dict[str, Any]:
@@ -36,7 +36,7 @@ def load_run_config(path: str | Path) -> RunConfig:
 
     top_level_updates = {
         k: raw[k]
-        for k in ("market", "start", "sector", "sub_sector", "run_ml", "run_dmn")
+        for k in ("market", "ticker", "start", "sector", "sub_sector", "run_ml", "run_dmn")
         if k in raw
     }
     if top_level_updates:
@@ -52,7 +52,7 @@ def load_run_config(path: str | Path) -> RunConfig:
 
 def merge_cli_overrides(cfg: RunConfig, args: argparse.Namespace) -> RunConfig:
     overrides = {}
-    for k in ("market", "start", "sector", "sub_sector", "run_ml", "run_dmn"):
+    for k in ("market", "ticker", "start", "sector", "sub_sector", "run_ml", "run_dmn"):
         v = getattr(args, k, None)
         if v is not None:
             overrides[k] = v

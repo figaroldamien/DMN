@@ -13,6 +13,7 @@ from ..features import compute_returns, ewma_vol, make_dmn_features
 
 
 class LSTMPositionNet(nn.Module):
+    # Sequence model that outputs a continuous position in [-1, 1].
     def __init__(self, n_features: int, hidden: int = 32, dropout: float = 0.1):
         super().__init__()
         self.lstm = nn.LSTM(input_size=n_features, hidden_size=hidden, batch_first=True)
@@ -27,6 +28,7 @@ class LSTMPositionNet(nn.Module):
 
 
 def sharpe_loss(returns: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    # Directly optimize risk-adjusted return (negative Sharpe for minimization).
     mu = returns.mean()
     sd = returns.std(unbiased=False)
     return -(mu / (sd + eps)) * math.sqrt(252)
@@ -45,9 +47,18 @@ def dmn_lstm_positions(
     turnover_lambda: float = 0.0,
     seed: int = 0,
 ) -> pd.DataFrame:
+    """
+    Walk-forward DMN training and inference.
+
+    For each retraining window:
+    1) Build per-asset rolling feature sequences.
+    2) Train LSTM with Sharpe-based objective on next-day returns.
+    3) Infer positions on the next test window.
+    """
     torch.manual_seed(seed)
     np.random.seed(seed)
 
+    # Shared feature/target tensors used across all walk-forward windows.
     rets = compute_returns(prices)
     daily_vol = ewma_vol(rets, span=cfg.vol_span)
     feats = make_dmn_features(prices, daily_vol)
@@ -73,6 +84,7 @@ def dmn_lstm_positions(
     n_features = len(feat_names)
 
     def get_feat_matrix(t_idx: int, sym: str) -> Optional[np.ndarray]:
+        # Build one supervised sample: sequence of shape (seq_len, n_features).
         if t_idx - seq_len + 1 < 0:
             return None
         window = feats.iloc[t_idx - seq_len + 1 : t_idx + 1]
@@ -84,6 +96,7 @@ def dmn_lstm_positions(
         return arr
 
     def build_dataset(mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        # Flatten panel data into independent training samples over (date, asset).
         x_list, r_list, vol_list = [], [], []
         idxs = np.where(mask)[0]
         for t_idx in idxs:
@@ -120,6 +133,7 @@ def dmn_lstm_positions(
         if len(r_train) < 2000:
             continue
 
+        # Refit a fresh model at each retraining date (pure walk-forward).
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         net = LSTMPositionNet(n_features=n_features, hidden=hidden, dropout=dropout).to(device)
         opt = torch.optim.Adam(net.parameters(), lr=lr)
@@ -135,10 +149,12 @@ def dmn_lstm_positions(
                 vb = torch.tensor(v_train[idx], device=device)
 
                 pos = net(xb)
+                # Approximate captured return under per-asset vol scaling.
                 ret_cap = pos * (sigma_tgt_daily / (vb + 1e-12)) * rb
 
                 loss = sharpe_loss(ret_cap)
                 if turnover_lambda > 0:
+                    # Proxy regularizer to discourage excessive position magnitude.
                     loss = loss + turnover_lambda * pos.abs().mean()
 
                 opt.zero_grad()
@@ -155,10 +171,13 @@ def dmn_lstm_positions(
                     x = get_feat_matrix(t_idx, sym)
                     if x is None:
                         continue
+                    # Inference emits one position per (date, asset).
                     xb = torch.tensor(x[None, :, :], device=device)
                     pos = float(net(xb).cpu().numpy()[0])
                     positions.loc[t, sym] = pos
 
+        # Hold last known signal when a new point cannot be computed.
         positions = positions.ffill()
 
+    # Keep output inside the expected trading signal bounds.
     return positions.fillna(0.0).clip(-1.0, 1.0)

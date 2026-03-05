@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None, help="Optional path to a TOML/JSON configuration file.")
     parser.add_argument("--no-print-config", dest="print_config", action="store_false", default=True, help="Disable effective configuration display.")
     parser.add_argument("--market", default=None, choices=sorted(MARKET_TICKERS.keys()), help="Ticker universe to load.")
+    parser.add_argument("--ticker", default=None, help="Single ticker to load directly (exclusive with --market).")
     parser.add_argument("--start", default=None, help="Start date for yfinance download (YYYY-MM-DD).")
     parser.add_argument("--sector", default=None, help="Optional sector filter (for component-based indices).")
     parser.add_argument("--sub-sector", dest="sub_sector", default=None, help="Optional sub-sector filter (for component-based indices).")
@@ -47,13 +48,19 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     cfg = load_run_config(args.config) if args.config else RunConfig()
     cfg = merge_cli_overrides(cfg, args)
-    if cfg.market not in MARKET_TICKERS:
-        parser.error(f"Unknown market '{cfg.market}'. Allowed values: {sorted(MARKET_TICKERS.keys())}")
+
+    selected_market = cfg.market or "cac40"
+    if cfg.ticker and cfg.market:
+        parser.error("Use either --market or --ticker, not both.")
+    if cfg.ticker:
+        tickers = [cfg.ticker]
+    else:
+        if selected_market not in MARKET_TICKERS:
+            parser.error(f"Unknown market '{selected_market}'. Allowed values: {sorted(MARKET_TICKERS.keys())}")
+        tickers = resolve_tickers(selected_market, sector=cfg.sector, sub_sector=cfg.sub_sector)
 
     if args.print_config:
         print(json.dumps(cfg.to_dict(), indent=2))
-
-    tickers = resolve_tickers(cfg.market, sector=cfg.sector, sub_sector=cfg.sub_sector)
     try:
         prices = load_prices_yf(tickers, start=cfg.start)
     except ImportError:

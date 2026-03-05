@@ -27,7 +27,8 @@ class BacktestConfig:
 
 @dataclass
 class RunConfig:
-    market: str = "cac40"
+    market: str | None = None
+    ticker: str | None = None
     start: str = "2000-01-01"
     sector: str | None = None
     sub_sector: str | None = None

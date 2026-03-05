@@ -12,6 +12,9 @@ from dmn.cli.main import run
 # Lancement simple:
 # python -m dmn.cli --market cac40 --start 2010-01-01
 #
+# Lancement avec un ticker unique (au lieu de --market):
+# python -m dmn.cli --ticker AAPL --start 2015-01-01
+#
 # Filtre par secteur / sous-secteur:
 # python -m dmn.cli --market nasdaq100 --sector Technology --sub-sector Software
 #
@@ -31,6 +34,7 @@ from dmn.cli.main import run
 # Fichier de configuration exemple (TOML):
 # ----------------------------------------
 # market = "cac40"
+# ticker = "AAPL" # Utiliser ticker OU market, pas les deux.
 # start = "2000-01-01"
 # sector = "Financials"
 # sub_sector = "Banks"
@@ -46,4 +50,4 @@ from dmn.cli.main import run
 
 
 if __name__ == "__main__":
-    raise SystemExit(run(["--market", "test", "--start", "2000-01-01", "--no-run-ml", "--run-dmn"]))
+    raise SystemExit(run(["--ticker", "SPY", "--start", "2000-01-01", "--no-run-ml", "--run-dmn"]))
