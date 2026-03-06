@@ -50,4 +50,4 @@ from dmn.cli.main import run
 
 
 if __name__ == "__main__":
-    raise SystemExit(run(["--ticker", "SPY", "--start", "2000-01-01", "--no-run-ml", "--run-dmn"]))
+    raise SystemExit(run(["--market", "dataset_all", "--start", "2000-01-01", "--no-run-ml", "--run-dmn"]))

@@ -12,6 +12,8 @@ from dmn.cli.live import run
 
 
 if __name__ == "__main__":
-    raise SystemExit(run([ "predict", "--artifact-path", "artifacts/dmn/dmn_lstm_20251231.pt", "--from-date", "2026-01-01" ]))
-
-    #raise SystemExit(run([ "train", "--ticker", "AAPL", "--cutoff-mode", "year_end_prev" ]))
+    raise SystemExit(run([ "predict", "--market", "cac40", "--artifact-path", "artifacts/dmn/cac40_20251231.pt", "--from-date", "2026-01-01" ]))
+    #raise SystemExit(run([ "predict", "--ticker", "AC.PA", "--artifact-path", "artifacts/dmn/AC.PA_20251231.pt", "--from-date", "2026-01-01" ]))
+    
+    #raise SystemExit(run([ "train", "--ticker", "AC.PA", "--cutoff-mode", "year_end_prev" ]))
+    #raise SystemExit(run([ "train", "--market", "cac40", "--cutoff-mode", "year_end_prev" ]))

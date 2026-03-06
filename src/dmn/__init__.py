@@ -1,4 +1,4 @@
-from .backtest import backtest_all
+from .backtest import backtest_all, backtest_strategy
 from .config import BacktestConfig, Perf, RunConfig
 from .config_io import load_run_config, merge_cli_overrides
 from .data import load_prices_csv, load_prices_yf
@@ -12,6 +12,7 @@ __all__ = [
     "Perf",
     "RunConfig",
     "backtest_all",
+    "backtest_strategy",
     "compute_returns",
     "ewma_vol",
     "load_prices_csv",

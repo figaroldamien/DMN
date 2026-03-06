@@ -1,9 +1,6 @@
-"""Ticker lists by market.
+"""Public ticker datasets and helpers."""
 
-Compatibility shim: re-exported from `market_tickers_data`.
-"""
-
-from market_tickers_data import (
+from .components import (
     CAC40,
     CAC40_COMPONENTS,
     DATASET,
@@ -11,16 +8,11 @@ from market_tickers_data import (
     DATASET_COMPONENTS,
     INDEX,
     INDEX_COMPONENTS,
-    MARKET_TICKERS,
     NASDAQ100,
     NASDAQ100_COMPONENTS,
-    TABLE8_ALL,
-    TABLE8_ASSETS_BY_CATEGORY,
-    TEST,
-    tickers_by_category,
-    tickers_by_sector,
-    tickers_by_sector_and_subsector,
 )
+from .filters import tickers_by_category, tickers_by_sector, tickers_by_sector_and_subsector
+from .universes import MARKET_TICKERS, TABLE8_ALL, TABLE8_ASSETS_BY_CATEGORY, TEST
 
 __all__ = [
     "CAC40",

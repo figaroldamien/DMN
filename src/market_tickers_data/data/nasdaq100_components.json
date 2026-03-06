@@ -1,0 +1,507 @@
+{
+  "AAPL": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Consumer Electronics"
+  },
+  "ABNB": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Travel Services"
+  },
+  "ADBE": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "ADI": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "ADP": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Professional Services"
+  },
+  "ADSK": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "AEP": {
+    "category": "equity",
+    "sector": "Utilities",
+    "sub_sector": "Regulated Electric"
+  },
+  "ALNY": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Biotechnology"
+  },
+  "AMAT": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductor Equipment"
+  },
+  "AMD": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "AMGN": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Biotechnology"
+  },
+  "AMZN": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Internet Retail"
+  },
+  "APP": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "ARM": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "ASML": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductor Equipment"
+  },
+  "AVGO": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "AXON": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Aerospace and Defense"
+  },
+  "BKNG": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Travel Services"
+  },
+  "BKR": {
+    "category": "equity",
+    "sector": "Energy",
+    "sub_sector": "Oil and Gas Equipment"
+  },
+  "CCEP": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Beverages"
+  },
+  "CDNS": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "CEG": {
+    "category": "equity",
+    "sector": "Utilities",
+    "sub_sector": "Independent Power"
+  },
+  "CHTR": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Telecom Services"
+  },
+  "CMCSA": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Entertainment"
+  },
+  "COST": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Retail"
+  },
+  "CPRT": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Business Services"
+  },
+  "CRWD": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "CSCO": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Communication Equipment"
+  },
+  "CSGP": {
+    "category": "equity",
+    "sector": "Real Estate",
+    "sub_sector": "Real Estate Services"
+  },
+  "CSX": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Railroads"
+  },
+  "CTAS": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Business Services"
+  },
+  "CTSH": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "IT Services"
+  },
+  "DASH": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Internet Retail"
+  },
+  "DDOG": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "DXCM": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Medical Devices"
+  },
+  "EA": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Gaming"
+  },
+  "EXC": {
+    "category": "equity",
+    "sector": "Utilities",
+    "sub_sector": "Regulated Electric"
+  },
+  "FANG": {
+    "category": "equity",
+    "sector": "Energy",
+    "sub_sector": "Oil and Gas E&P"
+  },
+  "FAST": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Industrial Distribution"
+  },
+  "FER": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Engineering and Construction"
+  },
+  "FTNT": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "GEHC": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Medical Devices"
+  },
+  "GILD": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Biotechnology"
+  },
+  "GOOG": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Internet Content"
+  },
+  "GOOGL": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Internet Content"
+  },
+  "HON": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Conglomerates"
+  },
+  "IDXX": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Diagnostics and Research"
+  },
+  "INSM": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Biotechnology"
+  },
+  "INTC": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "INTU": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "ISRG": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Medical Devices"
+  },
+  "KDP": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Beverages"
+  },
+  "KHC": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Packaged Foods"
+  },
+  "KLAC": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductor Equipment"
+  },
+  "LIN": {
+    "category": "equity",
+    "sector": "Materials",
+    "sub_sector": "Specialty Chemicals"
+  },
+  "LRCX": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductor Equipment"
+  },
+  "MAR": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Lodging"
+  },
+  "MCHP": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "MDLZ": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Packaged Foods"
+  },
+  "MELI": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Internet Retail"
+  },
+  "META": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Internet Content"
+  },
+  "MNST": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Beverages"
+  },
+  "MPWR": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "MRVL": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "MSFT": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "MSTR": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "MU": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "NFLX": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Entertainment"
+  },
+  "NVDA": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "NXPI": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "ODFL": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Trucking"
+  },
+  "ORLY": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Auto Parts"
+  },
+  "PANW": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "PAYX": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Professional Services"
+  },
+  "PCAR": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Heavy Trucks"
+  },
+  "PDD": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Internet Retail"
+  },
+  "PEP": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Beverages"
+  },
+  "PLTR": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "PYPL": {
+    "category": "equity",
+    "sector": "Financials",
+    "sub_sector": "Credit Services"
+  },
+  "QCOM": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "REGN": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Biotechnology"
+  },
+  "ROP": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "ROST": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Retail"
+  },
+  "SBUX": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Restaurants"
+  },
+  "SHOP": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "SNPS": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "STX": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Computer Hardware"
+  },
+  "TEAM": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "TMUS": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Telecom Services"
+  },
+  "TRI": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Information Services"
+  },
+  "TSLA": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Auto Manufacturers"
+  },
+  "TTWO": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Gaming"
+  },
+  "TXN": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "VRSK": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Consulting Services"
+  },
+  "VRTX": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Biotechnology"
+  },
+  "WBD": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Entertainment"
+  },
+  "WDAY": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "WDC": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Computer Hardware"
+  },
+  "WMT": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Retail"
+  },
+  "XEL": {
+    "category": "equity",
+    "sector": "Utilities",
+    "sub_sector": "Regulated Electric"
+  },
+  "ZS": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "BTC-USD": {
+    "category": "index"
+  },
+  "CL=F": {
+    "category": "index"
+  },
+  "EURUSD=X": {
+    "category": "index"
+  },
+  "GBPUSD=X": {
+    "category": "index"
+  },
+  "GC=F": {
+    "category": "index"
+  },
+  "SI=F": {
+    "category": "index"
+  },
+  "^BFX": {
+    "category": "index"
+  },
+  "^BVSP": {
+    "category": "index"
+  },
+  "^DJI": {
+    "category": "index"
+  },
+  "^FCHI": {
+    "category": "index"
+  },
+  "^FTSE": {
+    "category": "index"
+  },
+  "^GDAXI": {
+    "category": "index"
+  },
+  "^GSPC": {
+    "category": "index"
+  },
+  "^HSI": {
+    "category": "index"
+  },
+  "^IXIC": {
+    "category": "index"
+  },
+  "^N100": {
+    "category": "index"
+  },
+  "^N225": {
+    "category": "index"
+  },
+  "^NYA": {
+    "category": "index"
+  },
+  "^RUT": {
+    "category": "index"
+  },
+  "^TNX": {
+    "category": "index"
+  }
+}

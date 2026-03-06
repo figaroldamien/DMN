@@ -1,0 +1,170 @@
+{
+  "6A=F": {
+    "category": "fx"
+  },
+  "6B=F": {
+    "category": "fx"
+  },
+  "6C=F": {
+    "category": "fx"
+  },
+  "6J=F": {
+    "category": "fx"
+  },
+  "6M=F": {
+    "category": "fx"
+  },
+  "6S=F": {
+    "category": "fx"
+  },
+  "BZ=F": {
+    "category": "energy"
+  },
+  "CADJPY=X": {
+    "category": "fx"
+  },
+  "CC=F": {
+    "category": "comdty"
+  },
+  "CL=F": {
+    "category": "energy"
+  },
+  "CT=F": {
+    "category": "comdty"
+  },
+  "DBA": {
+    "category": "comdty"
+  },
+  "DBC": {
+    "category": "comdty"
+  },
+  "DX-Y.NYB": {
+    "category": "fx"
+  },
+  "ES=F": {
+    "category": "index"
+  },
+  "GC=F": {
+    "category": "comdty"
+  },
+  "GF=F": {
+    "category": "comdty"
+  },
+  "HE=F": {
+    "category": "comdty"
+  },
+  "HG=F": {
+    "category": "comdty"
+  },
+  "HO=F": {
+    "category": "energy"
+  },
+  "IJH": {
+    "category": "index"
+  },
+  "KC=F": {
+    "category": "comdty"
+  },
+  "KE=F": {
+    "category": "comdty"
+  },
+  "LBR=F": {
+    "category": "comdty"
+  },
+  "LE=F": {
+    "category": "comdty"
+  },
+  "NG=F": {
+    "category": "energy"
+  },
+  "NQ=F": {
+    "category": "index"
+  },
+  "NZDUSD=X": {
+    "category": "fx"
+  },
+  "OJ=F": {
+    "category": "comdty"
+  },
+  "PA=F": {
+    "category": "comdty"
+  },
+  "PL=F": {
+    "category": "comdty"
+  },
+  "RB=F": {
+    "category": "energy"
+  },
+  "RTY=F": {
+    "category": "index"
+  },
+  "SB=F": {
+    "category": "comdty"
+  },
+  "SI=F": {
+    "category": "comdty"
+  },
+  "USDNOK=X": {
+    "category": "fx"
+  },
+  "USDSEK=X": {
+    "category": "fx"
+  },
+  "USDSGD=X": {
+    "category": "fx"
+  },
+  "YM=F": {
+    "category": "index"
+  },
+  "ZB=F": {
+    "category": "bond"
+  },
+  "ZC=F": {
+    "category": "comdty"
+  },
+  "ZF=F": {
+    "category": "bond"
+  },
+  "ZL=F": {
+    "category": "comdty"
+  },
+  "ZM=F": {
+    "category": "comdty"
+  },
+  "ZN=F": {
+    "category": "bond"
+  },
+  "ZO=F": {
+    "category": "comdty"
+  },
+  "ZR=F": {
+    "category": "comdty"
+  },
+  "ZS=F": {
+    "category": "comdty"
+  },
+  "ZT=F": {
+    "category": "bond"
+  },
+  "ZW=F": {
+    "category": "comdty"
+  },
+  "^FCHI": {
+    "category": "index"
+  },
+  "^FTSE": {
+    "category": "index"
+  },
+  "^HSI": {
+    "category": "index"
+  },
+  "^N225": {
+    "category": "index"
+  },
+  "^SPGSCI": {
+    "category": "comdty"
+  },
+  "^STOXX50E": {
+    "category": "index"
+  }
+}

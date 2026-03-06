@@ -1,0 +1,202 @@
+{
+  "AC.PA": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Lodging"
+  },
+  "ACA.PA": {
+    "category": "equity",
+    "sector": "Financials",
+    "sub_sector": "Banks"
+  },
+  "AI.PA": {
+    "category": "equity",
+    "sector": "Materials",
+    "sub_sector": "Specialty Chemicals"
+  },
+  "AIR.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Aerospace and Defense"
+  },
+  "ALO.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Rail Transportation"
+  },
+  "ATO.PA": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "IT Services"
+  },
+  "BN.PA": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Packaged Foods"
+  },
+  "BNP.PA": {
+    "category": "equity",
+    "sector": "Financials",
+    "sub_sector": "Banks"
+  },
+  "CA.PA": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Food Retail"
+  },
+  "CAP.PA": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "IT Services"
+  },
+  "CS.PA": {
+    "category": "equity",
+    "sector": "Financials",
+    "sub_sector": "Insurance"
+  },
+  "DG.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Engineering and Construction"
+  },
+  "DSY.PA": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Software"
+  },
+  "EL.PA": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Medical Devices"
+  },
+  "EN.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Engineering and Construction"
+  },
+  "ENGI.PA": {
+    "category": "equity",
+    "sector": "Utilities",
+    "sub_sector": "Multi-Utilities"
+  },
+  "ERF.PA": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Diagnostics and Research"
+  },
+  "GLE.PA": {
+    "category": "equity",
+    "sector": "Financials",
+    "sub_sector": "Banks"
+  },
+  "HO.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Aerospace and Defense"
+  },
+  "KER.PA": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Luxury Goods"
+  },
+  "LR.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Electrical Equipment"
+  },
+  "MC.PA": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Luxury Goods"
+  },
+  "ML.PA": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Auto Parts"
+  },
+  "MT.AS": {
+    "category": "equity",
+    "sector": "Materials",
+    "sub_sector": "Steel"
+  },
+  "OR.PA": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Personal Products"
+  },
+  "ORA.PA": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Telecom Services"
+  },
+  "PUB.PA": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Advertising"
+  },
+  "RI.PA": {
+    "category": "equity",
+    "sector": "Consumer Staples",
+    "sub_sector": "Beverages"
+  },
+  "RMS.PA": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Luxury Goods"
+  },
+  "RNO.PA": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Auto Manufacturers"
+  },
+  "SAF.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Aerospace and Defense"
+  },
+  "SAN.PA": {
+    "category": "equity",
+    "sector": "Healthcare",
+    "sub_sector": "Drug Manufacturers"
+  },
+  "SGO.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Building Products"
+  },
+  "STLAM.MI": {
+    "category": "equity",
+    "sector": "Consumer Discretionary",
+    "sub_sector": "Auto Manufacturers"
+  },
+  "STMPA.PA": {
+    "category": "equity",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors"
+  },
+  "SU.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Electrical Equipment"
+  },
+  "TEP.PA": {
+    "category": "equity",
+    "sector": "Industrials",
+    "sub_sector": "Business Services"
+  },
+  "TTE.PA": {
+    "category": "equity",
+    "sector": "Energy",
+    "sub_sector": "Integrated Oil and Gas"
+  },
+  "VIE.PA": {
+    "category": "equity",
+    "sector": "Utilities",
+    "sub_sector": "Water Utilities"
+  },
+  "VIV.PA": {
+    "category": "equity",
+    "sector": "Communication Services",
+    "sub_sector": "Entertainment"
+  }
+}

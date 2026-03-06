@@ -110,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     live_predict.add_argument("--artifact-path", required=True, help="Path to .pt artifact produced by train")
     live_predict.add_argument("--from-date", default=None, help="First prediction date (default: today)")
     live_predict.add_argument("--to-date", default=None, help="Last prediction date (default: latest available)")
-    live_predict.add_argument("--output", default="output/dmn_live_signals.csv", help="Output CSV path for predicted positions")
+    live_predict.add_argument("--output", default=None, help="Output CSV path for predicted positions")
 
     return parser
 
@@ -185,11 +185,17 @@ def _run_train(args: argparse.Namespace) -> int:
         min_train_samples=args.min_train_samples,
     )
 
+    # Default artifact naming:
+    # - market N -> N_YYYYMMDD
+    # - ticker T -> T_YYYYMMDD
+    # Explicit --artifact-name keeps priority.
+    inferred_prefix = args.ticker if args.ticker else (args.market or "cac40")
+    inferred_name = f"{inferred_prefix}_{artifact.cutoff_date.replace('-', '')}"
     out_path = save_lstm_artifact(
         model=model,
         artifact=artifact,
         artifact_dir=args.artifact_dir,
-        artifact_name=args.artifact_name,
+        artifact_name=args.artifact_name or inferred_name,
     )
     print(f"Saved artifact: {out_path}")
     print(f"Cutoff used: {artifact.cutoff_date}")
@@ -227,10 +233,6 @@ def _run_predict(args: argparse.Namespace) -> int:
         "to_date": args.to_date,
         "output": args.output,
     }
-    if args.print_config:
-        print("Effective predict configuration:")
-        print(json.dumps(predict_config, indent=2))
-
     positions = predict_positions_from_model(
         prices=prices,
         model=model,
@@ -239,7 +241,17 @@ def _run_predict(args: argparse.Namespace) -> int:
         to_date=args.to_date,
     )
 
-    out_path = Path(args.output)
+    inferred_prefix = args.ticker or args.market
+    if not inferred_prefix:
+        inferred_prefix = artifact.tickers[0] if len(artifact.tickers) == 1 else "N"
+    inferred_output = Path("output") / f"{inferred_prefix}_{artifact.cutoff_date.replace('-', '')}.csv"
+    out_path = Path(args.output) if args.output else inferred_output
+    predict_config["output"] = str(out_path)
+
+    if args.print_config:
+        print("Effective predict configuration:")
+        print(json.dumps(predict_config, indent=2))
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     positions.to_csv(out_path)
     print(f"Saved predictions: {out_path}")
