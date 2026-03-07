@@ -14,9 +14,20 @@ def _load_components(filename: str) -> Dict[str, Dict[str, str]]:
     path = _DATA_DIR / filename
     with path.open("r", encoding="utf-8") as f:
         raw = json.load(f)
-    if not isinstance(raw, dict):
+    if not isinstance(raw, list):
         raise ValueError(f"Invalid components file format: {path}")
-    return raw
+    out: Dict[str, Dict[str, str]] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError(f"Invalid component entry in {path}: {item!r}")
+        ticker = item.get("ticker")
+        if not isinstance(ticker, str) or not ticker:
+            raise ValueError(f"Missing/invalid ticker in {path}: {item!r}")
+        if ticker in out:
+            raise ValueError(f"Duplicate ticker '{ticker}' in {path}")
+        meta = {k: v for k, v in item.items() if k != "ticker"}
+        out[ticker] = meta
+    return out
 
 
 NASDAQ100_COMPONENTS: Dict[str, Dict[str, str]] = _load_components("nasdaq100_components.json")

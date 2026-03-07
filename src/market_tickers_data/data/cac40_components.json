@@ -1,202 +1,282 @@
-{
-  "AC.PA": {
+[
+  {
+    "ticker": "AC.PA",
     "category": "equity",
     "sector": "Consumer Discretionary",
-    "sub_sector": "Lodging"
+    "sub_sector": "Lodging",
+    "description": "Accor SA"
   },
-  "ACA.PA": {
+  {
+    "ticker": "ACA.PA",
     "category": "equity",
     "sector": "Financials",
-    "sub_sector": "Banks"
+    "sub_sector": "Banks",
+    "description": "Credit Agricole SA"
   },
-  "AI.PA": {
+  {
+    "ticker": "AI.PA",
     "category": "equity",
     "sector": "Materials",
-    "sub_sector": "Specialty Chemicals"
+    "sub_sector": "Specialty Chemicals",
+    "description": "Air Liquide SA"
   },
-  "AIR.PA": {
+  {
+    "ticker": "AIR.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Aerospace and Defense"
+    "sub_sector": "Aerospace and Defense",
+    "description": "Airbus SE"
   },
-  "ALO.PA": {
+  {
+    "ticker": "ALO.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Rail Transportation"
+    "sub_sector": "Rail Transportation",
+    "description": "Alstom SA"
   },
-  "ATO.PA": {
+  {
+    "ticker": "ATO.PA",
     "category": "equity",
     "sector": "Technology",
-    "sub_sector": "IT Services"
+    "sub_sector": "IT Services",
+    "description": "Atos SE"
   },
-  "BN.PA": {
+  {
+    "ticker": "BN.PA",
     "category": "equity",
     "sector": "Consumer Staples",
-    "sub_sector": "Packaged Foods"
+    "sub_sector": "Packaged Foods",
+    "description": "Danone SA"
   },
-  "BNP.PA": {
+  {
+    "ticker": "BNP.PA",
     "category": "equity",
     "sector": "Financials",
-    "sub_sector": "Banks"
+    "sub_sector": "Banks",
+    "description": "BNP Paribas SA"
   },
-  "CA.PA": {
+  {
+    "ticker": "CA.PA",
     "category": "equity",
     "sector": "Consumer Staples",
-    "sub_sector": "Food Retail"
+    "sub_sector": "Food Retail",
+    "description": "Carrefour SA"
   },
-  "CAP.PA": {
+  {
+    "ticker": "CAP.PA",
     "category": "equity",
     "sector": "Technology",
-    "sub_sector": "IT Services"
+    "sub_sector": "IT Services",
+    "description": "Capgemini SE"
   },
-  "CS.PA": {
+  {
+    "ticker": "CS.PA",
     "category": "equity",
     "sector": "Financials",
-    "sub_sector": "Insurance"
+    "sub_sector": "Insurance",
+    "description": "AXA SA"
   },
-  "DG.PA": {
+  {
+    "ticker": "DG.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Engineering and Construction"
+    "sub_sector": "Engineering and Construction",
+    "description": "Vinci SA"
   },
-  "DSY.PA": {
+  {
+    "ticker": "DSY.PA",
     "category": "equity",
     "sector": "Technology",
-    "sub_sector": "Software"
+    "sub_sector": "Software",
+    "description": "Dassault Systemes SE"
   },
-  "EL.PA": {
+  {
+    "ticker": "EL.PA",
     "category": "equity",
     "sector": "Healthcare",
-    "sub_sector": "Medical Devices"
+    "sub_sector": "Medical Devices",
+    "description": "EssilorLuxottica SA"
   },
-  "EN.PA": {
+  {
+    "ticker": "EN.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Engineering and Construction"
+    "sub_sector": "Engineering and Construction",
+    "description": "Bouygues SA"
   },
-  "ENGI.PA": {
+  {
+    "ticker": "ENGI.PA",
     "category": "equity",
     "sector": "Utilities",
-    "sub_sector": "Multi-Utilities"
+    "sub_sector": "Multi-Utilities",
+    "description": "Engie SA"
   },
-  "ERF.PA": {
+  {
+    "ticker": "ERF.PA",
     "category": "equity",
     "sector": "Healthcare",
-    "sub_sector": "Diagnostics and Research"
+    "sub_sector": "Diagnostics and Research",
+    "description": "Eurofins Scientific SE"
   },
-  "GLE.PA": {
+  {
+    "ticker": "GLE.PA",
     "category": "equity",
     "sector": "Financials",
-    "sub_sector": "Banks"
+    "sub_sector": "Banks",
+    "description": "Societe Generale SA"
   },
-  "HO.PA": {
+  {
+    "ticker": "HO.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Aerospace and Defense"
+    "sub_sector": "Aerospace and Defense",
+    "description": "Thales SA"
   },
-  "KER.PA": {
+  {
+    "ticker": "KER.PA",
     "category": "equity",
     "sector": "Consumer Discretionary",
-    "sub_sector": "Luxury Goods"
+    "sub_sector": "Luxury Goods",
+    "description": "Kering SA"
   },
-  "LR.PA": {
+  {
+    "ticker": "LR.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Electrical Equipment"
+    "sub_sector": "Electrical Equipment",
+    "description": "Legrand SA"
   },
-  "MC.PA": {
+  {
+    "ticker": "MC.PA",
     "category": "equity",
     "sector": "Consumer Discretionary",
-    "sub_sector": "Luxury Goods"
+    "sub_sector": "Luxury Goods",
+    "description": "LVMH Moet Hennessy Louis Vuitton SE"
   },
-  "ML.PA": {
+  {
+    "ticker": "ML.PA",
     "category": "equity",
     "sector": "Consumer Discretionary",
-    "sub_sector": "Auto Parts"
+    "sub_sector": "Auto Parts",
+    "description": "Michelin"
   },
-  "MT.AS": {
+  {
+    "ticker": "MT.AS",
     "category": "equity",
     "sector": "Materials",
-    "sub_sector": "Steel"
+    "sub_sector": "Steel",
+    "description": "ArcelorMittal SA"
   },
-  "OR.PA": {
+  {
+    "ticker": "OR.PA",
     "category": "equity",
     "sector": "Consumer Staples",
-    "sub_sector": "Personal Products"
+    "sub_sector": "Personal Products",
+    "description": "L'Oreal SA"
   },
-  "ORA.PA": {
+  {
+    "ticker": "ORA.PA",
     "category": "equity",
     "sector": "Communication Services",
-    "sub_sector": "Telecom Services"
+    "sub_sector": "Telecom Services",
+    "description": "Orange SA"
   },
-  "PUB.PA": {
+  {
+    "ticker": "PUB.PA",
     "category": "equity",
     "sector": "Communication Services",
-    "sub_sector": "Advertising"
+    "sub_sector": "Advertising",
+    "description": "Publicis Groupe SA"
   },
-  "RI.PA": {
+  {
+    "ticker": "RI.PA",
     "category": "equity",
     "sector": "Consumer Staples",
-    "sub_sector": "Beverages"
+    "sub_sector": "Beverages",
+    "description": "Pernod Ricard SA"
   },
-  "RMS.PA": {
+  {
+    "ticker": "RMS.PA",
     "category": "equity",
     "sector": "Consumer Discretionary",
-    "sub_sector": "Luxury Goods"
+    "sub_sector": "Luxury Goods",
+    "description": "Hermes International SCA"
   },
-  "RNO.PA": {
+  {
+    "ticker": "RNO.PA",
     "category": "equity",
     "sector": "Consumer Discretionary",
-    "sub_sector": "Auto Manufacturers"
+    "sub_sector": "Auto Manufacturers",
+    "description": "Renault SA"
   },
-  "SAF.PA": {
+  {
+    "ticker": "SAF.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Aerospace and Defense"
+    "sub_sector": "Aerospace and Defense",
+    "description": "Safran SA"
   },
-  "SAN.PA": {
+  {
+    "ticker": "SAN.PA",
     "category": "equity",
     "sector": "Healthcare",
-    "sub_sector": "Drug Manufacturers"
+    "sub_sector": "Drug Manufacturers",
+    "description": "Sanofi SA"
   },
-  "SGO.PA": {
+  {
+    "ticker": "SGO.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Building Products"
+    "sub_sector": "Building Products",
+    "description": "Saint-Gobain SA"
   },
-  "STLAM.MI": {
+  {
+    "ticker": "STLAM.MI",
     "category": "equity",
     "sector": "Consumer Discretionary",
-    "sub_sector": "Auto Manufacturers"
+    "sub_sector": "Auto Manufacturers",
+    "description": "Stellantis N.V."
   },
-  "STMPA.PA": {
+  {
+    "ticker": "STMPA.PA",
     "category": "equity",
     "sector": "Technology",
-    "sub_sector": "Semiconductors"
+    "sub_sector": "Semiconductors",
+    "description": "STMicroelectronics N.V."
   },
-  "SU.PA": {
+  {
+    "ticker": "SU.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Electrical Equipment"
+    "sub_sector": "Electrical Equipment",
+    "description": "Schneider Electric SE"
   },
-  "TEP.PA": {
+  {
+    "ticker": "TEP.PA",
     "category": "equity",
     "sector": "Industrials",
-    "sub_sector": "Business Services"
+    "sub_sector": "Business Services",
+    "description": "Teleperformance SE"
   },
-  "TTE.PA": {
+  {
+    "ticker": "TTE.PA",
     "category": "equity",
     "sector": "Energy",
-    "sub_sector": "Integrated Oil and Gas"
+    "sub_sector": "Integrated Oil and Gas",
+    "description": "TotalEnergies SE"
   },
-  "VIE.PA": {
+  {
+    "ticker": "VIE.PA",
     "category": "equity",
     "sector": "Utilities",
-    "sub_sector": "Water Utilities"
+    "sub_sector": "Water Utilities",
+    "description": "Veolia Environnement SA"
   },
-  "VIV.PA": {
+  {
+    "ticker": "VIV.PA",
     "category": "equity",
     "sector": "Communication Services",
-    "sub_sector": "Entertainment"
+    "sub_sector": "Entertainment",
+    "description": "Vivendi SE"
   }
-}
+]

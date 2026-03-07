@@ -1,62 +1,102 @@
-{
-  "BTC-USD": {
-    "category": "index"
+[
+  {
+    "ticker": "BTC-USD",
+    "category": "index",
+    "description": "Bitcoin / US Dollar"
   },
-  "CL=F": {
-    "category": "index"
+  {
+    "ticker": "CL=F",
+    "category": "index",
+    "description": "Crude Oil Futures"
   },
-  "EURUSD=X": {
-    "category": "index"
+  {
+    "ticker": "EURUSD=X",
+    "category": "index",
+    "description": "Euro / US Dollar"
   },
-  "GBPUSD=X": {
-    "category": "index"
+  {
+    "ticker": "GBPUSD=X",
+    "category": "index",
+    "description": "British Pound / US Dollar"
   },
-  "GC=F": {
-    "category": "index"
+  {
+    "ticker": "GC=F",
+    "category": "index",
+    "description": "Gold Futures"
   },
-  "SI=F": {
-    "category": "index"
+  {
+    "ticker": "SI=F",
+    "category": "index",
+    "description": "Silver Futures"
   },
-  "^BFX": {
-    "category": "index"
+  {
+    "ticker": "^BFX",
+    "category": "index",
+    "description": "BEL 20"
   },
-  "^BVSP": {
-    "category": "index"
+  {
+    "ticker": "^BVSP",
+    "category": "index",
+    "description": "Ibovespa"
   },
-  "^DJI": {
-    "category": "index"
+  {
+    "ticker": "^DJI",
+    "category": "index",
+    "description": "Dow Jones Industrial Average"
   },
-  "^FCHI": {
-    "category": "index"
+  {
+    "ticker": "^FCHI",
+    "category": "index",
+    "description": "CAC 40"
   },
-  "^FTSE": {
-    "category": "index"
+  {
+    "ticker": "^FTSE",
+    "category": "index",
+    "description": "FTSE 100"
   },
-  "^GDAXI": {
-    "category": "index"
+  {
+    "ticker": "^GDAXI",
+    "category": "index",
+    "description": "DAX"
   },
-  "^GSPC": {
-    "category": "index"
+  {
+    "ticker": "^GSPC",
+    "category": "index",
+    "description": "S&P 500"
   },
-  "^HSI": {
-    "category": "index"
+  {
+    "ticker": "^HSI",
+    "category": "index",
+    "description": "Hang Seng Index"
   },
-  "^IXIC": {
-    "category": "index"
+  {
+    "ticker": "^IXIC",
+    "category": "index",
+    "description": "NASDAQ Composite"
   },
-  "^N100": {
-    "category": "index"
+  {
+    "ticker": "^N100",
+    "category": "index",
+    "description": "Euronext 100"
   },
-  "^N225": {
-    "category": "index"
+  {
+    "ticker": "^N225",
+    "category": "index",
+    "description": "Nikkei 225"
   },
-  "^NYA": {
-    "category": "index"
+  {
+    "ticker": "^NYA",
+    "category": "index",
+    "description": "NYSE Composite"
   },
-  "^RUT": {
-    "category": "index"
+  {
+    "ticker": "^RUT",
+    "category": "index",
+    "description": "Russell 2000"
   },
-  "^TNX": {
-    "category": "index"
+  {
+    "ticker": "^TNX",
+    "category": "index",
+    "description": "US 10-Year Treasury Yield"
   }
-}
+]
