@@ -18,6 +18,8 @@ from ..strategies import (
     strategy_baz_macd,
     strategy_long_only,
     strategy_sgn_12m,
+    vlstm_positions,
+    xlstm_positions,
 )
 from ..universe import resolve_tickers
 
@@ -32,6 +34,10 @@ def _strategy_registry() -> dict[str, tuple[Callable[..., pd.DataFrame], dict]]:
         "ML_LassoClf": (ml_supervised_positions, {"model_type": "lasso_clf"}),
         "DMN_LSTM_Sharpe": (dmn_lstm_positions, {"turnover_lambda": 0.0}),
         "DMN_LSTM_Sharpe_TurnPen": (dmn_lstm_positions, {"turnover_lambda": 1e-2}),
+        "VLSTM_Sharpe": (vlstm_positions, {"turnover_lambda": 0.0}),
+        "VLSTM_Sharpe_TurnPen": (vlstm_positions, {"turnover_lambda": 1e-2}),
+        "xLSTM_Sharpe": (xlstm_positions, {"turnover_lambda": 0.0}),
+        "xLSTM_Sharpe_TurnPen": (xlstm_positions, {"turnover_lambda": 1e-2}),
     }
 
 
@@ -107,7 +113,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             continue
 
         kwargs = dict(default_kwargs)
-        if strategy_fn in (ml_supervised_positions, dmn_lstm_positions):
+        if strategy_fn in (ml_supervised_positions, dmn_lstm_positions, vlstm_positions, xlstm_positions):
             row = backtest_strategy(args.strategy, strategy_fn, px, cfg.backtest, px, cfg.backtest, **kwargs)
         else:
             row = backtest_strategy(args.strategy, strategy_fn, px, cfg.backtest, px, **kwargs)

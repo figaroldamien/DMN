@@ -16,6 +16,8 @@ from .strategies import (
     strategy_baz_macd,
     strategy_long_only,
     strategy_sgn_12m,
+    vlstm_positions,
+    xlstm_positions,
 )
 
 
@@ -101,9 +103,25 @@ def backtest_all(
                         "DMN_LSTM_Sharpe_TurnPen", dmn_lstm_positions, prices, cfg, prices, cfg, turnover_lambda=1e-2
                     )
                 )
+                results.append(
+                    _evaluate_strategy_record(
+                        "VLSTM_Sharpe_TurnPen", vlstm_positions, prices, cfg, prices, cfg, turnover_lambda=1e-2
+                    )
+                )
+                results.append(
+                    _evaluate_strategy_record(
+                        "xLSTM_Sharpe_TurnPen", xlstm_positions, prices, cfg, prices, cfg, turnover_lambda=1e-2
+                    )
+                )
             else:
                 results.append(
                     _evaluate_strategy_record("DMN_LSTM_Sharpe", dmn_lstm_positions, prices, cfg, prices, cfg, turnover_lambda=0.0)
+                )
+                results.append(
+                    _evaluate_strategy_record("VLSTM_Sharpe", vlstm_positions, prices, cfg, prices, cfg, turnover_lambda=0.0)
+                )
+                results.append(
+                    _evaluate_strategy_record("xLSTM_Sharpe", xlstm_positions, prices, cfg, prices, cfg, turnover_lambda=0.0)
                 )
         except Exception as e:
             warnings.warn(f"Skipping DMN due to: {e}")

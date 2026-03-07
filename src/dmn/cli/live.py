@@ -11,7 +11,7 @@ from market_tickers import MARKET_TICKERS
 
 from ..config import BacktestConfig
 from ..data import load_prices_yf
-from ..strategies.dmn_lstm import (
+from ..strategies.live import (
     load_lstm_artifact,
     predict_positions_from_model,
     save_lstm_artifact,
