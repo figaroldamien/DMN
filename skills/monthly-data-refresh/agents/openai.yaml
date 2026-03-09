@@ -1,0 +1,3 @@
+interface:
+  display_name: "Monthly Data Refresh"
+  short_description: "Refresh monthly market data files"

@@ -33,6 +33,8 @@ def train_lstm_until_cutoff(
     epochs: int = 20,
     batch_size: int = 256,
     turnover_lambda: float = 0.0,
+    use_ticker_embedding: bool = True,
+    ticker_emb_dim: int = 8,
     seed: int = 0,
     min_train_samples: int = 2000,
 ) -> tuple[LSTMPositionNet, DMNLSTMArtifact]:
@@ -51,7 +53,7 @@ def train_lstm_until_cutoff(
 
     data = prepare_sequence_data(train_prices, cfg, seq_len=seq_len)
     train_mask = data.dates <= cutoff_ts
-    x_train, r_train, v_train = build_dataset(
+    x_train, r_train, v_train, sid_train = build_dataset(
         train_mask,
         data.dates,
         data.syms,
@@ -60,6 +62,7 @@ def train_lstm_until_cutoff(
         data.daily_vol,
         data.seq_len,
         data.n_features,
+        data.sym_to_idx,
     )
     if len(r_train) < min_train_samples:
         raise ValueError(
@@ -68,10 +71,18 @@ def train_lstm_until_cutoff(
 
     model = fit_model_sharpe(
         model_factory=LSTMPositionNet,
-        model_kwargs={"n_features": data.n_features, "hidden": hidden, "dropout": dropout},
+        model_kwargs={
+            "n_features": data.n_features,
+            "hidden": hidden,
+            "dropout": dropout,
+            "use_ticker_embedding": use_ticker_embedding,
+            "n_tickers": len(data.syms),
+            "ticker_emb_dim": ticker_emb_dim,
+        },
         x_train=x_train,
         r_train=r_train,
         v_train=v_train,
+        sid_train=sid_train,
         sigma_tgt_daily=data.sigma_tgt_daily,
         lr=lr,
         epochs=epochs,
@@ -85,6 +96,8 @@ def train_lstm_until_cutoff(
         seq_len=seq_len,
         hidden=hidden,
         dropout=dropout,
+        use_ticker_embedding=use_ticker_embedding,
+        ticker_emb_dim=ticker_emb_dim,
         lr=lr,
         epochs=epochs,
         batch_size=batch_size,
@@ -135,6 +148,9 @@ def load_lstm_artifact(path: str | Path) -> tuple[LSTMPositionNet, DMNLSTMArtifa
         n_features=len(artifact.feature_names),
         hidden=artifact.hidden,
         dropout=artifact.dropout,
+        use_ticker_embedding=artifact.use_ticker_embedding,
+        n_tickers=len(artifact.tickers),
+        ticker_emb_dim=artifact.ticker_emb_dim,
     )
     model.load_state_dict(payload["state_dict"])
     model.eval()
@@ -176,7 +192,8 @@ def predict_positions_from_model(
                 if x is None:
                     continue
                 xb = torch.tensor(x[None, :, :], device=device)
-                pos = float(model(xb).cpu().numpy()[0])
+                sid = torch.tensor([data.sym_to_idx[sym]], dtype=torch.long, device=device)
+                pos = float(model(xb, sid).cpu().numpy()[0])
                 positions.loc[t, sym] = pos
 
     positions = positions.loc[infer_mask].ffill().fillna(0.0).clip(-1.0, 1.0)

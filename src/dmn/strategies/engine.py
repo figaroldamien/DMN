@@ -25,6 +25,7 @@ class SequenceDataBundle:
 
     dates: pd.Index
     syms: list[str]
+    sym_to_idx: dict[str, int]
     feat_names: list[str]
     n_features: int
     seq_len: int
@@ -80,10 +81,11 @@ def build_dataset(
     daily_vol: pd.DataFrame,
     seq_len: int,
     n_features: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    sym_to_idx: dict[str, int],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Flatten panel data into supervised samples across (date, symbol)."""
 
-    x_list, r_list, vol_list = [], [], []
+    x_list, r_list, vol_list, sid_list = [], [], [], []
     idxs = np.where(mask)[0]
     for t_idx in idxs:
         t = dates[t_idx]
@@ -98,13 +100,20 @@ def build_dataset(
             x_list.append(x)
             r_list.append(r)
             vol_list.append(v)
+            sid_list.append(sym_to_idx[sym])
     if not x_list:
         return (
             np.empty((0, seq_len, n_features), np.float32),
             np.empty((0,), np.float32),
             np.empty((0,), np.float32),
+            np.empty((0,), np.int64),
         )
-    return np.stack(x_list), np.asarray(r_list, np.float32), np.asarray(vol_list, np.float32)
+    return (
+        np.stack(x_list),
+        np.asarray(r_list, np.float32),
+        np.asarray(vol_list, np.float32),
+        np.asarray(sid_list, np.int64),
+    )
 
 
 def prepare_sequence_data(prices: pd.DataFrame, cfg: BacktestConfig, seq_len: int) -> SequenceDataBundle:
@@ -121,6 +130,7 @@ def prepare_sequence_data(prices: pd.DataFrame, cfg: BacktestConfig, seq_len: in
     return SequenceDataBundle(
         dates=prices.index,
         syms=list(prices.columns),
+        sym_to_idx={sym: i for i, sym in enumerate(prices.columns)},
         feat_names=feat_names,
         n_features=n_features,
         seq_len=seq_len,
@@ -151,6 +161,7 @@ def fit_model_sharpe(
     x_train: np.ndarray,
     r_train: np.ndarray,
     v_train: np.ndarray,
+    sid_train: np.ndarray,
     sigma_tgt_daily: float,
     lr: float,
     epochs: int,
@@ -172,8 +183,9 @@ def fit_model_sharpe(
             xb = torch.tensor(x_train[idx], device=device)
             rb = torch.tensor(r_train[idx], device=device)
             vb = torch.tensor(v_train[idx], device=device)
+            sidb = torch.tensor(sid_train[idx], dtype=torch.long, device=device)
 
-            pos = net(xb)
+            pos = net(xb, sidb)
             ret_cap = pos * (sigma_tgt_daily / (vb + 1e-12)) * rb
 
             loss = sharpe_loss(ret_cap)
@@ -218,7 +230,7 @@ def run_walkforward_positions(
         if int(train_mask.sum()) < cfg.min_obs:
             continue
 
-        x_train, r_train, v_train = build_dataset(
+        x_train, r_train, v_train, sid_train = build_dataset(
             train_mask,
             data.dates,
             data.syms,
@@ -227,6 +239,7 @@ def run_walkforward_positions(
             data.daily_vol,
             data.seq_len,
             data.n_features,
+            data.sym_to_idx,
         )
         if len(r_train) < min_train_samples:
             continue
@@ -234,6 +247,11 @@ def run_walkforward_positions(
         resolved_model_kwargs = dict(model_kwargs)
         if resolved_model_kwargs.get("n_features") is None:
             resolved_model_kwargs["n_features"] = data.n_features
+        if (
+            resolved_model_kwargs.get("use_ticker_embedding", False)
+            and resolved_model_kwargs.get("n_tickers") is None
+        ):
+            resolved_model_kwargs["n_tickers"] = len(data.syms)
 
         net = fit_model_sharpe(
             model_factory=model_factory,
@@ -241,6 +259,7 @@ def run_walkforward_positions(
             x_train=x_train,
             r_train=r_train,
             v_train=v_train,
+            sid_train=sid_train,
             sigma_tgt_daily=data.sigma_tgt_daily,
             lr=lr,
             epochs=epochs,
@@ -259,7 +278,8 @@ def run_walkforward_positions(
                     if x is None:
                         continue
                     xb = torch.tensor(x[None, :, :], device=device)
-                    pos = float(net(xb).cpu().numpy()[0])
+                    sid = torch.tensor([data.sym_to_idx[sym]], dtype=torch.long, device=device)
+                    pos = float(net(xb, sid).cpu().numpy()[0])
                     positions.loc[t, sym] = pos
 
         positions = positions.ffill()

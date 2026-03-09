@@ -39,6 +39,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--run-ml", action=argparse.BooleanOptionalAction, default=None, help="Enable/disable ML baselines.")
     parser.add_argument("--run-dmn", action=argparse.BooleanOptionalAction, default=None, help="Enable/disable DMN LSTM strategy.")
+    parser.add_argument(
+        "--hidden",
+        "--dmn-hidden",
+        "--model-hidden",
+        dest="model_hidden",
+        type=int,
+        default=None,
+        help="Hidden size for DMN sequence models.",
+    )
+    parser.add_argument(
+        "--dropout",
+        "--dmn-dropout",
+        "--model-dropout",
+        dest="model_dropout",
+        type=float,
+        default=None,
+        help="Dropout for DMN sequence models.",
+    )
+    parser.add_argument(
+        "--use-ticker-embedding",
+        "--dmn-use-ticker-embedding",
+        "--model-use-ticker-embedding",
+        dest="model_use_ticker_embedding",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable/disable ticker embedding for DMN sequence models.",
+    )
     return parser
 
 
@@ -67,7 +94,13 @@ def run(argv: Sequence[str] | None = None) -> int:
         print("Install yfinance to run the example: pip install yfinance")
         return 0
 
-    res = backtest_all(prices, cfg.backtest, run_ml=cfg.run_ml, run_dmn=cfg.run_dmn)
+    res = backtest_all(
+        prices,
+        cfg.backtest,
+        run_ml=cfg.run_ml,
+        run_dmn=cfg.run_dmn,
+        model=cfg.model,
+    )
     pd.set_option("display.width", 140)
     pd.set_option("display.max_columns", 50)
     display_res = res.copy()

@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 
 from .portfolio import run_portfolio
-from .config import BacktestConfig
+from .config import BacktestConfig, ModelConfig
 from .metrics import performance_metrics
 from .strategies import (
     dmn_lstm_positions,
@@ -75,7 +75,9 @@ def backtest_all(
     cfg: BacktestConfig,
     run_ml: bool = True,
     run_dmn: bool = True,
+    model: ModelConfig | None = None,
 ) -> pd.DataFrame:
+    model = model or ModelConfig()
     results = []
     results.append(_evaluate_strategy_record("LongOnly", strategy_long_only, prices, cfg, prices))
     results.append(_evaluate_strategy_record("Sgn12M", strategy_sgn_12m, prices, cfg, prices))
@@ -100,28 +102,88 @@ def backtest_all(
             if cfg.cost_bps > 0:
                 results.append(
                     _evaluate_strategy_record(
-                        "DMN_LSTM_Sharpe_TurnPen", dmn_lstm_positions, prices, cfg, prices, cfg, turnover_lambda=1e-2
+                        "DMN_LSTM_Sharpe_TurnPen",
+                        dmn_lstm_positions,
+                        prices,
+                        cfg,
+                        prices,
+                        cfg,
+                        turnover_lambda=1e-2,
+                        hidden=model.hidden,
+                        dropout=model.dropout,
+                        use_ticker_embedding=model.use_ticker_embedding,
                     )
                 )
                 results.append(
                     _evaluate_strategy_record(
-                        "VLSTM_Sharpe_TurnPen", vlstm_positions, prices, cfg, prices, cfg, turnover_lambda=1e-2
+                        "VLSTM_Sharpe_TurnPen",
+                        vlstm_positions,
+                        prices,
+                        cfg,
+                        prices,
+                        cfg,
+                        turnover_lambda=1e-2,
+                        hidden=model.hidden,
+                        dropout=model.dropout,
+                        use_ticker_embedding=model.use_ticker_embedding,
                     )
                 )
                 results.append(
                     _evaluate_strategy_record(
-                        "xLSTM_Sharpe_TurnPen", xlstm_positions, prices, cfg, prices, cfg, turnover_lambda=1e-2
+                        "xLSTM_Sharpe_TurnPen",
+                        xlstm_positions,
+                        prices,
+                        cfg,
+                        prices,
+                        cfg,
+                        turnover_lambda=1e-2,
+                        hidden=model.hidden,
+                        dropout=model.dropout,
+                        use_ticker_embedding=model.use_ticker_embedding,
                     )
                 )
             else:
                 results.append(
-                    _evaluate_strategy_record("DMN_LSTM_Sharpe", dmn_lstm_positions, prices, cfg, prices, cfg, turnover_lambda=0.0)
+                    _evaluate_strategy_record(
+                        "DMN_LSTM_Sharpe",
+                        dmn_lstm_positions,
+                        prices,
+                        cfg,
+                        prices,
+                        cfg,
+                        turnover_lambda=0.0,
+                        hidden=model.hidden,
+                        dropout=model.dropout,
+                        use_ticker_embedding=model.use_ticker_embedding,
+                    )
                 )
                 results.append(
-                    _evaluate_strategy_record("VLSTM_Sharpe", vlstm_positions, prices, cfg, prices, cfg, turnover_lambda=0.0)
+                    _evaluate_strategy_record(
+                        "VLSTM_Sharpe",
+                        vlstm_positions,
+                        prices,
+                        cfg,
+                        prices,
+                        cfg,
+                        turnover_lambda=0.0,
+                        hidden=model.hidden,
+                        dropout=model.dropout,
+                        use_ticker_embedding=model.use_ticker_embedding,
+                    )
                 )
                 results.append(
-                    _evaluate_strategy_record("xLSTM_Sharpe", xlstm_positions, prices, cfg, prices, cfg, turnover_lambda=0.0)
+                    _evaluate_strategy_record(
+                        "xLSTM_Sharpe",
+                        xlstm_positions,
+                        prices,
+                        cfg,
+                        prices,
+                        cfg,
+                        turnover_lambda=0.0,
+                        hidden=model.hidden,
+                        dropout=model.dropout,
+                        use_ticker_embedding=model.use_ticker_embedding,
+                    )
                 )
         except Exception as e:
             warnings.warn(f"Skipping DMN due to: {e}")

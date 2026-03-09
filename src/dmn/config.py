@@ -26,6 +26,13 @@ class BacktestConfig:
 
 
 @dataclass
+class ModelConfig:
+    hidden: int = 32
+    dropout: float = 0.1
+    use_ticker_embedding: bool = True
+
+
+@dataclass
 class RunConfig:
     market: str | None = None
     ticker: str | None = None
@@ -43,6 +50,7 @@ class RunConfig:
             min_obs=400,
         )
     )
+    model: ModelConfig = field(default_factory=ModelConfig)
 
     def to_dict(self) -> dict:
         return asdict(self)

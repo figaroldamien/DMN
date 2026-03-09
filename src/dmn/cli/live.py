@@ -96,6 +96,12 @@ def build_parser() -> argparse.ArgumentParser:
     live_train.add_argument("--seq-len", type=int, default=63)
     live_train.add_argument("--hidden", type=int, default=32)
     live_train.add_argument("--dropout", type=float, default=0.1)
+    live_train.add_argument(
+        "--use-ticker-embedding",
+        dest="use_ticker_embedding",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     live_train.add_argument("--lr", type=float, default=1e-3)
     live_train.add_argument("--epochs", type=int, default=20)
     live_train.add_argument("--batch-size", type=int, default=256)
@@ -158,6 +164,7 @@ def _run_train(args: argparse.Namespace) -> int:
             "seq_len": args.seq_len,
             "hidden": args.hidden,
             "dropout": args.dropout,
+            "use_ticker_embedding": args.use_ticker_embedding,
             "lr": args.lr,
             "epochs": args.epochs,
             "batch_size": args.batch_size,
@@ -177,6 +184,7 @@ def _run_train(args: argparse.Namespace) -> int:
         seq_len=args.seq_len,
         hidden=args.hidden,
         dropout=args.dropout,
+        use_ticker_embedding=args.use_ticker_embedding,
         lr=args.lr,
         epochs=args.epochs,
         batch_size=args.batch_size,

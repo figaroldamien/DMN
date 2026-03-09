@@ -24,6 +24,9 @@ from dmn.cli.main import run
 # Changer les paramètres de backtest:
 # python -m dmn.cli --market table8_all --sigma-target-annual 0.12 --vol-span 40 --cost-bps 1.5 --min-obs 300
 #
+# Changer les paramètres modèle DMN:
+# python -m dmn.cli --market cac40 --model-hidden 64 --model-dropout 0.2 --no-model-use-ticker-embedding
+#
 # Par defaut la configuration effective est affichee.
 # Pour la masquer:
 # python -m dmn.cli --market cac40 --no-print-config
@@ -47,7 +50,16 @@ from dmn.cli.main import run
 # cost_bps = 2.0
 # portfolio_vol_target = true
 # min_obs = 400
+#
+# [model]
+# hidden = 32
+# dropout = 0.1
+# use_ticker_embedding = true
 
 
 if __name__ == "__main__":
-    raise SystemExit(run(["--market", "dataset_all", "--start", "2000-01-01", "--no-run-ml", "--run-dmn"]))
+    raise SystemExit(run(["--market", "cac40", 
+                          "--start", "2000-01-01", 
+                          "--model-hidden", "32",
+                          "--model-dropout", "0.3",
+                          "--no-run-ml", "--run-dmn"]))

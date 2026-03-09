@@ -12,3 +12,8 @@ vol_span = 60
 cost_bps = 2.0
 portfolio_vol_target = true
 min_obs = 400
+
+[model]
+hidden = 32
+dropout = 0.1
+use_ticker_embedding = true

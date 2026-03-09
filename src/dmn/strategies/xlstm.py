@@ -20,6 +20,8 @@ def xlstm_positions(
     epochs: int = 20,
     batch_size: int = 256,
     turnover_lambda: float = 0.0,
+    use_ticker_embedding: bool = True,
+    ticker_emb_dim: int = 8,
     seed: int = 0,
 ) -> pd.DataFrame:
     """Run xLSTM in walk-forward mode and return per-date positions."""
@@ -28,7 +30,14 @@ def xlstm_positions(
         prices=prices,
         cfg=cfg,
         model_factory=xLSTMPositionNet,
-        model_kwargs={"n_features": None, "hidden": hidden, "dropout": dropout},
+        model_kwargs={
+            "n_features": None,
+            "hidden": hidden,
+            "dropout": dropout,
+            "use_ticker_embedding": use_ticker_embedding,
+            "n_tickers": None,
+            "ticker_emb_dim": ticker_emb_dim,
+        },
         retrain_years=retrain_years,
         seq_len=seq_len,
         lr=lr,

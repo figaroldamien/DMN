@@ -14,6 +14,8 @@ class DMNLSTMArtifact:
     seq_len: int
     hidden: int
     dropout: float
+    use_ticker_embedding: bool
+    ticker_emb_dim: int
     lr: float
     epochs: int
     batch_size: int
@@ -43,6 +45,8 @@ class DMNLSTMArtifact:
             "cost_bps": 0.0,
             "portfolio_vol_target": True,
             "min_obs": 0,
+            "use_ticker_embedding": True,
+            "ticker_emb_dim": 8,
         }
         for k, v in defaults.items():
             raw.setdefault(k, v)
