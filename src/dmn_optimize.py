@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 
-from dmn.cli.optimize import run
+from dmn.cli.optimize_cli import run
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,7 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     parser = build_parser()
-    args = parser.parse_args(["--strategy", "DMN_LSTM_Sharpe_TurnPen", "--ticker", "AAPL"])
+    args = parser.parse_args(["--strategy", "VLSTM_Sharpe_TurnPen", 
+                              "--market", "nasdaq100", 
+                              "--sector", "Technology", 
+                              "--sub-sector", "Software"])
 
     argv = ["--config", args.config, "--strategy", args.strategy]
     if args.market and args.ticker:
