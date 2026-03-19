@@ -40,8 +40,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     parser = build_parser()
-    args = parser.parse_args(["--strategy", "VLSTM_Sharpe_TurnPen", 
-                              "--market", "nasdaq100", 
+    #args = parser.parse_args(["--strategy", "VLSTM_Sharpe_TurnPen", 
+    #                          "--market", "nasdaq100", 
+    #                          "--sector", "Technology", 
+    #                          "--sub-sector", "Software"])
+    
+    args = parser.parse_args(["--strategy", "DMN_LSTM_Sharpe_TurnPen", 
+                              "--ticker", "AAPL", 
                               "--sector", "Technology", 
                               "--sub-sector", "Software"])
 

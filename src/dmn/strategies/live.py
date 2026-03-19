@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -17,7 +18,7 @@ import torch
 
 from ..config import BacktestConfig
 from .artifacts import DMNLSTMArtifact
-from .engine import build_dataset, prepare_sequence_data, set_seed
+from .engine import build_dataset, prepare_sequence_data, resolve_torch_device, set_seed
 from .models import LSTMPositionNet
 from .engine import fit_model_sharpe
 
@@ -144,15 +145,49 @@ def load_lstm_artifact(path: str | Path) -> tuple[LSTMPositionNet, DMNLSTMArtifa
 
     payload = torch.load(Path(path), map_location="cpu")
     artifact = DMNLSTMArtifact.from_dict(payload["metadata"])
+    state_dict = payload["state_dict"]
+
+    inferred_hidden = artifact.hidden
+    inferred_n_features = len(artifact.feature_names)
+    inferred_use_ticker_embedding = artifact.use_ticker_embedding
+    inferred_ticker_emb_dim = artifact.ticker_emb_dim
+
+    lstm_weight = state_dict.get("lstm.weight_ih_l0")
+    if lstm_weight is not None:
+        inferred_n_features = int(lstm_weight.shape[1])
+        inferred_hidden = int(lstm_weight.shape[0] // 4)
+
+    ticker_emb_weight = state_dict.get("ticker_emb.weight")
+    if ticker_emb_weight is None:
+        inferred_use_ticker_embedding = False
+        inferred_ticker_emb_dim = 0
+    else:
+        inferred_use_ticker_embedding = True
+        inferred_ticker_emb_dim = int(ticker_emb_weight.shape[1])
+
+    if (
+        artifact.hidden != inferred_hidden
+        or artifact.use_ticker_embedding != inferred_use_ticker_embedding
+        or artifact.ticker_emb_dim != inferred_ticker_emb_dim
+        or len(artifact.feature_names) != inferred_n_features
+    ):
+        warnings.warn(
+            "Artifact metadata does not match saved state_dict exactly; "
+            "reconstructing model from state_dict-compatible dimensions."
+        )
+        artifact.hidden = inferred_hidden
+        artifact.use_ticker_embedding = inferred_use_ticker_embedding
+        artifact.ticker_emb_dim = inferred_ticker_emb_dim
+
     model = LSTMPositionNet(
-        n_features=len(artifact.feature_names),
+        n_features=inferred_n_features,
         hidden=artifact.hidden,
         dropout=artifact.dropout,
         use_ticker_embedding=artifact.use_ticker_embedding,
         n_tickers=len(artifact.tickers),
         ticker_emb_dim=artifact.ticker_emb_dim,
     )
-    model.load_state_dict(payload["state_dict"])
+    model.load_state_dict(state_dict)
     model.eval()
     return model, artifact
 
@@ -179,7 +214,7 @@ def predict_positions_from_model(
     end_ts = pd.Timestamp(to_date) if to_date is not None else pd.Timestamp(dates[-1])
     infer_mask = (dates >= start_ts) & (dates <= end_ts)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = resolve_torch_device()
     model = model.to(device)
     model.eval()
 

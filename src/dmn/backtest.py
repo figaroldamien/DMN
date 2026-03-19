@@ -19,6 +19,7 @@ from .strategies import (
     vlstm_positions,
     xlstm_positions,
 )
+from .strategies.engine import resolve_torch_device, synchronize_device
 
 
 def _evaluate_strategy_record(
@@ -29,14 +30,13 @@ def _evaluate_strategy_record(
     *args: Any,
     **kwargs: Any,
 ) -> dict[str, float | str]:
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
+    device = resolve_torch_device()
+    synchronize_device(device)
     start_time = time.perf_counter()
     x = strategy_fn(*args, **kwargs)
     strat, turnover, _ = run_portfolio(prices, x, cfg)
     perf = performance_metrics(strat, turnover)
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
+    synchronize_device(device)
     elapsed = time.perf_counter() - start_time
     record: dict[str, float | str] = {
         "strategy": name,

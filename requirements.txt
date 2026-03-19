@@ -1,0 +1,15 @@
+# Core numerics and data handling
+numpy
+pandas
+
+# Market data download
+yfinance
+
+# Classical ML strategies
+scikit-learn
+
+# DMN / LSTM strategies
+torch
+
+# TOML parsing fallback for Python < 3.11
+tomli; python_version < "3.11"

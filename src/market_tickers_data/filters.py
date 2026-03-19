@@ -5,6 +5,45 @@ from __future__ import annotations
 from typing import Dict, List
 
 
+def component_filters_catalog(
+    components: Dict[str, Dict[str, str]],
+) -> Dict[str, List[str]]:
+    """
+    Return distinct filter values available in a component dictionary.
+
+    The returned dictionary always contains:
+    - "categories"
+    - "sectors"
+    - "sub_sectors"
+    """
+    categories = sorted(
+        {
+            meta.get("category", "").strip()
+            for meta in components.values()
+            if meta.get("category", "").strip()
+        }
+    )
+    sectors = sorted(
+        {
+            meta.get("sector", "").strip()
+            for meta in components.values()
+            if meta.get("sector", "").strip()
+        }
+    )
+    sub_sectors = sorted(
+        {
+            meta.get("sub_sector", "").strip()
+            for meta in components.values()
+            if meta.get("sub_sector", "").strip()
+        }
+    )
+    return {
+        "categories": categories,
+        "sectors": sectors,
+        "sub_sectors": sub_sectors,
+    }
+
+
 def tickers_by_sector_and_subsector(
     index_components: Dict[str, Dict[str, str]],
     sector: str,

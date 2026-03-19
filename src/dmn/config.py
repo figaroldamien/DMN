@@ -33,6 +33,17 @@ class ModelConfig:
 
 
 @dataclass
+class OptimizationConfig:
+    strategy: str
+    metric: str
+    hidden_values: list[int]
+    dropout_values: list[float]
+    batch_size_values: list[int]
+    learning_rate_values: list[float]
+    epochs_values: list[int]
+
+
+@dataclass
 class RunConfig:
     market: str | None = None
     ticker: str | None = None
@@ -51,6 +62,7 @@ class RunConfig:
         )
     )
     model: ModelConfig = field(default_factory=ModelConfig)
+    optimization: OptimizationConfig | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)

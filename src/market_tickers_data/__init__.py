@@ -11,7 +11,7 @@ from .components import (
     NASDAQ100,
     NASDAQ100_COMPONENTS,
 )
-from .filters import tickers_by_category, tickers_by_sector, tickers_by_sector_and_subsector
+from .filters import component_filters_catalog, tickers_by_category, tickers_by_sector, tickers_by_sector_and_subsector
 from .universes import MARKET_TICKERS, TABLE8_ALL, TABLE8_ASSETS_BY_CATEGORY, TEST
 
 __all__ = [
@@ -28,6 +28,7 @@ __all__ = [
     "TABLE8_ALL",
     "TABLE8_ASSETS_BY_CATEGORY",
     "TEST",
+    "component_filters_catalog",
     "tickers_by_category",
     "tickers_by_sector",
     "tickers_by_sector_and_subsector",

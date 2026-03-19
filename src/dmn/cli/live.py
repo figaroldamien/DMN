@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Sequence
 
 import pandas as pd
 
-from market_tickers import MARKET_TICKERS
-
-from ..config import BacktestConfig
+from ..config import BacktestConfig, RunConfig
 from ..data import load_prices_yf
 from ..strategies.live import (
     load_lstm_artifact,
@@ -17,39 +14,22 @@ from ..strategies.live import (
     save_lstm_artifact,
     train_lstm_until_cutoff,
 )
-from ..universe import resolve_tickers
+from .common import apply_argsets, print_config_payload, resolve_config_tickers
 
 
 def _resolve_cli_tickers(args: argparse.Namespace) -> list[str]:
     if args.ticker:
         return [args.ticker]
-    market = args.market or "cac40"
-    return resolve_tickers(market, sector=getattr(args, "sector", None), sub_sector=getattr(args, "sub_sector", None))
 
-
-def _add_existing_main_args(group: argparse._ArgumentGroup, *, include_backtest_params: bool = True) -> None:
-    """
-    Arguments inherited from `dmn.cli.main` (or close equivalents relevant for live train/predict).
-    `run-ml` / `run-dmn` are intentionally excluded because live CLI is dedicated to DMN only.
-    """
-    sel = group.add_mutually_exclusive_group()
-    sel.add_argument("--market", choices=sorted(MARKET_TICKERS.keys()), help="Ticker universe to load")
-    sel.add_argument("--ticker", help="Single ticker to load")
-    group.add_argument("--start", default="2000-01-01", help="Start date for yfinance download")
-    group.add_argument("--sector", default=None, help="Optional sector filter for component-based indices")
-    group.add_argument("--sub-sector", dest="sub_sector", default=None, help="Optional sub-sector filter")
-    if include_backtest_params:
-        group.add_argument("--sigma-target-annual", type=float, default=0.15)
-        group.add_argument("--vol-span", type=int, default=60)
-        group.add_argument("--cost-bps", type=float, default=2.0)
-        group.add_argument("--min-obs", type=int, default=400)
-        group.add_argument(
-            "--portfolio-vol-target",
-            dest="portfolio_vol_target",
-            action=argparse.BooleanOptionalAction,
-            default=True,
-            help="Enable/disable portfolio-level volatility targeting.",
-        )
+    cfg = RunConfig(
+        market=args.market,
+        ticker=args.ticker,
+        start=args.start,
+        sector=args.sector,
+        sub_sector=args.sub_sector,
+    )
+    parser = argparse.ArgumentParser(add_help=False)
+    return resolve_config_tickers(cfg, parser)
 
 
 def _resolve_cutoff_date(
@@ -86,7 +66,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     train = sub.add_parser("train", help="Train a DMN LSTM up to a cutoff date and save artifact")
     existing_train = train.add_argument_group("Existing Arguments (from main)")
-    _add_existing_main_args(existing_train, include_backtest_params=True)
+    apply_argsets(
+        existing_train,
+        "universe",
+        "backtest",
+        overrides={
+            "universe": {"mutually_exclusive": True, "start_default": "2000-01-01"},
+            "backtest": {
+                "sigma_target_annual_default": 0.15,
+                "vol_span_default": 60,
+                "cost_bps_default": 2.0,
+                "min_obs_default": 400,
+                "portfolio_vol_target_default": True,
+            },
+        },
+    )
     live_train = train.add_argument_group("New Live Arguments")
     live_train.add_argument("--cutoff-mode", choices=["year_end_prev", "month_end_prev", "yesterday", "date"], default="year_end_prev")
     live_train.add_argument("--cutoff-date", default=None, help="Cutoff date (required with --cutoff-mode=date)")
@@ -111,7 +105,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     predict = sub.add_parser("predict", help="Load a trained DMN artifact and generate future positions")
     existing_predict = predict.add_argument_group("Existing Arguments (from main)")
-    _add_existing_main_args(existing_predict, include_backtest_params=True)
+    apply_argsets(
+        existing_predict,
+        "universe",
+        "backtest",
+        overrides={
+            "universe": {"mutually_exclusive": True, "start_default": "2000-01-01"},
+            "backtest": {
+                "sigma_target_annual_default": 0.15,
+                "vol_span_default": 60,
+                "cost_bps_default": 2.0,
+                "min_obs_default": 400,
+                "portfolio_vol_target_default": True,
+            },
+        },
+    )
     live_predict = predict.add_argument_group("New Live Arguments")
     live_predict.add_argument("--artifact-path", required=True, help="Path to .pt artifact produced by train")
     live_predict.add_argument("--from-date", default=None, help="First prediction date (default: today)")
@@ -175,7 +183,7 @@ def _run_train(args: argparse.Namespace) -> int:
     }
     if args.print_config:
         print("Effective train configuration:")
-        print(json.dumps(train_config, indent=2))
+        print_config_payload(train_config)
 
     model, artifact = train_lstm_until_cutoff(
         prices=prices,
@@ -258,7 +266,7 @@ def _run_predict(args: argparse.Namespace) -> int:
 
     if args.print_config:
         print("Effective predict configuration:")
-        print(json.dumps(predict_config, indent=2))
+        print_config_payload(predict_config)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     positions.to_csv(out_path)

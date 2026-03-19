@@ -58,8 +58,8 @@ from dmn.cli.main import run
 
 
 if __name__ == "__main__":
-    raise SystemExit(run(["--market", "cac40", 
+    raise SystemExit(run(["--ticker", "AAPL",     
                           "--start", "2000-01-01", 
-                          "--model-hidden", "32",
-                          "--model-dropout", "0.3",
+                          "--model-hidden", "64",
+                          "--model-dropout", "0.5",
                           "--no-run-ml", "--run-dmn"]))

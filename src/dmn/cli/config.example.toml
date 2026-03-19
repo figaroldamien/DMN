@@ -17,3 +17,12 @@ min_obs = 400
 hidden = 32
 dropout = 0.1
 use_ticker_embedding = true
+
+[optimization]
+strategy = "DMN_LSTM_Sharpe_TurnPen"
+metric = "sharpe"
+hidden_values = [64, 128]
+dropout_values = [0.3, 0.4, 0.5]
+batch_size_values = [32, 64]
+learning_rate_values = [0.001, 0.0001]
+epochs_values = [10, 50]

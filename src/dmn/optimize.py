@@ -3,7 +3,6 @@ from __future__ import annotations
 import itertools
 import time
 from dataclasses import asdict
-from typing import Callable
 
 import pandas as pd
 import torch
@@ -11,24 +10,15 @@ import torch
 from .config import BacktestConfig, OptimizationConfig
 from .metrics import performance_metrics
 from .portfolio import run_portfolio
-from .strategies import dmn_lstm_positions, vlstm_positions, xlstm_positions
-
-
-def strategy_registry() -> dict[str, tuple[Callable[..., pd.DataFrame], dict]]:
-    return {
-        "DMN_LSTM_Sharpe": (dmn_lstm_positions, {"turnover_lambda": 0.0}),
-        "DMN_LSTM_Sharpe_TurnPen": (dmn_lstm_positions, {"turnover_lambda": 1e-2}),
-        "VLSTM_Sharpe": (vlstm_positions, {"turnover_lambda": 0.0}),
-        "VLSTM_Sharpe_TurnPen": (vlstm_positions, {"turnover_lambda": 1e-2}),
-        "xLSTM_Sharpe": (xlstm_positions, {"turnover_lambda": 0.0}),
-        "xLSTM_Sharpe_TurnPen": (xlstm_positions, {"turnover_lambda": 1e-2}),
-    }
+from .strategies import get_strategy_spec, strategy_names
+from .strategies.engine import resolve_torch_device, synchronize_device
 
 
 def validate_optimization_config(cfg: OptimizationConfig) -> None:
-    if cfg.strategy not in strategy_registry():
+    optimization_strategy_names = strategy_names(supports_optimization=True)
+    if cfg.strategy not in optimization_strategy_names:
         raise ValueError(
-            f"Unknown optimization strategy '{cfg.strategy}'. Allowed values: {sorted(strategy_registry().keys())}"
+            f"Unknown optimization strategy '{cfg.strategy}'. Allowed values: {optimization_strategy_names}"
         )
     if not cfg.metric:
         raise ValueError("Optimization metric is required.")
@@ -106,7 +96,9 @@ def evaluate_candidate(
     candidate_idx: int | None = None,
     total_candidates: int | None = None,
 ) -> dict[str, int | float | str]:
-    strategy_fn, strategy_kwargs = strategy_registry()[optimization_cfg.strategy]
+    strategy_spec = get_strategy_spec(optimization_cfg.strategy)
+    strategy_fn = strategy_spec.fn
+    strategy_kwargs = dict(strategy_spec.default_kwargs)
     progress_prefix = _format_candidate_progress(
         optimization_cfg,
         hyperparams,
@@ -114,8 +106,8 @@ def evaluate_candidate(
         total_candidates,
     )
 
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
+    device = resolve_torch_device()
+    synchronize_device(device)
     start_time = time.perf_counter()
     positions = strategy_fn(
         prices,
@@ -129,8 +121,7 @@ def evaluate_candidate(
     )
     strat, turnover, _ = run_portfolio(prices, positions, backtest_cfg)
     perf = performance_metrics(strat, turnover)
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
+    synchronize_device(device)
     elapsed = time.perf_counter() - start_time
 
     record: dict[str, int | float | str] = {

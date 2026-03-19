@@ -1,71 +1,33 @@
 from __future__ import annotations
 
 import argparse
-import json
 from typing import Sequence
 
-import pandas as pd
-
-from market_tickers import MARKET_TICKERS
-
-from ..config import RunConfig
-from ..config_io import load_run_config, merge_cli_overrides
 from ..backtest import backtest_all
+from ..strategies import strategy_names
+from .common import (
+    RESULT_COLUMN_RENAMES,
+    build_parser_with_argsets,
+    format_results_table,
+    load_effective_run_config,
+    print_config_payload,
+    resolve_config_tickers,
+)
 from ..data import load_prices_yf
-from ..universe import resolve_tickers
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Backtest TSMOM/DMN strategies on a predefined market universe.")
-    parser.add_argument("--config", default=None, help="Optional path to a TOML/JSON configuration file.")
-    parser.add_argument("--no-print-config", dest="print_config", action="store_false", default=True, help="Disable effective configuration display.")
-    parser.add_argument("--market", default=None, choices=sorted(MARKET_TICKERS.keys()), help="Ticker universe to load.")
-    parser.add_argument("--ticker", default=None, help="Single ticker to load directly (exclusive with --market).")
-    parser.add_argument("--start", default=None, help="Start date for yfinance download (YYYY-MM-DD).")
-    parser.add_argument("--sector", default=None, help="Optional sector filter (for component-based indices).")
-    parser.add_argument("--sub-sector", dest="sub_sector", default=None, help="Optional sub-sector filter (for component-based indices).")
-
-    parser.add_argument("--sigma-target-annual", type=float, default=None, help="Target annualized volatility.")
-    parser.add_argument("--vol-span", type=int, default=None, help="EWMA span for daily volatility.")
-    parser.add_argument("--cost-bps", type=float, default=None, help="Transaction cost in bps per turnover unit.")
-    parser.add_argument("--min-obs", type=int, default=None, help="Minimum warmup observations.")
-    parser.add_argument(
-        "--portfolio-vol-target",
-        dest="portfolio_vol_target",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable/disable portfolio-level volatility targeting.",
+    parser = build_parser_with_argsets(
+        "Backtest TSMOM/DMN strategies on a predefined market universe.",
+        "config",
+        "universe",
+        "backtest",
+        "model",
     )
 
     parser.add_argument("--run-ml", action=argparse.BooleanOptionalAction, default=None, help="Enable/disable ML baselines.")
     parser.add_argument("--run-dmn", action=argparse.BooleanOptionalAction, default=None, help="Enable/disable DMN LSTM strategy.")
-    parser.add_argument(
-        "--hidden",
-        "--dmn-hidden",
-        "--model-hidden",
-        dest="model_hidden",
-        type=int,
-        default=None,
-        help="Hidden size for DMN sequence models.",
-    )
-    parser.add_argument(
-        "--dropout",
-        "--dmn-dropout",
-        "--model-dropout",
-        dest="model_dropout",
-        type=float,
-        default=None,
-        help="Dropout for DMN sequence models.",
-    )
-    parser.add_argument(
-        "--use-ticker-embedding",
-        "--dmn-use-ticker-embedding",
-        "--model-use-ticker-embedding",
-        dest="model_use_ticker_embedding",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable/disable ticker embedding for DMN sequence models.",
-    )
+    parser.epilog = f"Available optimization-capable sequence strategies: {', '.join(strategy_names(supports_optimization=True))}"
     return parser
 
 
@@ -73,21 +35,11 @@ def run(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    cfg = load_run_config(args.config) if args.config else RunConfig()
-    cfg = merge_cli_overrides(cfg, args)
-
-    selected_market = cfg.market or "cac40"
-    if cfg.ticker and cfg.market:
-        parser.error("Use either --market or --ticker, not both.")
-    if cfg.ticker:
-        tickers = [cfg.ticker]
-    else:
-        if selected_market not in MARKET_TICKERS:
-            parser.error(f"Unknown market '{selected_market}'. Allowed values: {sorted(MARKET_TICKERS.keys())}")
-        tickers = resolve_tickers(selected_market, sector=cfg.sector, sub_sector=cfg.sub_sector)
+    cfg = load_effective_run_config(args)
+    tickers = resolve_config_tickers(cfg, parser)
 
     if args.print_config:
-        print(json.dumps(cfg.to_dict(), indent=2))
+        print_config_payload(cfg.to_dict())
     try:
         prices = load_prices_yf(tickers, start=cfg.start)
     except ImportError:
@@ -101,25 +53,6 @@ def run(argv: Sequence[str] | None = None) -> int:
         run_dmn=cfg.run_dmn,
         model=cfg.model,
     )
-    pd.set_option("display.width", 140)
-    pd.set_option("display.max_columns", 50)
-    display_res = res.copy()
-    float_cols = display_res.select_dtypes(include=["float64", "float32"]).columns
-    display_res[float_cols] = display_res[float_cols].round(3)
-    display_res = display_res.rename(
-        columns={
-            "strategy": "strat",
-            "ann_return": "ret",
-            "ann_vol": "vol",
-            "sharpe": "shp",
-            "sortino": "sor",
-            "calmar": "cal",
-            "mdd": "mdd",
-            "pct_pos": "pos",
-            "avgP_over_avgL": "p_l",
-            "avg_turnover": "turn",
-            "elapsed_s": "sec",
-        }
-    )
+    display_res = format_results_table(res, width=140, rename_columns=RESULT_COLUMN_RENAMES)
     print(display_res.to_string(index=False, col_space=5))
     return 0

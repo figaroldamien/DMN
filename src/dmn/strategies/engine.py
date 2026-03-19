@@ -42,6 +42,25 @@ def set_seed(seed: int) -> None:
     np.random.seed(seed)
 
 
+def resolve_torch_device() -> torch.device:
+    """Pick the best available PyTorch device for this host."""
+
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if torch.backends.mps.is_built() and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def synchronize_device(device: torch.device) -> None:
+    """Synchronize async accelerator work before wall-clock timing."""
+
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+    elif device.type == "mps":
+        torch.mps.synchronize()
+
+
 def sharpe_loss(returns: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     """Negative annualized Sharpe ratio (minimization objective)."""
 
@@ -170,7 +189,7 @@ def fit_model_sharpe(
 ) -> nn.Module:
     """Train one model with Sharpe loss and optional turnover regularization."""
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = resolve_torch_device()
     net = model_factory(**model_kwargs).to(device)
     opt = torch.optim.Adam(net.parameters(), lr=lr)
 
@@ -267,7 +286,7 @@ def run_walkforward_positions(
             turnover_lambda=turnover_lambda,
         )
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = resolve_torch_device()
         net = net.to(device)
         net.eval()
         with torch.no_grad():
