@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+from datetime import datetime
 import json
+from pathlib import Path
+import sys
 from typing import Any
 
 import pandas as pd
@@ -45,6 +49,48 @@ ARGSET_DEFAULTS: dict[str, dict[str, Any]] = {
     "model": {},
     "optimization": {},
 }
+
+
+class _TeeStream:
+    def __init__(self, *streams: Any) -> None:
+        self._streams = streams
+
+    def write(self, data: str) -> int:
+        for stream in self._streams:
+            stream.write(data)
+        return len(data)
+
+    def flush(self) -> None:
+        for stream in self._streams:
+            stream.flush()
+
+    def isatty(self) -> bool:
+        return any(getattr(stream, "isatty", lambda: False)() for stream in self._streams)
+
+
+def default_log_path(run_name: str) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return Path("output") / f"{run_name}_{timestamp}.log"
+
+
+@contextlib.contextmanager
+def tee_output(run_name: str, log_path: str | Path | None = None) -> Any:
+    resolved_path = Path(log_path) if log_path else default_log_path(run_name)
+    resolved_path.parent.mkdir(parents=True, exist_ok=True)
+
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    with resolved_path.open("a", encoding="utf-8") as handle:
+        sys.stdout = _TeeStream(original_stdout, handle)
+        sys.stderr = _TeeStream(original_stderr, handle)
+        try:
+            print(f"Logging output to {resolved_path.resolve()}")
+            yield resolved_path
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
 
 
 def add_config_args(parser: argparse.ArgumentParser | argparse._ArgumentGroup) -> None:

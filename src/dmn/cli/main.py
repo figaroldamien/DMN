@@ -12,6 +12,7 @@ from .common import (
     load_effective_run_config,
     print_config_payload,
     resolve_config_tickers,
+    tee_output,
 )
 from ..data import load_prices_yf
 
@@ -35,24 +36,25 @@ def run(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    cfg = load_effective_run_config(args)
-    tickers = resolve_config_tickers(cfg, parser)
+    with tee_output("backtest"):
+        cfg = load_effective_run_config(args)
+        tickers = resolve_config_tickers(cfg, parser)
 
-    if args.print_config:
-        print_config_payload(cfg.to_dict())
-    try:
-        prices = load_prices_yf(tickers, start=cfg.start)
-    except ImportError:
-        print("Install yfinance to run the example: pip install yfinance")
+        if args.print_config:
+            print_config_payload(cfg.to_dict())
+        try:
+            prices = load_prices_yf(tickers, start=cfg.start)
+        except ImportError:
+            print("Install yfinance to run the example: pip install yfinance")
+            return 0
+
+        res = backtest_all(
+            prices,
+            cfg.backtest,
+            run_ml=cfg.run_ml,
+            run_dmn=cfg.run_dmn,
+            model=cfg.model,
+        )
+        display_res = format_results_table(res, width=140, rename_columns=RESULT_COLUMN_RENAMES)
+        print(display_res.to_string(index=False, col_space=5))
         return 0
-
-    res = backtest_all(
-        prices,
-        cfg.backtest,
-        run_ml=cfg.run_ml,
-        run_dmn=cfg.run_dmn,
-        model=cfg.model,
-    )
-    display_res = format_results_table(res, width=140, rename_columns=RESULT_COLUMN_RENAMES)
-    print(display_res.to_string(index=False, col_space=5))
-    return 0

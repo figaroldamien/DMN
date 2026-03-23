@@ -14,7 +14,7 @@ from ..strategies.live import (
     save_lstm_artifact,
     train_lstm_until_cutoff,
 )
-from .common import apply_argsets, print_config_payload, resolve_config_tickers
+from .common import apply_argsets, print_config_payload, resolve_config_tickers, tee_output
 
 
 def _resolve_cli_tickers(args: argparse.Namespace) -> list[str]:
@@ -279,15 +279,16 @@ def run(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    try:
-        if args.command == "train":
-            return _run_train(args)
-        if args.command == "predict":
-            return _run_predict(args)
-        parser.error(f"Unknown command: {args.command}")
-    except ImportError:
-        print("Install runtime dependencies: pip install yfinance torch pandas numpy")
-        return 0
+    with tee_output(f"live_{args.command}"):
+        try:
+            if args.command == "train":
+                return _run_train(args)
+            if args.command == "predict":
+                return _run_predict(args)
+            parser.error(f"Unknown command: {args.command}")
+        except ImportError:
+            print("Install runtime dependencies: pip install yfinance torch pandas numpy")
+            return 0
 
     return 0
 

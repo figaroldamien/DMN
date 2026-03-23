@@ -12,3 +12,10 @@ Recommended Google Drive layout:
 - `MyDrive/DMN/configs/`: custom TOML/JSON configs used by Colab notebooks
 - `MyDrive/DMN/artifacts/dmn/`: saved model artifacts
 - `MyDrive/DMN/output/`: CSV outputs and predictions
+- `MyDrive/DMN/logs/`: log files capturing the full combined stdout/stderr of notebook-launched commands
+
+Logging:
+
+- Each notebook exposes a `LOG_PATH` variable in its parameters cell.
+- Command execution uses `notebook_logging.run_logged(...)` to both stream output in the notebook and persist it to the log file.
+- Logs are overwritten on each run by default.
