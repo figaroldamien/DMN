@@ -1,0 +1,29 @@
+[build-system]
+requires = []
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dmn"
+version = "0.1.0"
+description = "DMN experiments and optimal trend-following tooling"
+readme = {text = "Local research project for DMN and optimal trend-following strategies.", content-type = "text/plain"}
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "yfinance",
+    "scikit-learn",
+    "torch",
+    "tomli; python_version < '3.11'",
+]
+
+[project.scripts]
+optimal-tf = "optimal_tf.cli.main:run"
+optimal-tf-evaluate = "optimal_tf.cli.evaluate:run"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dmn*", "market_tickers_data*", "optimal_tf*"]
