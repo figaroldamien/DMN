@@ -34,12 +34,18 @@ class AllocationAndCliTests(unittest.TestCase):
             {"A": [1.0, 1.1, 1.2], "B": [1.0, 0.9, 0.95]},
             index=pd.date_range("2026-03-24", periods=3),
         )
-        weights = pd.DataFrame(
-            {"A": [0.0, 0.6, 0.7], "B": [0.0, 0.4, 0.3]},
-            index=prices.index,
-        )
-
-        with patch("optimal_tf.allocation.build_weight_panel", return_value=weights):
+        with patch(
+            "optimal_tf.allocation.compute_strategy_state_at_date",
+            return_value=type(
+                "State",
+                (),
+                {
+                    "base_weights": pd.Series({"A": 0.7, "B": 0.3}),
+                    "signal_scale": 1.0,
+                    "effective_weights": pd.Series({"A": 0.7, "B": 0.3}),
+                },
+            )(),
+        ):
             date, snapshot = compute_portfolio_weights_at_date(prices, EstimationConfig(), "RP", as_of_date="2026-03-26")
 
         self.assertEqual(date, pd.Timestamp("2026-03-26"))
@@ -102,6 +108,7 @@ date = "2026-03-27"
         self.assertEqual(exit_code, 0)
         self.assertIn("strategy: RP", rendered)
         self.assertIn("allocation_date: 2026-03-27", rendered)
+        self.assertIn("execution_time_seconds:", rendered)
         self.assertIn("A", rendered)
         self.assertIn("0.600000", rendered)
 

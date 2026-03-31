@@ -1,6 +1,6 @@
 # `optimal_tf` User Manual
 
-Last updated: 2026-03-30
+Last updated: 2026-03-31
 
 ## Purpose
 
@@ -62,9 +62,9 @@ Workflow:
 1. load the config,
 2. resolve the universe,
 3. download price history with `yfinance`,
-4. estimate weights using the chosen portfolio recipe,
-5. resolve the allocation date,
-6. print the weights,
+4. resolve the effective allocation date,
+5. compute the strategy state directly for that date,
+6. print the weights and execution time,
 7. optionally export them.
 
 The evaluation CLI runs a periodic backtest:
@@ -72,12 +72,17 @@ The evaluation CLI runs a periodic backtest:
 2. resolve the universe,
 3. download price history,
 4. generate rebalance dates from the requested frequency,
-5. compute portfolio weights at each rebalance date,
-6. apply the weights on the following holding period,
-7. account for turnover and transaction costs,
-8. optionally apply portfolio-level volatility targeting,
-9. print the performance summary,
-10. optionally export detailed results.
+5. build the covariance cache once for the run,
+6. compute portfolio weights at each rebalance date,
+7. apply the weights on the following holding period,
+8. account for turnover and transaction costs,
+9. optionally apply portfolio-level volatility targeting,
+10. print the performance summary and execution time,
+11. optionally export detailed results.
+
+Implementation note:
+- during one evaluation run, the engine reuses a covariance cache across rebalance dates,
+- `ToRP2` and `ToRP3` also reuse a cached `RP` factor context across rebalance dates.
 
 When plot export is enabled, the exported chart overlays:
 - the `optimal_tf` portfolio,
@@ -116,6 +121,7 @@ Available strategies today:
 - `ARP`
 - `NM`
 - `EW`
+- `LLTF`
 - `ToRP0`
 - `ToRP1`
 - `ToRP2`
@@ -200,6 +206,7 @@ Standard output prints:
 - universe name,
 - requested date,
 - effective allocation date,
+- execution time in seconds,
 - number of non-zero assets,
 - weights sorted by value.
 
@@ -225,6 +232,9 @@ Evaluation export notes:
 - `base_weights_by_rebalance.csv` stores the structural portfolio before signal amplitude,
 - `effective_weights_by_rebalance.csv` stores the exposure after `signal_scale`,
 - `portfolio_vol_scale.csv` stores the separate portfolio-level volatility-targeting overlay.
+
+CLI note:
+- both `optimal-tf` and `optimal-tf-evaluate` now print `execution_time_seconds` in their text output.
 
 ## Configuration File
 
@@ -288,6 +298,10 @@ Example config:
   Additional multiplicative gain applied only to `ToRP3` after factor-trend normalization.
   It is used to calibrate the strength of `signal_scale` without changing the other strategies.
 
+- `lltf_l2_reg`
+  Ridge regularization applied to the empirical `LLTF` virtual-asset covariance before inversion.
+  It is a numerical stabilizer for the lead-lag optimizer.
+
 ### `[backtest]`
 
 This section currently controls portfolio-level conventions even for the single-date CLI.
@@ -321,6 +335,7 @@ This section currently controls portfolio-level conventions even for the single-
   - `ARP`
   - `NM`
   - `EW`
+  - `LLTF`
   - `ToRP0`
   - `ToRP1`
   - `ToRP2`
@@ -339,6 +354,7 @@ This section currently controls portfolio-level conventions even for the single-
   - `ARP`
   - `NM`
   - `EW`
+  - `LLTF`
   - `ToRP0`
   - `ToRP1`
   - `ToRP2`
@@ -370,6 +386,7 @@ The current example config uses:
 - `cleaning_method = "rie"`
 - `trend_alpha = 0.01`
 - `torp_signal_gain = 5.0`
+- `lltf_l2_reg = 0.0001`
 - `sigma_target_annual = 0.15`
 - `cost_bps = 25.0`
 - `long_only = true`
@@ -383,10 +400,12 @@ The current example config uses:
 - Real data currently comes from `yfinance`.
 - The current volatility targeting implementation works at the portfolio return level, not yet through a leverage-aware position rescaling layer recorded in the exported weights.
 - `ToRP0` is the original implementation: asset-by-asset trend overlay on top of `RP`.
+- `LLTF` is an empirical cross-asset lead-lag trend-following strategy inspired by arXiv:1410.8409.
 - `ToRP1` measures a common trend signal on the `RP` factor itself; this is closer to the reference paper, but remains a simplified implementation.
 - `ToRP2` is the most article-aligned current variant: it uses the trend of the `RP` factor return stream itself and neutralizes FX in that factor when metadata is available.
 - `ToRP3` preserves the amplitude of the factor signal explicitly through `signal_scale` and `effective_weights`.
 - `ToRP3` now stores a volatility-normalized factor signal, scaled by `torp_signal_gain`, rather than a raw factor return trend.
+- `ToRP2` and `ToRP3` now benefit from per-run `RP` factor caching in the evaluation engine, which materially improves execution time relative to the first date-centric implementation.
 - The current data-quality filter is intentionally simple and threshold-based.
 - The current `RIE` is a first native implementation and still needs validation against an external reference.
 - Export metadata is still minimal and does not yet capture the full effective run configuration.
@@ -404,6 +423,7 @@ Near-term validation plan:
 - compare the native `RIE` output against an external reference,
 - run evaluation sweeps for `empirical`, `linear_shrinkage`, and `rie`,
 - inspect the effect of the cleaner on `ARP`, `NM`, `ToRP0`, `ToRP1`, `ToRP2`, and `ToRP3`.
+- inspect `LLTF` robustness to regularization and universe size.
 
 ## Tests
 

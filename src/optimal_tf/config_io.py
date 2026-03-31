@@ -51,6 +51,7 @@ def load_config(
                     "trend_alpha",
                     "trend_span",
                     "torp_signal_gain",
+                    "lltf_l2_reg",
                 )
                 if k in estimation_raw
             },

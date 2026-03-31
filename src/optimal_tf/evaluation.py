@@ -7,6 +7,7 @@ import pandas as pd
 
 from .allocation import compute_strategy_panel
 from .config import BacktestConfig, EstimationConfig, EvaluationConfig
+from .estimators.pipeline import estimate_clean_covariance_panel
 from .features import compute_returns, sanitize_returns
 from .metrics import EvaluationSummary, evaluation_metrics
 from .rebalance import resolve_rebalance_dates
@@ -71,7 +72,15 @@ def evaluate_portfolio(
         start=eval_cfg.evaluation_start,
         end=eval_cfg.evaluation_end,
     )
-    strategy_panel = compute_strategy_panel(prices, est_cfg, eval_cfg.strategy, long_only=bt_cfg.long_only)
+    covariance_cache = estimate_clean_covariance_panel(prices, est_cfg)
+    strategy_panel = compute_strategy_panel(
+        prices,
+        est_cfg,
+        eval_cfg.strategy,
+        long_only=bt_cfg.long_only,
+        target_dates=rebalance_dates,
+        covariance_cache=covariance_cache,
+    )
     base_weights_by_rebalance = strategy_panel.base_weights.loc[rebalance_dates].copy()
     effective_weights_by_rebalance = strategy_panel.effective_weights.loc[rebalance_dates].copy()
     signal_scale_by_rebalance = strategy_panel.signal_scale.loc[rebalance_dates].copy()

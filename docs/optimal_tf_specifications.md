@@ -1,6 +1,6 @@
 # `optimal_tf` Project Specifications
 
-Last updated: 2026-03-30
+Last updated: 2026-03-31
 
 ## Purpose
 
@@ -148,9 +148,9 @@ If there is no eligible market date on or before the requested date, the system 
 ### Current implementation
 
 The current allocation flow:
-- computes a full weight panel,
-- resolves the allocation date on the panel index,
-- returns the weight snapshot at the latest available market date on or before the requested date.
+- resolves the effective allocation date first,
+- computes the strategy state directly for that date from the history available on or before it,
+- returns the effective weight snapshot for that resolved date.
 
 ### Known gaps and planned changes
 
@@ -187,6 +187,7 @@ The timing convention is:
 
 The current engine:
 - computes rebalance dates from the available market index,
+- computes the covariance cache once for the evaluated run,
 - computes weights at each rebalance date,
 - applies those weights to the following holding period,
 - records gross and net daily returns,
@@ -316,6 +317,9 @@ The periodic evaluation engine must report:
 - percentage of positive days,
 - number of evaluated days,
 - number of effective rebalances.
+
+The CLI layer should additionally expose:
+- execution time in text output.
 
 Metric definitions must remain stable unless the specification is revised:
 - `total_return`

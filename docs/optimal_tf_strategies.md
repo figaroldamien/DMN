@@ -1,6 +1,6 @@
 # `optimal_tf` Strategy Notes
 
-Last updated: 2026-03-30
+Last updated: 2026-03-31
 
 ## Purpose
 
@@ -22,6 +22,7 @@ Current strategies:
 - `ARP`
 - `NM`
 - `EW`
+- `LLTF`
 - `ToRP0`
 - `ToRP1`
 - `ToRP2`
@@ -31,7 +32,7 @@ Current strategies:
 
 All current strategies:
 - produce one weight vector per date,
-- consume historical prices through the existing estimation/allocation pipeline,
+- consume historical prices through the existing date-centric estimation/allocation pipeline,
 - can be projected to `long_only` or kept in `long_short`,
 - are exposed through config and CLI by their strategy name.
 
@@ -90,6 +91,22 @@ Practical interpretation:
 - this is the simplest allocation baseline,
 - it is useful as a sanity check and comparison anchor.
 
+## `LLTF`
+
+`LLTF` is an empirical lead-lag trend-following strategy inspired by Grebenkov and Serror (arXiv:1410.8409).
+
+Current implementation:
+- computes asset-level trend signals from volatility-normalized returns,
+- builds virtual cross-asset return streams of the form `r_j * s_k`,
+- estimates EWMA means and covariances on those virtual lead-lag streams,
+- solves an empirical mean-variance problem for the lead-lag weight matrix,
+- maps that weight matrix back into asset weights and normalizes the resulting vector.
+
+Practical interpretation:
+- `LLTF` lets each asset exposure react not only to its own signal but also to the signals of other assets,
+- it is the first cross-asset TF strategy in the project whose core object is a signal-mixing matrix rather than a single per-asset overlay,
+- this v1 is aligned with the article's intuition, but it remains an empirical implementation rather than a full reproduction of the paper's latent Gaussian model.
+
 ## `ToRP0`
 
 `ToRP0` is the original trend-on-risk-parity implementation kept for comparison.
@@ -131,6 +148,7 @@ Current implementation:
 - computes the trend signal on the `RP` factor return stream itself rather than projecting separate asset signals afterward,
 - applies that common factor signal back onto the tilted `RP` portfolio,
 - normalizes the resulting vector within the current framework.
+- in periodic evaluation, the historical `RP` factor path is now cached once per run and reused across rebalance dates.
 
 Practical interpretation:
 - `ToRP2` is the most paper-aligned `ToRP` variant currently implemented in the project,
@@ -149,6 +167,7 @@ Current implementation:
 - stores that scaled, volatility-normalized signal as `signal_scale`,
 - applies that signal to the `RP` base portfolio without renormalizing away the amplitude,
 - exposes both `base_weights` and `effective_weights`.
+- in periodic evaluation, the `RP` factor base path and factor signal context are cached once per run and reused across rebalance dates.
 
 Practical interpretation:
 - `ToRP3` keeps the difference between weak and strong trend conviction,

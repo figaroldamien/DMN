@@ -1,5 +1,5 @@
 [universe]
-name = "index"
+name = "world_index"
 start = "2000-01-01"
 
 [estimation]
@@ -12,6 +12,7 @@ linear_shrinkage = 0.0
 rie_bandwidth = 0.001
 trend_alpha = 0.01
 torp_signal_gain = 5.0
+lltf_l2_reg = 0.0001
 
 [backtest]
 sigma_target_annual = 0.15

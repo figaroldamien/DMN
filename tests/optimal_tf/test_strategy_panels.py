@@ -41,6 +41,7 @@ class StrategyPanelTests(unittest.TestCase):
     def test_supported_strategies_include_new_recipes(self) -> None:
         self.assertIn("NM", supported_strategies())
         self.assertIn("EW", supported_strategies())
+        self.assertIn("LLTF", supported_strategies())
         self.assertIn("ToRP0", supported_strategies())
         self.assertIn("ToRP1", supported_strategies())
         self.assertIn("ToRP2", supported_strategies())
@@ -53,15 +54,15 @@ class StrategyPanelTests(unittest.TestCase):
         self.assertTrue((panel >= 0.0).all().all())
 
     def test_nm_panel_builds_from_covariance_panel(self) -> None:
-        with patch("optimal_tf.allocation.build_weight_panel") as mocked:
-            mocked.return_value = pd.DataFrame(0.0, index=self.prices.index, columns=self.prices.columns)
+        with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov) as mocked:
             compute_weights_panel(self.prices, EstimationConfig(), "NM", long_only=False)
-            mocked.assert_called_once()
+            self.assertTrue(mocked.called)
 
     def test_torp0_panel_produces_finite_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
         with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
-            panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP0", long_only=False)
+            with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov):
+                panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP0", long_only=False)
 
         row = panel.loc[self.prices.index[-1]]
         self.assertTrue(np.isfinite(row.to_numpy()).all())
@@ -70,7 +71,8 @@ class StrategyPanelTests(unittest.TestCase):
     def test_torp1_panel_produces_finite_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
         with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
-            panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP1", long_only=False)
+            with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov):
+                panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP1", long_only=False)
 
         row = panel.loc[self.prices.index[-1]]
         self.assertTrue(np.isfinite(row.to_numpy()).all())
@@ -79,7 +81,8 @@ class StrategyPanelTests(unittest.TestCase):
     def test_torp2_panel_produces_finite_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
         with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
-            panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP2", long_only=False)
+            with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov):
+                panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP2", long_only=False)
 
         row = panel.loc[self.prices.index[-1]]
         self.assertTrue(np.isfinite(row.to_numpy()).all())
@@ -116,6 +119,33 @@ class StrategyPanelTests(unittest.TestCase):
         signal_1 = float(panel_1.signal_scale.loc[self.prices.index[-1]])
         signal_2 = float(panel_2.signal_scale.loc[self.prices.index[-1]])
         self.assertAlmostEqual(signal_2, 2.0 * signal_1)
+
+    def test_lltf_panel_produces_finite_normalized_weights(self) -> None:
+        prices = pd.DataFrame(
+            {
+                "A": [100.0, 101.0, 102.5, 101.8, 103.0, 104.2],
+                "B": [100.0, 99.5, 100.8, 101.0, 100.7, 101.4],
+                "C": [100.0, 100.3, 99.9, 100.4, 100.9, 101.2],
+            },
+            index=pd.date_range("2026-01-01", periods=6, freq="B"),
+        )
+
+        panel = compute_weights_panel(
+            prices,
+            EstimationConfig(
+                vol_span=2,
+                trend_span=2,
+                covariance_alpha=0.5,
+                covariance_min_periods=2,
+                lltf_l2_reg=1e-3,
+            ),
+            "LLTF",
+            long_only=False,
+        )
+
+        row = panel.loc[prices.index[-1]]
+        self.assertTrue(np.isfinite(row.to_numpy()).all())
+        self.assertAlmostEqual(float(row.abs().sum()), 1.0)
 
     def test_torp_uses_projected_rp_factor_signal(self) -> None:
         signal = pd.Series({"A": 2.0, "B": -1.0, "C": 0.5})

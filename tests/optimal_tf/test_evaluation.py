@@ -133,6 +133,7 @@ evaluation_start = "2026-01-01"
         rendered = output.getvalue()
         self.assertEqual(exit_code, 0)
         self.assertIn("rebalance_frequency: monthly", rendered)
+        self.assertIn("execution_time_seconds:", rendered)
         self.assertIn("total_return: 0.1", rendered)
 
     def test_evaluate_cli_writes_plot_when_output_dir_is_provided(self) -> None:

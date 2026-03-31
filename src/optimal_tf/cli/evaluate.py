@@ -4,6 +4,7 @@ import argparse
 import json
 from dataclasses import asdict
 from pathlib import Path
+from time import perf_counter
 from typing import Sequence
 
 from ..allocation import supported_strategies
@@ -97,6 +98,7 @@ def _write_outputs(result, output_dir: str | None) -> None:
 
 
 def run(argv: Sequence[str] | None = None) -> int:
+    started_at = perf_counter()
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -113,6 +115,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     print(f"rebalance_frequency: {evaluation.rebalance_frequency}")
     print(f"evaluation_start: {evaluation.evaluation_start or prices.index.min().date()}")
     print(f"evaluation_end: {evaluation.evaluation_end or prices.index.max().date()}")
+    print(f"execution_time_seconds: {perf_counter() - started_at: .3f}")
     for key, value in asdict(result.summary).items():
         print(f"{key}: {value}")
     _write_outputs(result, args.output_dir)

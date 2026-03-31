@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from time import perf_counter
 from typing import Sequence
 
 import pandas as pd
@@ -113,6 +114,7 @@ def _write_outputs(
 
 
 def run(argv: Sequence[str] | None = None) -> int:
+    started_at = perf_counter()
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -135,6 +137,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     print(f"allocation_date: {allocation_date.date()}")
     print(f"signal_scale: {state.signal_scale: .6f}")
     print(f"num_assets: {(weights != 0.0).sum()}")
+    print(f"execution_time_seconds: {perf_counter() - started_at: .3f}")
     print(_format_weights(weights))
     _write_outputs(
         weights,

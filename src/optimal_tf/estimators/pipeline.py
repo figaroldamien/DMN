@@ -8,6 +8,24 @@ from .covariance import correlation_to_covariance, covariance_to_correlation
 from .rie import clean_correlation_matrix
 
 
+def estimate_clean_covariance_at_date(
+    prices: pd.DataFrame,
+    cfg: EstimationConfig,
+    date: pd.Timestamp | str,
+) -> pd.DataFrame:
+    ts = pd.Timestamp(date)
+    history = prices.loc[prices.index <= ts]
+    if history.empty:
+        raise ValueError(f"No price history available on or before {ts.date()}.")
+    panel = estimate_clean_covariance_panel(history, cfg)
+    if not panel:
+        raise ValueError(f"Not enough history to estimate covariance on {ts.date()}.")
+    eligible = [key for key in panel if key <= ts]
+    if not eligible:
+        raise ValueError(f"No covariance estimate available on or before {ts.date()}.")
+    return panel[max(eligible)]
+
+
 def estimate_clean_covariance_panel(
     prices: pd.DataFrame,
     cfg: EstimationConfig,

@@ -1,6 +1,6 @@
 # `optimal_tf` Architecture And Design Notes
 
-Last updated: 2026-03-30
+Last updated: 2026-03-31
 
 ## Purpose
 
@@ -43,6 +43,11 @@ This leads to two layers:
 
 The allocation layer exists, and a first periodic evaluation layer now exists too.
 
+Current implementation detail:
+- the primary primitive is now date-centric: allocation is computed for one resolved market date at a time,
+- periodic evaluation loops over rebalance dates,
+- the evaluation engine precomputes one covariance cache for the run and reuses it across rebalance dates to avoid recomputing the full estimator history at each step.
+
 Timing convention carried by the current design:
 - rebalance weights are observed on date `t`,
 - they are applied only to returns strictly after `t`,
@@ -66,18 +71,19 @@ Timing convention carried by the current design:
 - `estimators/pipeline.py`
   Estimation pipeline:
   prices -> returns -> EWMA vol -> normalized returns -> EWMA covariance -> cleaned correlation -> covariance
+  The module exposes both panel-style utilities and a single-date access path.
 - `estimators/rie.py`
   Cleaning API. `empirical`, `linear_shrinkage`, and a first native `rie` implementation exist.
 - `portfolios.py`
   Current portfolio recipes: `RP` and `ARP`.
 - `allocation.py`
-  Single-date allocation logic and strategy registry.
+  Single-date allocation logic, strategy registry, and date-centric strategy evaluation.
 - `rebalance.py`
   Rebalance calendar generation from the available market dates.
 - `backtest.py`
-  Simple weight panel builder and daily return engine.
+  Legacy/simple weight panel builder plus daily return engine utilities.
 - `evaluation.py`
-  Discrete portfolio simulation with configurable rebalance frequency, turnover, transaction costs and portfolio volatility targeting.
+  Discrete portfolio simulation with configurable rebalance frequency, turnover, transaction costs, portfolio volatility targeting, and per-run covariance cache reuse.
 - `metrics.py`
   Basic portfolio statistics plus evaluation summary metrics.
 - `reporting.py`
@@ -156,11 +162,17 @@ Reason:
 - they give a working end-to-end path for real data integration.
 
 Current note:
+- `LLTF` is an empirical lead-lag trend-following strategy built from EWMA moments of virtual cross-asset streams `r_j * s_k`.
 - `ToRP0` is the historical implementation: an asset-by-asset trend overlay on the `RP` budget.
 - `ToRP1` measures a common trend signal on the `RP` factor and applies that signal back onto the `RP` portfolio.
 - `ToRP2` computes the trend on the `RP` factor return stream itself and applies that factor signal back onto a category-aware `RP` portfolio.
 - `ToRP3` keeps the trend amplitude explicit through `signal_scale` and `effective_weights`.
 - `ToRP3` is the closest current implementation to Sec. 3.4 of the reference paper, though the framework still layers a separate portfolio volatility target on top.
+
+Performance note:
+- after the move to date-centric allocation, the evaluation engine now reuses a covariance cache within one run,
+- this materially improves execution time for `RP`, `ARP`, `NM`, and the `ToRP` family on moderate universes.
+- `ToRP2` and `ToRP3` now also reuse a precomputed `RP` factor context within one evaluation run, so they no longer rebuild the full historical `RP` path at each rebalance date.
 
 Documentation consequence:
 - strategy names are now part of the public contract and should remain stable once exposed through config and CLI.

@@ -23,6 +23,7 @@ class EstimationConfig:
     trend_alpha: float | None = None
     trend_span: int | None = 252
     torp_signal_gain: float = 1.0
+    lltf_l2_reg: float = 1e-4
 
 
 @dataclass(frozen=True)
