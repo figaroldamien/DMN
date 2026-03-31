@@ -1,6 +1,6 @@
 # `optimal_tf` Architecture And Design Notes
 
-Last updated: 2026-03-27
+Last updated: 2026-03-30
 
 ## Purpose
 
@@ -12,7 +12,12 @@ This document is the living design log for the `optimal_tf` project. It tracks:
 
 See also:
 - [optimal_tf_specifications.md](/Users/damien.figarol/DMN/docs/optimal_tf_specifications.md) for functional requirements,
-- [optimal_tf_usage.md](/Users/damien.figarol/DMN/docs/optimal_tf_usage.md) for user-facing commands and config guidance.
+- [optimal_tf_usage.md](/Users/damien.figarol/DMN/docs/optimal_tf_usage.md) for user-facing commands and config guidance,
+- [optimal_tf_strategies.md](/Users/damien.figarol/DMN/docs/optimal_tf_strategies.md) for strategy descriptions and current variants.
+
+Documentation stance:
+- `optimal_tf_specifications.md` is now organized as a contract-first document with separate sections for normative requirements, current implementation, and known gaps,
+- this architecture note should stay focused on design intent and module boundaries rather than repeating the functional contract.
 
 Maintenance rule:
 - update this file at the end of each working session that changes `optimal_tf`,
@@ -38,6 +43,12 @@ This leads to two layers:
 
 The allocation layer exists, and a first periodic evaluation layer now exists too.
 
+Timing convention carried by the current design:
+- rebalance weights are observed on date `t`,
+- they are applied only to returns strictly after `t`,
+- the next rebalance date is the end of the holding period and is included in that period's return stream,
+- rebalance cost is charged on the first trading day strictly after `t`.
+
 ## Current Package Layout
 
 `src/optimal_tf/`
@@ -54,7 +65,7 @@ The allocation layer exists, and a first periodic evaluation layer now exists to
   Covariance/correlation conversions and PSD repair.
 - `estimators/pipeline.py`
   Estimation pipeline:
-  prices -> returns -> EWMA vol -> normalized returns -> rolling correlation -> cleaned correlation -> covariance
+  prices -> returns -> EWMA vol -> normalized returns -> EWMA covariance -> cleaned correlation -> covariance
 - `estimators/rie.py`
   Cleaning API. `empirical`, `linear_shrinkage`, and a first native `rie` implementation exist.
 - `portfolios.py`
@@ -75,6 +86,8 @@ The allocation layer exists, and a first periodic evaluation layer now exists to
   Small comparison helper for native vs reference cleaners.
 - `cli/main.py`
   CLI for computing weights at one allocation date.
+- `cli/evaluate.py`
+  CLI for periodic evaluation, exports, and benchmark chart generation.
 
 ## Key Design Decisions
 
@@ -104,7 +117,7 @@ Decision:
 - portfolio formulas belong to `portfolios.py`.
 
 Reason:
-- `RP`, `ARP`, `NM`, `ToRP` should consume already estimated matrices,
+- `RP`, `ARP`, `NM`, `ToRP0`, `ToRP1`, `ToRP2`, and `ToRP3` should consume already estimated matrices,
 - this keeps the code comparable across estimators.
 
 ### 4. Data sanity filtering is applied at the return level
@@ -136,28 +149,41 @@ Current state:
 ### 6. Start with simple, testable portfolio recipes
 
 Decision:
-- current implemented recipes are `RP`, `ARP`, `NM`, `EW`, and a first V1 `ToRP`.
+- current implemented recipes are `RP`, `ARP`, `NM`, `EW`, `ToRP0`, `ToRP1`, `ToRP2`, and `ToRP3`.
 
 Reason:
 - they are easier to validate than a full paper-faithful `ToRP` or RIE implementation,
 - they give a working end-to-end path for real data integration.
 
 Current note:
-- `ToRP` is implemented as a V1 strategy that uses `RP` as the risk budget and a trend signal on volatility-normalized returns as the directional overlay.
-- this is intentionally a first operational version, not yet the final paper-faithful implementation.
+- `ToRP0` is the historical implementation: an asset-by-asset trend overlay on the `RP` budget.
+- `ToRP1` measures a common trend signal on the `RP` factor and applies that signal back onto the `RP` portfolio.
+- `ToRP2` computes the trend on the `RP` factor return stream itself and applies that factor signal back onto a category-aware `RP` portfolio.
+- `ToRP3` keeps the trend amplitude explicit through `signal_scale` and `effective_weights`.
+- `ToRP3` is the closest current implementation to Sec. 3.4 of the reference paper, though the framework still layers a separate portfolio volatility target on top.
+
+Documentation consequence:
+- strategy names are now part of the public contract and should remain stable once exposed through config and CLI.
 
 ## Current Defaults
 
 Defaults currently used in config:
 - `vol_span = 60`
-- `corr_span = 252`
-- `corr_min_periods = 252`
-- `trend_span = 252`
+- `covariance_alpha = 0.0013333333333333333`
+- `covariance_min_periods = 252`
+- `trend_alpha = 0.01`
+- `torp_signal_gain = 5.0`
 - `sigma_target_annual = 0.15`
-- `cleaning_method = "empirical"` for now
+- `cost_bps = 25.0`
+- `long_only = true`
+- `cleaning_method = "rie"`
+- `allocation.strategy = "ARP"`
+- `evaluation.strategy = "ARP"`
+- `universe.name = "index"`
 
 Note:
-- the paper target is RIE cleaning, but the code keeps `empirical` as the working default until RIE is implemented.
+- the dataclass defaults are still more conservative than the example config in a few places,
+- the example config is the best reference for the current recommended working setup.
 
 ## CLI Design
 
@@ -203,15 +229,14 @@ Current tests cover:
 
 Not implemented yet:
 - external validation and possible refinement of the current RIE implementation,
-- refined paper-faithful `ToRP`,
 - richer transaction cost models,
-- performance reports and plots.
+- richer performance reports and plots beyond the current baseline chart export.
 
 ## Next Planned Architecture Extension
 
 Current next major addition should be:
 - enrich the evaluation engine,
-- add `ToRP`,
+- extend `ToRP` variants,
 - implement and validate RIE.
 
 ## Roadmap Snapshot
@@ -226,4 +251,4 @@ The most useful next items after the current state are:
 Immediate next validation loop for `RIE`:
 - build a dedicated comparison harness,
 - compare `empirical` vs `linear_shrinkage` vs `rie`,
-- inspect downstream portfolio behavior on `ARP`, `NM`, and `ToRP`.
+- inspect downstream portfolio behavior on `ARP`, `NM`, `ToRP0`, `ToRP1`, `ToRP2`, and `ToRP3`.

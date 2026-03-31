@@ -18,6 +18,7 @@ from optimal_tf.estimators.covariance import (  # noqa: E402
     make_psd,
 )
 from optimal_tf.estimators.rie import clean_correlation_matrix  # noqa: E402
+from optimal_tf.features import alpha_from_span, ewma_cov_frame  # noqa: E402
 
 
 class CovarianceEstimatorTests(unittest.TestCase):
@@ -90,6 +91,38 @@ class CovarianceEstimatorTests(unittest.TestCase):
         cleaned = clean_correlation_matrix(corr, method="rie", sample_size=252, bandwidth=1e-3)
 
         np.testing.assert_allclose(cleaned.to_numpy(), np.eye(4), atol=1e-3)
+
+    def test_rie_handles_repeated_eigenvalues_without_warning_or_nan(self) -> None:
+        corr = pd.DataFrame(
+            np.ones((3, 3)),
+            index=list("ABC"),
+            columns=list("ABC"),
+        )
+
+        cleaned = clean_correlation_matrix(corr, method="rie", sample_size=252, bandwidth=1e-6)
+
+        self.assertTrue(np.isfinite(cleaned.to_numpy()).all())
+        np.testing.assert_allclose(np.diag(cleaned), np.ones(3), atol=1e-8)
+
+    def test_alpha_from_span_matches_ewm_conversion(self) -> None:
+        self.assertAlmostEqual(float(alpha_from_span(199)), 0.01)
+
+    def test_ewma_cov_frame_produces_square_matrices(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "A": [0.01, 0.02, -0.01, 0.015],
+                "B": [0.03, 0.01, -0.02, 0.01],
+            },
+            index=pd.date_range("2026-01-01", periods=4, freq="B"),
+        )
+
+        panel = ewma_cov_frame(frame, alpha=0.2, min_periods=2)
+
+        self.assertGreaterEqual(len(panel), 1)
+        for _, (cov, sample_size) in panel.items():
+            self.assertEqual(list(cov.index), list(cov.columns))
+            self.assertTrue(np.allclose(cov.to_numpy(), cov.to_numpy().T))
+            self.assertGreaterEqual(sample_size, 1)
 
 
 if __name__ == "__main__":

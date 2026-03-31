@@ -13,8 +13,13 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from optimal_tf.allocation import compute_weights_panel, supported_strategies  # noqa: E402
+from optimal_tf.allocation import compute_strategy_panel, compute_weights_panel, supported_strategies  # noqa: E402
 from optimal_tf.config import EstimationConfig  # noqa: E402
+from optimal_tf.portfolios import (  # noqa: E402
+    risk_parity_weights_from_cov_with_tilt,
+    trend_on_risk_parity_weights_from_cov_and_factor_signal,
+    trend_on_risk_parity_weights_from_cov_and_signal,
+)
 
 
 class StrategyPanelTests(unittest.TestCase):
@@ -36,7 +41,10 @@ class StrategyPanelTests(unittest.TestCase):
     def test_supported_strategies_include_new_recipes(self) -> None:
         self.assertIn("NM", supported_strategies())
         self.assertIn("EW", supported_strategies())
-        self.assertIn("ToRP", supported_strategies())
+        self.assertIn("ToRP0", supported_strategies())
+        self.assertIn("ToRP1", supported_strategies())
+        self.assertIn("ToRP2", supported_strategies())
+        self.assertIn("ToRP3", supported_strategies())
 
     def test_equal_weight_panel_is_row_normalized(self) -> None:
         panel = compute_weights_panel(self.prices, EstimationConfig(), "EW", long_only=True)
@@ -50,14 +58,100 @@ class StrategyPanelTests(unittest.TestCase):
             compute_weights_panel(self.prices, EstimationConfig(), "NM", long_only=False)
             mocked.assert_called_once()
 
-    def test_torp_panel_produces_finite_weights(self) -> None:
+    def test_torp0_panel_produces_finite_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
         with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
-            panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP", long_only=False)
+            panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP0", long_only=False)
 
         row = panel.loc[self.prices.index[-1]]
         self.assertTrue(np.isfinite(row.to_numpy()).all())
         self.assertAlmostEqual(float(row.abs().sum()), 1.0)
+
+    def test_torp1_panel_produces_finite_weights(self) -> None:
+        cov_panel = {self.prices.index[-1]: self.cov}
+        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
+            panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP1", long_only=False)
+
+        row = panel.loc[self.prices.index[-1]]
+        self.assertTrue(np.isfinite(row.to_numpy()).all())
+        self.assertAlmostEqual(float(row.abs().sum()), 1.0)
+
+    def test_torp2_panel_produces_finite_weights(self) -> None:
+        cov_panel = {self.prices.index[-1]: self.cov}
+        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
+            panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP2", long_only=False)
+
+        row = panel.loc[self.prices.index[-1]]
+        self.assertTrue(np.isfinite(row.to_numpy()).all())
+        self.assertAlmostEqual(float(row.abs().sum()), 1.0)
+
+    def test_torp3_panel_preserves_signal_amplitude(self) -> None:
+        cov_panel = {self.prices.index[-1]: self.cov}
+        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
+            panel = compute_strategy_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP3", long_only=False)
+
+        signal = float(panel.signal_scale.loc[self.prices.index[-1]])
+        effective = panel.effective_weights.loc[self.prices.index[-1]]
+        base = panel.base_weights.loc[self.prices.index[-1]]
+        self.assertTrue(np.isfinite(signal))
+        self.assertTrue(np.isfinite(effective.to_numpy()).all())
+        self.assertTrue(np.allclose(effective.to_numpy(), (base * signal).to_numpy()))
+
+    def test_torp3_signal_gain_scales_effective_weights(self) -> None:
+        cov_panel = {self.prices.index[-1]: self.cov}
+        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
+            panel_1 = compute_strategy_panel(
+                self.prices,
+                EstimationConfig(vol_span=2, trend_span=2, torp_signal_gain=1.0),
+                "ToRP3",
+                long_only=False,
+            )
+            panel_2 = compute_strategy_panel(
+                self.prices,
+                EstimationConfig(vol_span=2, trend_span=2, torp_signal_gain=2.0),
+                "ToRP3",
+                long_only=False,
+            )
+
+        signal_1 = float(panel_1.signal_scale.loc[self.prices.index[-1]])
+        signal_2 = float(panel_2.signal_scale.loc[self.prices.index[-1]])
+        self.assertAlmostEqual(signal_2, 2.0 * signal_1)
+
+    def test_torp_uses_projected_rp_factor_signal(self) -> None:
+        signal = pd.Series({"A": 2.0, "B": -1.0, "C": 0.5})
+
+        weights = trend_on_risk_parity_weights_from_cov_and_signal(self.cov, signal, long_only=False)
+        rp = pd.Series(
+            [1.0 / 0.2, 1.0 / 0.3, 1.0 / 0.4],
+            index=list("ABC"),
+            dtype=float,
+        )
+        rp = rp / rp.abs().sum()
+        projected_signal = float(signal @ rp)
+        expected = np.sign(projected_signal) * rp
+
+        self.assertTrue(np.allclose(weights.loc[list("ABC")].to_numpy(), expected.to_numpy()))
+
+    def test_torp_long_only_goes_flat_when_projected_rp_signal_is_negative(self) -> None:
+        signal = pd.Series({"A": -2.0, "B": -1.0, "C": -0.5})
+
+        weights = trend_on_risk_parity_weights_from_cov_and_signal(self.cov, signal, long_only=True)
+
+        self.assertTrue(np.allclose(weights.to_numpy(), np.zeros(len(weights))))
+
+    def test_torp2_factor_signal_applies_to_tilted_rp_portfolio(self) -> None:
+        tilt = pd.Series({"A": 1.0, "B": 0.0, "C": 1.0})
+
+        weights = trend_on_risk_parity_weights_from_cov_and_factor_signal(
+            self.cov,
+            factor_signal=0.7,
+            tilt=tilt,
+            long_only=False,
+        )
+        expected = risk_parity_weights_from_cov_with_tilt(self.cov, tilt)
+
+        self.assertTrue(np.allclose(weights.loc[list("ABC")].to_numpy(), expected.to_numpy()))
+        self.assertAlmostEqual(float(weights.loc["B"]), 0.0)
 
 
 if __name__ == "__main__":

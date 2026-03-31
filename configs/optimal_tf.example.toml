@@ -1,29 +1,30 @@
 [universe]
-name = "cac40"
+name = "index"
 start = "2000-01-01"
 
 [estimation]
 vol_span = 60
-corr_span = 252
-corr_min_periods = 252
+covariance_alpha = 0.001
+covariance_min_periods = 252
 max_abs_return = 1.0
 cleaning_method = "rie"
 linear_shrinkage = 0.0
 rie_bandwidth = 0.001
-trend_span = 252
+trend_alpha = 0.01
+torp_signal_gain = 5.0
 
 [backtest]
 sigma_target_annual = 0.15
 portfolio_vol_target = true
 portfolio_vol_span = 60
-cost_bps = 1.0
+cost_bps = 25.0
 long_only = true
 
 [allocation]
 strategy = "ARP"
 
 [evaluation]
-strategy = "ToRP"
+strategy = "ARP"
 rebalance_frequency = "monthly"
 evaluation_start = "2015-01-01"
 # evaluation_end = "2026-03-27"

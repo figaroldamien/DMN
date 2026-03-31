@@ -81,8 +81,19 @@ date = "2026-03-27"
 
         with patch("optimal_tf.cli.main.load_prices_for_universe", return_value=prices):
             with patch(
-                "optimal_tf.cli.main.compute_portfolio_weights_at_date",
-                return_value=(pd.Timestamp("2026-03-27"), pd.Series({"A": 0.6, "B": 0.4})),
+                "optimal_tf.cli.main.compute_portfolio_strategy_state_at_date",
+                return_value=(
+                    pd.Timestamp("2026-03-27"),
+                    type(
+                        "State",
+                        (),
+                        {
+                            "base_weights": pd.Series({"A": 0.6, "B": 0.4}),
+                            "signal_scale": 1.0,
+                            "effective_weights": pd.Series({"A": 0.6, "B": 0.4}),
+                        },
+                    )(),
+                ),
             ):
                 with redirect_stdout(output):
                     exit_code = run(["--config", path])
@@ -128,8 +139,19 @@ strategy = "RP"
             prices = pd.DataFrame({"A": [100.0, 101.0], "B": [100.0, 99.0]}, index=pd.date_range("2026-03-26", periods=2))
             with patch("optimal_tf.cli.main.load_prices_for_universe", return_value=prices):
                 with patch(
-                    "optimal_tf.cli.main.compute_portfolio_weights_at_date",
-                    return_value=(pd.Timestamp("2026-03-27"), pd.Series({"A": 0.6, "B": 0.4})),
+                    "optimal_tf.cli.main.compute_portfolio_strategy_state_at_date",
+                    return_value=(
+                        pd.Timestamp("2026-03-27"),
+                        type(
+                            "State",
+                            (),
+                            {
+                                "base_weights": pd.Series({"A": 0.6, "B": 0.4}),
+                                "signal_scale": 1.0,
+                                "effective_weights": pd.Series({"A": 0.6, "B": 0.4}),
+                            },
+                        )(),
+                    ),
                 ):
                     exit_code = run(
                         [
@@ -153,6 +175,7 @@ strategy = "RP"
             payload = json.loads(json_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["strategy"], "RP")
             self.assertEqual(payload["universe"], "test")
+            self.assertEqual(payload["signal_scale"], 1.0)
             self.assertAlmostEqual(payload["weights"]["A"], 0.6)
 
 

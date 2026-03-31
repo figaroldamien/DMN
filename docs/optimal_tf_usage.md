@@ -1,6 +1,6 @@
 # `optimal_tf` User Manual
 
-Last updated: 2026-03-27
+Last updated: 2026-03-30
 
 ## Purpose
 
@@ -12,7 +12,8 @@ It should be updated:
 
 See also:
 - [optimal_tf_specifications.md](/Users/damien.figarol/DMN/docs/optimal_tf_specifications.md) for the functional scope,
-- [optimal_tf_architecture.md](/Users/damien.figarol/DMN/docs/optimal_tf_architecture.md) for design decisions and module layout.
+- [optimal_tf_architecture.md](/Users/damien.figarol/DMN/docs/optimal_tf_architecture.md) for design decisions and module layout,
+- [optimal_tf_strategies.md](/Users/damien.figarol/DMN/docs/optimal_tf_strategies.md) for strategy descriptions.
 
 ## Project Location
 
@@ -115,7 +116,10 @@ Available strategies today:
 - `ARP`
 - `NM`
 - `EW`
-- `ToRP`
+- `ToRP0`
+- `ToRP1`
+- `ToRP2`
+- `ToRP3`
 
 ### 5. Force long-only
 
@@ -167,6 +171,19 @@ This export now includes:
 - tabular CSV/JSON outputs,
 - `performance.png` with the portfolio and two universe benchmarks.
 
+Current evaluation export files:
+- `weights_by_rebalance.csv`
+- `base_weights_by_rebalance.csv`
+- `effective_weights_by_rebalance.csv`
+- `signal_scale.csv`
+- `portfolio_vol_scale.csv`
+- `daily_returns_gross.csv`
+- `daily_returns_net.csv`
+- `turnover.csv`
+- `costs.csv`
+- `summary.json`
+- `performance.png` when plot export is enabled
+
 ### 11. Disable chart generation
 
 ```bash
@@ -197,7 +214,17 @@ JSON export structure:
 - `date`
 - `strategy`
 - `universe`
+- `signal_scale`
+- `base_weights`
 - `weights`
+
+Evaluation export notes:
+- `daily_returns_gross.csv` contains portfolio returns before transaction costs,
+- `daily_returns_net.csv` contains portfolio returns after transaction costs,
+- `weights_by_rebalance.csv` remains the effective rebalance exposure used in the backtest,
+- `base_weights_by_rebalance.csv` stores the structural portfolio before signal amplitude,
+- `effective_weights_by_rebalance.csv` stores the exposure after `signal_scale`,
+- `portfolio_vol_scale.csv` stores the separate portfolio-level volatility-targeting overlay.
 
 ## Configuration File
 
@@ -221,11 +248,14 @@ Example config:
   Current default: `60`
 
 - `corr_span`
-  Rolling window length for correlation estimation.
-  Current default: `252`
+  Deprecated rolling-window parameter for covariance estimation.
+  It is only kept as a compatibility fallback when `covariance_alpha` is not provided.
 
-- `corr_min_periods`
-  Minimum observations required before a correlation matrix is produced.
+- `covariance_alpha`
+  Exponential smoothing coefficient used for covariance estimation.
+
+- `covariance_min_periods`
+  Minimum observations required before the EWMA covariance starts producing matrices.
   Current default: `252`
 
 - `max_abs_return`
@@ -247,8 +277,16 @@ Example config:
 - `rie_bandwidth`
   Reserved for the future RIE implementation.
 
+- `trend_alpha`
+  Exponential smoothing coefficient for trend-following signals.
+
 - `trend_span`
-  Reserved for future trend-driven portfolio recipes such as `ToRP`.
+  Deprecated compatibility parameter for trend smoothing.
+  It is converted to an EWMA coefficient when `trend_alpha` is not provided.
+
+- `torp_signal_gain`
+  Additional multiplicative gain applied only to `ToRP3` after factor-trend normalization.
+  It is used to calibrate the strength of `signal_scale` without changing the other strategies.
 
 ### `[backtest]`
 
@@ -283,7 +321,10 @@ This section currently controls portfolio-level conventions even for the single-
   - `ARP`
   - `NM`
   - `EW`
-  - `ToRP`
+  - `ToRP0`
+  - `ToRP1`
+  - `ToRP2`
+  - `ToRP3`
 
 - `date`
   Optional allocation date.
@@ -298,7 +339,10 @@ This section currently controls portfolio-level conventions even for the single-
   - `ARP`
   - `NM`
   - `EW`
-  - `ToRP`
+  - `ToRP0`
+  - `ToRP1`
+  - `ToRP2`
+  - `ToRP3`
 
 - `rebalance_frequency`
   Supported values:
@@ -313,21 +357,24 @@ This section currently controls portfolio-level conventions even for the single-
 
 - `evaluation_end`
   Optional end date for the backtest window.
+  The current engine applies weights after each rebalance date and charges transaction cost on the first following trading day.
 
 ## Current Defaults
 
 The current example config uses:
-- `universe.name = "cac40"`
+- `universe.name = "index"`
 - `start = "2000-01-01"`
 - `vol_span = 60`
-- `corr_span = 252`
-- `corr_min_periods = 252`
-- `cleaning_method = "empirical"`
-- `trend_span = 252`
+- `covariance_alpha = 0.0013333333333333333`
+- `covariance_min_periods = 252`
+- `cleaning_method = "rie"`
+- `trend_alpha = 0.01`
+- `torp_signal_gain = 5.0`
 - `sigma_target_annual = 0.15`
-- `long_only = false`
-- `allocation.strategy = "RP"`
-- `evaluation.strategy = "RP"`
+- `cost_bps = 25.0`
+- `long_only = true`
+- `allocation.strategy = "ARP"`
+- `evaluation.strategy = "ARP"`
 - `evaluation.rebalance_frequency = "monthly"`
 - `evaluation.evaluation_start = "2015-01-01"`
 
@@ -335,23 +382,28 @@ The current example config uses:
 
 - Real data currently comes from `yfinance`.
 - The current volatility targeting implementation works at the portfolio return level, not yet through a leverage-aware position rescaling layer recorded in the exported weights.
-- `ToRP` is currently a first operational V1, not yet the final paper-faithful variant.
+- `ToRP0` is the original implementation: asset-by-asset trend overlay on top of `RP`.
+- `ToRP1` measures a common trend signal on the `RP` factor itself; this is closer to the reference paper, but remains a simplified implementation.
+- `ToRP2` is the most article-aligned current variant: it uses the trend of the `RP` factor return stream itself and neutralizes FX in that factor when metadata is available.
+- `ToRP3` preserves the amplitude of the factor signal explicitly through `signal_scale` and `effective_weights`.
+- `ToRP3` now stores a volatility-normalized factor signal, scaled by `torp_signal_gain`, rather than a raw factor return trend.
 - The current data-quality filter is intentionally simple and threshold-based.
 - The current `RIE` is a first native implementation and still needs validation against an external reference.
+- Export metadata is still minimal and does not yet capture the full effective run configuration.
 
 ## What Is Next
 
 The main planned improvements are:
 - validation/refinement of the native `RIE`,
 - anomaly diagnostics export,
-- more faithful `ToRP`,
+- more faithful `ToRP` variants,
 - portfolio combinations from the note,
 - richer evaluation reports and benchmarks.
 
 Near-term validation plan:
 - compare the native `RIE` output against an external reference,
 - run evaluation sweeps for `empirical`, `linear_shrinkage`, and `rie`,
-- inspect the effect of the cleaner on `ARP`, `NM`, and `ToRP`.
+- inspect the effect of the cleaner on `ARP`, `NM`, `ToRP0`, `ToRP1`, `ToRP2`, and `ToRP3`.
 
 ## Tests
 
@@ -390,5 +442,6 @@ cd /Users/damien.figarol/DMN
 
 Typical causes:
 - the requested date is before enough history is available,
-- there is not enough price data to satisfy `corr_min_periods`,
+- there is not enough price data to satisfy `covariance_min_periods`,
+- or, in compatibility mode, there is not enough history for the legacy `corr_span` fallback,
 - the downloaded universe is too sparse over the requested interval.

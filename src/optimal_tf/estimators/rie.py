@@ -66,7 +66,18 @@ def clean_correlation_matrix(
         shrunk = np.empty_like(vals)
         for i, lam in enumerate(vals):
             z = lam - 1j * eta
-            m = np.mean(1.0 / (vals - z))
+            denom_terms = vals - z
+            inv_terms = np.divide(
+                1.0,
+                denom_terms,
+                out=np.zeros_like(denom_terms, dtype=np.complex128),
+                where=np.abs(denom_terms) > 1e-14,
+            )
+            finite_terms = inv_terms[np.isfinite(inv_terms)]
+            if len(finite_terms) == 0:
+                m = 0.0 + 0.0j
+            else:
+                m = np.mean(finite_terms)
             denom = abs(1.0 - c - c * lam * m) ** 2
             shrunk[i] = lam / max(denom, 1e-12)
 

@@ -40,13 +40,17 @@ def load_config(
                 k: estimation_raw[k]
                 for k in (
                     "vol_span",
+                    "covariance_alpha",
+                    "covariance_min_periods",
                     "corr_span",
                     "corr_min_periods",
                     "max_abs_return",
                     "cleaning_method",
                     "linear_shrinkage",
                     "rie_bandwidth",
+                    "trend_alpha",
                     "trend_span",
+                    "torp_signal_gain",
                 )
                 if k in estimation_raw
             },

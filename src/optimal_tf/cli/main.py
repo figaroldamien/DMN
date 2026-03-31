@@ -7,7 +7,7 @@ from typing import Sequence
 
 import pandas as pd
 
-from ..allocation import compute_portfolio_weights_at_date, supported_strategies
+from ..allocation import compute_portfolio_strategy_state_at_date, supported_strategies
 from ..config import AllocationConfig, BacktestConfig, EstimationConfig, UniverseConfig
 from ..config_io import load_config
 from ..data import load_prices_for_universe
@@ -80,6 +80,8 @@ def _format_weights(weights: pd.Series) -> str:
 
 def _write_outputs(
     weights: pd.Series,
+    base_weights: pd.Series,
+    signal_scale: float,
     allocation_date: pd.Timestamp,
     strategy: str,
     universe: str,
@@ -103,6 +105,8 @@ def _write_outputs(
             "date": allocation_date.strftime("%Y-%m-%d"),
             "strategy": strategy,
             "universe": universe,
+            "signal_scale": float(signal_scale),
+            "base_weights": {str(k): float(v) for k, v in base_weights.items()},
             "weights": {str(k): float(v) for k, v in weights.items()},
         }
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -116,22 +120,26 @@ def run(argv: Sequence[str] | None = None) -> int:
     universe, estimation, backtest, allocation = _merge_overrides(universe, estimation, backtest, allocation, args)
 
     prices = load_prices_for_universe(universe.name, start=universe.start)
-    allocation_date, weights = compute_portfolio_weights_at_date(
+    allocation_date, state = compute_portfolio_strategy_state_at_date(
         prices,
         estimation,
         allocation.strategy,
         as_of_date=allocation.date,
         long_only=backtest.long_only,
     )
+    weights = state.effective_weights
 
     print(f"strategy: {allocation.strategy}")
     print(f"universe: {universe.name}")
     print(f"requested_date: {pd.Timestamp(allocation.date).date() if allocation.date else pd.Timestamp.today().date()}")
     print(f"allocation_date: {allocation_date.date()}")
+    print(f"signal_scale: {state.signal_scale: .6f}")
     print(f"num_assets: {(weights != 0.0).sum()}")
     print(_format_weights(weights))
     _write_outputs(
         weights,
+        state.base_weights,
+        state.signal_scale,
         allocation_date,
         allocation.strategy,
         universe.name,

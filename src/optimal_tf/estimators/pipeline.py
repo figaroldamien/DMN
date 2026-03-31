@@ -3,8 +3,8 @@ from __future__ import annotations
 import pandas as pd
 
 from ..config import EstimationConfig
-from ..features import compute_returns, ewma_vol, normalize_returns_by_vol, rolling_corr_frame, sanitize_returns
-from .covariance import correlation_to_covariance
+from ..features import alpha_from_span, compute_returns, ewma_cov_frame, ewma_vol, normalize_returns_by_vol, sanitize_returns
+from .covariance import correlation_to_covariance, covariance_to_correlation
 from .rie import clean_correlation_matrix
 
 
@@ -17,14 +17,18 @@ def estimate_clean_covariance_panel(
     # The paper works with returns rescaled by realized volatility so that the
     # correlation cleaning focuses on cross-asset structure rather than scale.
     z_returns = normalize_returns_by_vol(returns, vol)
-    raw_corr = rolling_corr_frame(
+    covariance_alpha = cfg.covariance_alpha
+    if covariance_alpha is None:
+        covariance_alpha = alpha_from_span(cfg.corr_span)
+    raw_cov = ewma_cov_frame(
         z_returns,
-        window=cfg.corr_span,
-        min_periods=cfg.corr_min_periods,
+        alpha=float(covariance_alpha),
+        min_periods=cfg.covariance_min_periods,
     )
 
     out: dict[pd.Timestamp, pd.DataFrame] = {}
-    for ts, (corr, sample_size) in raw_corr.items():
+    for ts, (cov_z, sample_size) in raw_cov.items():
+        corr = covariance_to_correlation(cov_z)
         clean_corr = clean_correlation_matrix(
             corr,
             sample_size=sample_size,

@@ -42,7 +42,18 @@ class EvaluationTests(unittest.TestCase):
         bt_cfg = BacktestConfig(cost_bps=10.0, portfolio_vol_target=False, long_only=False)
         eval_cfg = EvaluationConfig(strategy="RP", rebalance_frequency="monthly")
 
-        with patch("optimal_tf.evaluation.compute_weights_panel", return_value=weights_panel):
+        with patch(
+            "optimal_tf.evaluation.compute_strategy_panel",
+            return_value=type(
+                "Panel",
+                (),
+                {
+                    "base_weights": weights_panel,
+                    "effective_weights": weights_panel,
+                    "signal_scale": pd.Series(1.0, index=weights_panel.index),
+                },
+            )(),
+        ):
             result = evaluate_portfolio(prices, est_cfg, bt_cfg, eval_cfg)
 
         self.assertEqual(int(result.summary.num_rebalances), 2)
