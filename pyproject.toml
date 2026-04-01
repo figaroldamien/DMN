@@ -20,6 +20,7 @@ dependencies = [
 [project.scripts]
 optimal-tf = "optimal_tf.cli.main:run"
 optimal-tf-evaluate = "optimal_tf.cli.evaluate:run"
+optimal-tf-compare = "optimal_tf.cli.compare:run"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -41,6 +41,7 @@ Why `--no-build-isolation`:
 Current CLIs:
 - `optimal-tf`
 - `optimal-tf-evaluate`
+- `optimal-tf-compare`
 
 Equivalent module form:
 
@@ -79,6 +80,15 @@ The evaluation CLI runs a periodic backtest:
 9. optionally apply portfolio-level volatility targeting,
 10. print the performance summary and execution time,
 11. optionally export detailed results.
+
+The comparison CLI runs several strategies on the same evaluation setup:
+1. load the config,
+2. resolve the universe,
+3. download price history once,
+4. run periodic evaluation for each requested strategy,
+5. export one subdirectory per strategy,
+6. export comparison tables and plots,
+7. print a summary table and execution time.
 
 Implementation note:
 - during one evaluation run, the engine reuses a covariance cache across rebalance dates,
@@ -199,6 +209,18 @@ Current evaluation export files:
   --no-output-plot
 ```
 
+### 12. Compare several strategies
+
+```bash
+.venv/bin/optimal-tf-compare \
+  --config configs/optimal_tf.example.toml \
+  --strategies RP,ARP,ToRP0,ToRP1,ToRP2,ToRP3 \
+  --output-dir output/optimal_tf/compare_run
+```
+
+By default, `optimal-tf-compare` cleans `--output-dir` before writing results.
+Use `--no-clean-output-dir` to keep existing files.
+
 ## Output Format
 
 Standard output prints:
@@ -232,6 +254,15 @@ Evaluation export notes:
 - `base_weights_by_rebalance.csv` stores the structural portfolio before signal amplitude,
 - `effective_weights_by_rebalance.csv` stores the exposure after `signal_scale`,
 - `portfolio_vol_scale.csv` stores the separate portfolio-level volatility-targeting overlay.
+
+Comparison export notes:
+- `manifest.json` describes the compared strategies and available views,
+- `inputs.json` stores the effective run configuration,
+- `strategies/<strategy>/...` reuses the same per-strategy export contract as `optimal-tf-evaluate`,
+- `comparison/summary_table.csv` stores one row per strategy,
+- `comparison/nav_comparison.csv` stores cumulative NAV series side by side,
+- `comparison/drawdown_comparison.csv` stores drawdown series side by side,
+- `comparison/plots/` stores the first comparison PNG charts.
 
 CLI note:
 - both `optimal-tf` and `optimal-tf-evaluate` now print `execution_time_seconds` in their text output.

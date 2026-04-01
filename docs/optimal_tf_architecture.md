@@ -94,6 +94,8 @@ Timing convention carried by the current design:
   CLI for computing weights at one allocation date.
 - `cli/evaluate.py`
   CLI for periodic evaluation, exports, and benchmark chart generation.
+- `cli/compare.py`
+  CLI for multi-strategy comparison runs, comparison tables, and first comparison plots.
 
 ## Key Design Decisions
 

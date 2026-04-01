@@ -59,3 +59,25 @@ def render_evaluation_plot(
     fig.savefig(output, dpi=160)
     plt.close(fig)
     return output
+
+
+def render_series_comparison_plot(
+    frame: pd.DataFrame,
+    output_path: str | Path,
+    *,
+    title: str,
+    ylabel: str,
+) -> Path:
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(11, 6))
+    for column in frame.columns:
+        ax.plot(frame.index, frame[column], label=str(column), linewidth=1.8)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.grid(True, alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(output, dpi=160)
+    plt.close(fig)
+    return output
