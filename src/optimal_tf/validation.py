@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from .config import EstimationConfig
+
 
 def compare_cleaners(reference: pd.DataFrame, candidate: pd.DataFrame) -> dict[str, float]:
     # This stays intentionally simple: for the RIE step we mainly want a small,
@@ -11,3 +13,15 @@ def compare_cleaners(reference: pd.DataFrame, candidate: pd.DataFrame) -> dict[s
         "max_abs_diff": float(abs(diff).max()),
         "mean_abs_diff": float(abs(diff).mean()),
     }
+
+
+def validate_estimation_config(cfg: EstimationConfig) -> None:
+    if cfg.covariance_window is not None and cfg.covariance_window <= 0:
+        raise ValueError("covariance_window must be strictly positive.")
+    if cfg.covariance_min_periods <= 0:
+        raise ValueError("covariance_min_periods must be strictly positive.")
+    if cfg.covariance_window is not None and cfg.covariance_min_periods > cfg.covariance_window:
+        raise ValueError(
+            "covariance_min_periods must be less than or equal to covariance_window "
+            f"(got covariance_min_periods={cfg.covariance_min_periods}, covariance_window={cfg.covariance_window})."
+        )

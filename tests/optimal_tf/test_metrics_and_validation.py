@@ -4,6 +4,7 @@ import math
 import sys
 import unittest
 from pathlib import Path
+import tempfile
 
 import pandas as pd
 
@@ -13,7 +14,9 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from optimal_tf.metrics import performance_metrics  # noqa: E402
-from optimal_tf.validation import compare_cleaners  # noqa: E402
+from optimal_tf.validation import compare_cleaners, validate_estimation_config  # noqa: E402
+from optimal_tf.config import EstimationConfig  # noqa: E402
+from optimal_tf.config_io import load_config  # noqa: E402
 
 
 class MetricsAndValidationTests(unittest.TestCase):
@@ -36,6 +39,39 @@ class MetricsAndValidationTests(unittest.TestCase):
 
         self.assertAlmostEqual(stats["max_abs_diff"], 0.1)
         self.assertAlmostEqual(stats["mean_abs_diff"], 0.0375)
+
+    def test_validate_estimation_config_rejects_min_periods_above_window(self) -> None:
+        with self.assertRaisesRegex(ValueError, "covariance_min_periods must be less than or equal to covariance_window"):
+            validate_estimation_config(EstimationConfig(covariance_window=60, covariance_min_periods=252))
+
+    def test_load_config_rejects_incoherent_covariance_window(self) -> None:
+        config_text = """
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+vol_span = 60
+covariance_window = 60
+covariance_min_periods = 252
+cleaning_method = "empirical"
+
+[backtest]
+sigma_target_annual = 0.15
+portfolio_vol_target = false
+portfolio_vol_span = 60
+cost_bps = 0.0
+long_only = false
+
+[allocation]
+strategy = "RP"
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tmp:
+            tmp.write(config_text)
+            path = tmp.name
+
+        with self.assertRaisesRegex(ValueError, "covariance_min_periods must be less than or equal to covariance_window"):
+            load_config(path)
 
 
 if __name__ == "__main__":

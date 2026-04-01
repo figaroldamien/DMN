@@ -70,7 +70,7 @@ def evaluate_portfolio(
     )
     # Covariance estimates are cached once per run and reused across rebalance
     # dates, which keeps the iterative backtest fast even for ToRP and LLTF.
-    covariance_cache = estimate_clean_covariance_panel_fn(prices, est_cfg)
+    covariance_cache = estimate_clean_covariance_panel_fn(prices, est_cfg, target_dates=rebalance_dates)
     strategy_panel = compute_strategy_panel_fn(
         prices,
         est_cfg,

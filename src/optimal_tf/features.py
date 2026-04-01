@@ -83,11 +83,19 @@ def trend_ema_signal(
     return returns.ewm(alpha=alpha, adjust=False, min_periods=min_periods).mean()
 
 
-def rolling_corr_frame(frame: pd.DataFrame, window: int, min_periods: int | None = None) -> dict[pd.Timestamp, tuple[pd.DataFrame, int]]:
+def rolling_corr_frame(
+    frame: pd.DataFrame,
+    window: int,
+    min_periods: int | None = None,
+    target_dates: pd.Index | None = None,
+) -> dict[pd.Timestamp, tuple[pd.DataFrame, int]]:
     min_periods = window if min_periods is None else min_periods
+    target_set = None if target_dates is None else set(pd.DatetimeIndex(target_dates))
     out: dict[pd.Timestamp, tuple[pd.DataFrame, int]] = {}
     for idx in range(len(frame)):
         end = frame.index[idx]
+        if target_set is not None and end not in target_set:
+            continue
         sample = frame.iloc[max(0, idx - window + 1) : idx + 1]
         sample = sample.dropna(how="any")
         if len(sample) < min_periods:

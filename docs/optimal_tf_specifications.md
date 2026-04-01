@@ -133,6 +133,10 @@ Current covariance-estimation convention:
 - then applies the selected cleaning method,
 - then reconstructs covariance from the cleaned correlation matrix and the current EWMA volatility estimate.
 
+Configuration invariant for that path:
+- `covariance_min_periods <= covariance_window`
+- if this invariant is violated, the implementation must fail explicitly rather than silently producing empty covariance panels.
+
 ### Known gaps and planned changes
 
 Strategy-specific evolution is tracked in:

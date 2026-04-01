@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import AllocationConfig, BacktestConfig, EstimationConfig, EvaluationConfig, UniverseConfig
+from .validation import validate_estimation_config
 
 
 def _read_mapping(path: Path) -> dict[str, Any]:
@@ -78,4 +79,5 @@ def load_config(
             },
         )
 
+    validate_estimation_config(estimation)
     return universe, estimation, backtest, allocation, evaluation

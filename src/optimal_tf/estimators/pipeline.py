@@ -32,7 +32,7 @@ def estimate_clean_covariance_at_date(
     history = prices.loc[prices.index <= ts]
     if history.empty:
         raise ValueError(f"No price history available on or before {ts.date()}.")
-    panel = estimate_clean_covariance_panel(history, cfg)
+    panel = estimate_clean_covariance_panel(history, cfg, target_dates=pd.DatetimeIndex([ts]))
     if not panel:
         raise ValueError(f"Not enough history to estimate covariance on {ts.date()}.")
     eligible = [key for key in panel if key <= ts]
@@ -44,6 +44,7 @@ def estimate_clean_covariance_at_date(
 def estimate_clean_covariance_panel(
     prices: pd.DataFrame,
     cfg: EstimationConfig,
+    target_dates: pd.Index | None = None,
 ) -> dict[pd.Timestamp, pd.DataFrame]:
     returns = sanitize_returns(compute_returns(prices), max_abs_return=cfg.max_abs_return)
     vol = ewma_vol(returns, span=cfg.vol_span)
@@ -55,6 +56,7 @@ def estimate_clean_covariance_panel(
         z_returns,
         window=covariance_window,
         min_periods=cfg.covariance_min_periods,
+        target_dates=target_dates,
     )
 
     out: dict[pd.Timestamp, pd.DataFrame] = {}

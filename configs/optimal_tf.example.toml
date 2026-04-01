@@ -4,8 +4,8 @@ start = "2000-01-01"
 
 [estimation]
 vol_span = 60
-covariance_window = 252
-covariance_min_periods = 252
+covariance_window = 120
+covariance_min_periods = 60
 max_abs_return = 1.0
 cleaning_method = "rie"
 linear_shrinkage = 0.0

@@ -303,6 +303,8 @@ Example config:
 - `covariance_min_periods`
   Minimum observations required before covariance estimation starts producing matrices.
   Current default: `252`
+  Constraint:
+  `covariance_min_periods <= covariance_window`
 
 - `max_abs_return`
   Data-quality guardrail for returns.
@@ -500,5 +502,6 @@ cd /Users/damien.figarol/DMN
 Typical causes:
 - the requested date is before enough history is available,
 - there is not enough price data to satisfy `covariance_min_periods`,
+- the config is incoherent because `covariance_min_periods > covariance_window`,
 - or, in compatibility mode, there is not enough history for the legacy `corr_span` or `covariance_alpha` fallback,
 - the downloaded universe is too sparse over the requested interval.
