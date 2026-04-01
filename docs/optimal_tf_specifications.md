@@ -1,6 +1,6 @@
 # `optimal_tf` Project Specifications
 
-Last updated: 2026-03-31
+Last updated: 2026-04-01
 
 ## Purpose
 
@@ -127,6 +127,11 @@ Every strategy must satisfy this contract:
 
 Current strategy names exposed by the system are documented in:
 - [optimal_tf_strategies.md](/Users/damien.figarol/DMN/docs/optimal_tf_strategies.md)
+
+Current covariance-estimation convention:
+- the standard covariance path computes correlations on a fixed historical window,
+- then applies the selected cleaning method,
+- then reconstructs covariance from the cleaned correlation matrix and the current EWMA volatility estimate.
 
 ### Known gaps and planned changes
 

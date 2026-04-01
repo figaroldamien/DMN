@@ -3,9 +3,24 @@ from __future__ import annotations
 import pandas as pd
 
 from ..config import EstimationConfig
-from ..features import alpha_from_span, compute_returns, ewma_cov_frame, ewma_vol, normalize_returns_by_vol, sanitize_returns
+from ..features import compute_returns, effective_span_from_alpha, ewma_vol, normalize_returns_by_vol, rolling_corr_frame, sanitize_returns
 from .covariance import correlation_to_covariance, covariance_to_correlation
 from .rie import clean_correlation_matrix
+
+
+def _resolve_covariance_window(cfg: EstimationConfig) -> int:
+    if cfg.covariance_window is not None:
+        if cfg.covariance_window <= 0:
+            raise ValueError("covariance_window must be strictly positive.")
+        return int(cfg.covariance_window)
+    if cfg.corr_span is not None and cfg.corr_span > 0:
+        return int(cfg.corr_span)
+    if cfg.covariance_alpha is not None:
+        resolved = effective_span_from_alpha(cfg.covariance_alpha)
+        if resolved is None:
+            raise ValueError("covariance_alpha could not be converted to a window.")
+        return resolved
+    raise ValueError("One of covariance_window, corr_span, or covariance_alpha must be provided.")
 
 
 def estimate_clean_covariance_at_date(
@@ -35,18 +50,15 @@ def estimate_clean_covariance_panel(
     # The paper works with returns rescaled by realized volatility so that the
     # correlation cleaning focuses on cross-asset structure rather than scale.
     z_returns = normalize_returns_by_vol(returns, vol)
-    covariance_alpha = cfg.covariance_alpha
-    if covariance_alpha is None:
-        covariance_alpha = alpha_from_span(cfg.corr_span)
-    raw_cov = ewma_cov_frame(
+    covariance_window = _resolve_covariance_window(cfg)
+    raw_corr = rolling_corr_frame(
         z_returns,
-        alpha=float(covariance_alpha),
+        window=covariance_window,
         min_periods=cfg.covariance_min_periods,
     )
 
     out: dict[pd.Timestamp, pd.DataFrame] = {}
-    for ts, (cov_z, sample_size) in raw_cov.items():
-        corr = covariance_to_correlation(cov_z)
+    for ts, (corr, sample_size) in raw_corr.items():
         clean_corr = clean_correlation_matrix(
             corr,
             sample_size=sample_size,

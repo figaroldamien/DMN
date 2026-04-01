@@ -1,6 +1,6 @@
 # `optimal_tf` Strategy Notes
 
-Last updated: 2026-03-31
+Last updated: 2026-04-01
 
 ## Purpose
 
@@ -14,6 +14,10 @@ See also:
 - [optimal_tf_specifications.md](/Users/damien.figarol/DMN/docs/optimal_tf_specifications.md) for the functional contract that strategies must satisfy,
 - [optimal_tf_architecture.md](/Users/damien.figarol/DMN/docs/optimal_tf_architecture.md) for design rationale and module layout,
 - [optimal_tf_usage.md](/Users/damien.figarol/DMN/docs/optimal_tf_usage.md) for CLI and config usage.
+
+Implementation note:
+- strategy code now lives primarily under `src/optimal_tf/strategies/`,
+- `src/optimal_tf/allocation.py` remains as a public compatibility facade.
 
 ## Strategy List
 
@@ -36,7 +40,12 @@ All current strategies:
 - can be projected to `long_only` or kept in `long_short`,
 - are exposed through config and CLI by their strategy name.
 
-The covariance-based strategies consume cleaned covariance estimates produced by the estimator pipeline.
+The covariance-based strategies consume cleaned covariance estimates produced by the standard estimator pipeline.
+
+Current estimator convention:
+- the standard covariance path uses a fixed historical window plus matrix cleaning,
+- `EWMA` remains in use for volatility normalization, trend signals, and portfolio volatility targeting,
+- `LLTF` is a special case because it still estimates EWMA moments internally on its virtual lead-lag streams.
 
 ## Strategy Descriptions
 

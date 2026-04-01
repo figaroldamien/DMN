@@ -54,14 +54,14 @@ class StrategyPanelTests(unittest.TestCase):
         self.assertTrue((panel >= 0.0).all().all())
 
     def test_nm_panel_builds_from_covariance_panel(self) -> None:
-        with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov) as mocked:
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_at_date", return_value=self.cov) as mocked:
             compute_weights_panel(self.prices, EstimationConfig(), "NM", long_only=False)
             self.assertTrue(mocked.called)
 
     def test_torp0_panel_produces_finite_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
-        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
-            with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov):
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_panel", return_value=cov_panel):
+            with patch("optimal_tf.strategies.common.estimate_clean_covariance_at_date", return_value=self.cov):
                 panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP0", long_only=False)
 
         row = panel.loc[self.prices.index[-1]]
@@ -70,8 +70,8 @@ class StrategyPanelTests(unittest.TestCase):
 
     def test_torp1_panel_produces_finite_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
-        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
-            with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov):
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_panel", return_value=cov_panel):
+            with patch("optimal_tf.strategies.common.estimate_clean_covariance_at_date", return_value=self.cov):
                 panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP1", long_only=False)
 
         row = panel.loc[self.prices.index[-1]]
@@ -80,8 +80,8 @@ class StrategyPanelTests(unittest.TestCase):
 
     def test_torp2_panel_produces_finite_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
-        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
-            with patch("optimal_tf.allocation.estimate_clean_covariance_at_date", return_value=self.cov):
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_panel", return_value=cov_panel):
+            with patch("optimal_tf.strategies.common.estimate_clean_covariance_at_date", return_value=self.cov):
                 panel = compute_weights_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP2", long_only=False)
 
         row = panel.loc[self.prices.index[-1]]
@@ -90,7 +90,7 @@ class StrategyPanelTests(unittest.TestCase):
 
     def test_torp3_panel_preserves_signal_amplitude(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
-        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_panel", return_value=cov_panel):
             panel = compute_strategy_panel(self.prices, EstimationConfig(vol_span=2, trend_span=2), "ToRP3", long_only=False)
 
         signal = float(panel.signal_scale.loc[self.prices.index[-1]])
@@ -102,7 +102,7 @@ class StrategyPanelTests(unittest.TestCase):
 
     def test_torp3_signal_gain_scales_effective_weights(self) -> None:
         cov_panel = {self.prices.index[-1]: self.cov}
-        with patch("optimal_tf.allocation.estimate_clean_covariance_panel", return_value=cov_panel):
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_panel", return_value=cov_panel):
             panel_1 = compute_strategy_panel(
                 self.prices,
                 EstimationConfig(vol_span=2, trend_span=2, torp_signal_gain=1.0),

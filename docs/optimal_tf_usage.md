@@ -288,15 +288,20 @@ Example config:
   EWMA span for volatility estimation.
   Current default: `60`
 
+- `covariance_window`
+  Main lookback window used for covariance estimation before matrix cleaning.
+  The standard covariance path now uses a fixed-window estimate rather than EWMA covariance smoothing.
+
 - `corr_span`
-  Deprecated rolling-window parameter for covariance estimation.
-  It is only kept as a compatibility fallback when `covariance_alpha` is not provided.
+  Legacy compatibility alias for the covariance window.
+  It is no longer the primary documented parameter.
 
 - `covariance_alpha`
-  Exponential smoothing coefficient used for covariance estimation.
+  Compatibility parameter for covariance estimation, and still the direct smoothing parameter used internally by `LLTF`.
+  On the standard covariance path, it is only used as a fallback to derive an effective window when `covariance_window` is not provided.
 
 - `covariance_min_periods`
-  Minimum observations required before the EWMA covariance starts producing matrices.
+  Minimum observations required before covariance estimation starts producing matrices.
   Current default: `252`
 
 - `max_abs_return`
@@ -409,10 +414,10 @@ This section currently controls portfolio-level conventions even for the single-
 ## Current Defaults
 
 The current example config uses:
-- `universe.name = "index"`
+- `universe.name = "world_index"`
 - `start = "2000-01-01"`
 - `vol_span = 60`
-- `covariance_alpha = 0.0013333333333333333`
+- `covariance_window = 252`
 - `covariance_min_periods = 252`
 - `cleaning_method = "rie"`
 - `trend_alpha = 0.01`
@@ -437,6 +442,7 @@ The current example config uses:
 - `ToRP3` preserves the amplitude of the factor signal explicitly through `signal_scale` and `effective_weights`.
 - `ToRP3` now stores a volatility-normalized factor signal, scaled by `torp_signal_gain`, rather than a raw factor return trend.
 - `ToRP2` and `ToRP3` now benefit from per-run `RP` factor caching in the evaluation engine, which materially improves execution time relative to the first date-centric implementation.
+- The standard covariance estimator now uses a fixed window plus cleaning, which is simpler to audit than the previous `EWMA covariance + cleaning` combination.
 - The current data-quality filter is intentionally simple and threshold-based.
 - The current `RIE` is a first native implementation and still needs validation against an external reference.
 - Export metadata is still minimal and does not yet capture the full effective run configuration.
@@ -494,5 +500,5 @@ cd /Users/damien.figarol/DMN
 Typical causes:
 - the requested date is before enough history is available,
 - there is not enough price data to satisfy `covariance_min_periods`,
-- or, in compatibility mode, there is not enough history for the legacy `corr_span` fallback,
+- or, in compatibility mode, there is not enough history for the legacy `corr_span` or `covariance_alpha` fallback,
 - the downloaded universe is too sparse over the requested interval.

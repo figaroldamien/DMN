@@ -40,6 +40,7 @@ def load_config(
                 k: estimation_raw[k]
                 for k in (
                     "vol_span",
+                    "covariance_window",
                     "covariance_alpha",
                     "covariance_min_periods",
                     "corr_span",

@@ -12,6 +12,7 @@ class UniverseConfig:
 @dataclass(frozen=True)
 class EstimationConfig:
     vol_span: int = 60
+    covariance_window: int | None = 252
     covariance_alpha: float | None = None
     covariance_min_periods: int = 252
     corr_span: int = 252

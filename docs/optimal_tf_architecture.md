@@ -1,6 +1,6 @@
 # `optimal_tf` Architecture And Design Notes
 
-Last updated: 2026-03-31
+Last updated: 2026-04-01
 
 ## Purpose
 
@@ -46,7 +46,8 @@ The allocation layer exists, and a first periodic evaluation layer now exists to
 Current implementation detail:
 - the primary primitive is now date-centric: allocation is computed for one resolved market date at a time,
 - periodic evaluation loops over rebalance dates,
-- the evaluation engine precomputes one covariance cache for the run and reuses it across rebalance dates to avoid recomputing the full estimator history at each step.
+- the evaluation engine precomputes one covariance cache for the run and reuses it across rebalance dates to avoid recomputing the full estimator history at each step,
+- the standard covariance estimator now uses a fixed historical window plus cleaning rather than an EWMA covariance smoother.
 
 Timing convention carried by the current design:
 - rebalance weights are observed on date `t`,
@@ -65,29 +66,36 @@ Timing convention carried by the current design:
 - `data.py`
   Loads prices from `yfinance` and reuses universes from `market_tickers_data`.
 - `features.py`
-  Returns, return sanitization, EWMA volatility, volatility-normalized returns, and basic trend signal helpers.
+  Returns, return sanitization, EWMA volatility, volatility-normalized returns, rolling correlation helpers, and basic trend signal helpers.
 - `estimators/covariance.py`
   Covariance/correlation conversions and PSD repair.
 - `estimators/pipeline.py`
   Estimation pipeline:
-  prices -> returns -> EWMA vol -> normalized returns -> EWMA covariance -> cleaned correlation -> covariance
+  prices -> returns -> EWMA vol -> normalized returns -> rolling correlation on a fixed window -> cleaned correlation -> covariance
   The module exposes both panel-style utilities and a single-date access path.
 - `estimators/rie.py`
   Cleaning API. `empirical`, `linear_shrinkage`, and a first native `rie` implementation exist.
 - `portfolios.py`
   Current portfolio recipes: `RP` and `ARP`.
 - `allocation.py`
-  Single-date allocation logic, strategy registry, and date-centric strategy evaluation.
+  Compatibility facade exposing the public allocation API.
+- `strategies/`
+  Strategy package split by concern:
+  `base.py`, `torp.py`, `lltf.py`, `common.py`, `types.py`, `api.py`.
 - `rebalance.py`
   Rebalance calendar generation from the available market dates.
 - `backtest.py`
   Legacy/simple weight panel builder plus daily return engine utilities.
 - `evaluation.py`
-  Discrete portfolio simulation with configurable rebalance frequency, turnover, transaction costs, portfolio volatility targeting, and per-run covariance cache reuse.
+  Compatibility facade exposing the public evaluation API.
+- `eval/`
+  Evaluation package split into result types and the periodic backtest engine.
 - `metrics.py`
   Basic portfolio statistics plus evaluation summary metrics.
 - `reporting.py`
-  Benchmark construction and chart rendering for evaluation outputs.
+  Compatibility facade exposing benchmark helpers and plotting functions.
+- `plots/`
+  Plot and benchmark package split into `benchmarks.py` and `renderers.py`.
 - `validation.py`
   Small comparison helper for native vs reference cleaners.
 - `cli/main.py`
@@ -183,7 +191,7 @@ Documentation consequence:
 
 Defaults currently used in config:
 - `vol_span = 60`
-- `covariance_alpha = 0.0013333333333333333`
+- `covariance_window = 252`
 - `covariance_min_periods = 252`
 - `trend_alpha = 0.01`
 - `torp_signal_gain = 5.0`
@@ -193,7 +201,7 @@ Defaults currently used in config:
 - `cleaning_method = "rie"`
 - `allocation.strategy = "ARP"`
 - `evaluation.strategy = "ARP"`
-- `universe.name = "index"`
+- `universe.name = "world_index"`
 
 Note:
 - the dataclass defaults are still more conservative than the example config in a few places,
