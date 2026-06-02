@@ -210,6 +210,85 @@ evaluation_start = "2026-01-01"
             self.assertEqual(exit_code, 0)
             self.assertTrue((outdir / "performance.png").exists())
 
+    def test_evaluate_cli_uses_output_section_from_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.toml"
+            outdir = Path(tmpdir) / "eval_from_config"
+            config_text = f"""
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+vol_span = 60
+corr_span = 252
+corr_min_periods = 252
+cleaning_method = "empirical"
+linear_shrinkage = 0.0
+rie_bandwidth = 0.001
+trend_span = 252
+
+[backtest]
+sigma_target_annual = 0.15
+portfolio_vol_target = false
+portfolio_vol_span = 60
+cost_bps = 0.0
+long_only = false
+
+[allocation]
+strategy = "RP"
+
+[evaluation]
+strategy = "RP"
+rebalance_frequency = "monthly"
+evaluation_start = "2026-01-01"
+
+[output]
+evaluation_dir = "{outdir}"
+evaluation_plot = false
+"""
+            config_path.write_text(config_text, encoding="utf-8")
+
+            prices = pd.DataFrame(
+                {"A": [100.0, 101.0, 102.0], "B": [100.0, 99.0, 101.0]},
+                index=pd.date_range("2026-01-30", periods=3, freq="B"),
+            )
+
+            from optimal_tf.evaluation import EvaluationResult
+            from optimal_tf.metrics import EvaluationSummary
+
+            result = EvaluationResult(
+                summary=EvaluationSummary(
+                    total_return=0.1,
+                    ann_return=0.12,
+                    ann_vol=0.15,
+                    sharpe=0.8,
+                    mdd=-0.05,
+                    avg_turnover=0.2,
+                    annualized_turnover=10.0,
+                    total_cost=0.001,
+                    annualized_cost=0.01,
+                    pct_positive_days=0.55,
+                    num_days=3,
+                    num_rebalances=1,
+                ),
+                weights_by_rebalance=pd.DataFrame({"A": [0.6], "B": [0.4]}, index=[pd.Timestamp("2026-01-30")]),
+                daily_returns_gross=pd.Series([0.0, 0.01, -0.005], index=prices.index),
+                daily_returns_net=pd.Series([0.0, 0.009, -0.006], index=prices.index),
+                turnover_by_rebalance=pd.Series([1.0], index=[pd.Timestamp("2026-01-30")]),
+                costs_by_rebalance=pd.Series([0.001], index=[pd.Timestamp("2026-01-30")]),
+                holding_period_returns_gross=pd.Series([0.01], index=[pd.Timestamp("2026-01-30")]),
+                holding_period_returns_net=pd.Series([0.009], index=[pd.Timestamp("2026-01-30")]),
+            )
+
+            with patch("optimal_tf.cli.evaluate.load_prices_for_universe", return_value=prices):
+                with patch("optimal_tf.cli.evaluate.evaluate_portfolio", return_value=result):
+                    exit_code = run_evaluate(["--config", str(config_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue((outdir / "summary.json").exists())
+            self.assertFalse((outdir / "performance.png").exists())
+
     def test_portfolio_vol_targeting_scales_after_enough_history(self) -> None:
         gross = pd.Series(
             [0.01, 0.02, -0.01, 0.015, -0.005],

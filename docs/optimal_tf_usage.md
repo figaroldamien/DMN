@@ -1,6 +1,6 @@
 # `optimal_tf` User Manual
 
-Last updated: 2026-03-31
+Last updated: 2026-05-27
 
 ## Purpose
 
@@ -11,24 +11,28 @@ It should be updated:
 - or whenever explicitly requested.
 
 See also:
-- [optimal_tf_specifications.md](/Users/damien.figarol/DMN/docs/optimal_tf_specifications.md) for the functional scope,
-- [optimal_tf_architecture.md](/Users/damien.figarol/DMN/docs/optimal_tf_architecture.md) for design decisions and module layout,
-- [optimal_tf_strategies.md](/Users/damien.figarol/DMN/docs/optimal_tf_strategies.md) for strategy descriptions.
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for the functional scope,
+- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_architecture.md) for design decisions and module layout,
+- [optimal_tf_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_dashboard.md) for the local Streamlit UI,
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md) for strategy descriptions.
 
 ## Project Location
 
 Repository root:
-- `/Users/damien.figarol/DMN`
+- `/Users/damien.figarol/trading_app_lab`
 
 Package location:
 - `src/optimal_tf`
+
+Shared infrastructure location:
+- `src/trading_core`
 
 ## Installation
 
 From the repository root:
 
 ```bash
-cd /Users/damien.figarol/DMN
+cd /Users/damien.figarol/trading_app_lab
 .venv/bin/python -m pip install --no-build-isolation -e .
 ```
 
@@ -58,6 +62,10 @@ Installed script form:
 ## What The CLI Does
 
 The current CLI computes portfolio weights for a single allocation date.
+
+Implementation note:
+- `optimal_tf` is now primarily the application layer,
+- shared mechanics for market data, feature primitives, covariance cleaning, periodic evaluation, comparison runs, and reporting exports mostly live in `trading_core`.
 
 Workflow:
 1. load the config,
@@ -104,7 +112,7 @@ When plot export is enabled, the exported chart overlays:
 ### 1. Run with the example config
 
 ```bash
-cd /Users/damien.figarol/DMN
+cd /Users/damien.figarol/trading_app_lab
 .venv/bin/optimal-tf --config configs/optimal_tf.example.toml
 ```
 
@@ -152,6 +160,14 @@ Available strategies today:
   --output-json output/optimal_tf/weights.json
 ```
 
+You can also set default export paths in the config under `[output]`:
+
+```toml
+[output]
+allocation_csv = "output/optimal_tf/weights.csv"
+allocation_json = "output/optimal_tf/weights.json"
+```
+
 ### 7. Run a periodic evaluation
 
 ```bash
@@ -181,6 +197,14 @@ Available strategies today:
 .venv/bin/optimal-tf-evaluate \
   --config configs/optimal_tf.example.toml \
   --output-dir output/optimal_tf/evaluation_run
+```
+
+Equivalent config-driven defaults:
+
+```toml
+[output]
+evaluation_dir = "output/optimal_tf/evaluation_run"
+evaluation_plot = true
 ```
 
 This export now includes:
@@ -220,6 +244,53 @@ Current evaluation export files:
 
 By default, `optimal-tf-compare` cleans `--output-dir` before writing results.
 Use `--no-clean-output-dir` to keep existing files.
+You can also set the default strategy list in the config:
+
+```toml
+[compare]
+strategies = ["RP", "ARP", "ToRP0", "ToRP1", "ToRP2", "ToRP3"]
+```
+
+If `--strategies` is omitted, `optimal-tf-compare` now falls back to `[compare].strategies`.
+If `[compare].strategies` is also absent, it falls back to the single strategy from `[evaluation]` / `[allocation]`.
+
+You can also set comparison output defaults in the config:
+
+```toml
+[output]
+compare_dir = "output/optimal_tf/compare_run"
+compare_clean_dir = true
+compare_plot = true
+```
+
+## Config Output Section
+
+The TOML config can now carry output defaults for all three CLIs:
+
+```toml
+[output]
+allocation_csv = "output/optimal_tf/weights.csv"
+allocation_json = "output/optimal_tf/weights.json"
+evaluation_dir = "output/optimal_tf/evaluation_run"
+evaluation_plot = true
+compare_dir = "output/optimal_tf/compare_run"
+compare_clean_dir = true
+compare_plot = true
+```
+
+Precedence rule:
+- CLI flags override config values.
+- If no CLI output flag is provided, the command falls back to `[output]`.
+- `optimal-tf-compare` still requires an output directory overall, but it can now come from `--output-dir` or `[output].compare_dir`.
+
+## Config Compare Section
+
+The TOML config can also define the default strategy set for `optimal-tf-compare`:
+
+```toml
+[compare]
+strategies = ["RP", "ARP", "LLTF", "ToRP0", "ToRP1", "ToRP2", "ToRP3"]
+```
 
 ## Output Format
 
@@ -267,10 +338,13 @@ Comparison export notes:
 CLI note:
 - both `optimal-tf` and `optimal-tf-evaluate` now print `execution_time_seconds` in their text output.
 
+Architecture note:
+- although the public commands remain under `optimal_tf`, the shared execution engine and export helpers now live mainly in `trading_core.backtest` and `trading_core.reporting`.
+
 ## Configuration File
 
 Example config:
-- [optimal_tf.example.toml](/Users/damien.figarol/DMN/configs/optimal_tf.example.toml)
+- [optimal_tf.example.toml](/Users/damien.figarol/trading_app_lab/configs/optimal_tf.example.toml)
 
 ### `[universe]`
 
@@ -318,12 +392,17 @@ Example config:
   - `empirical`
   - `linear_shrinkage`
   - `rie`
+  - `rie_reference`
 
 - `linear_shrinkage`
   Shrinkage intensity used when `cleaning_method = "linear_shrinkage"`.
 
 - `rie_bandwidth`
-  Reserved for the future RIE implementation.
+  Bandwidth used by the native `rie` cleaner.
+
+- `rie_reference`
+  Optional benchmark-only cleaner backed by the external `rie-estimator` package.
+  It is not required for normal runs and is mainly useful to compare the native implementation against a reference implementation on the same data pipeline.
 
 - `trend_alpha`
   Exponential smoothing coefficient for trend-following signals.
@@ -436,6 +515,7 @@ The current example config uses:
 ## Current Limitations
 
 - Real data currently comes from `yfinance`.
+- `optimal_tf` still keeps a few thin compatibility facades so existing imports and tests continue to work during the refactor.
 - The current volatility targeting implementation works at the portfolio return level, not yet through a leverage-aware position rescaling layer recorded in the exported weights.
 - `ToRP0` is the original implementation: asset-by-asset trend overlay on top of `RP`.
 - `LLTF` is an empirical cross-asset lead-lag trend-following strategy inspired by arXiv:1410.8409.
@@ -464,13 +544,51 @@ Near-term validation plan:
 - inspect the effect of the cleaner on `ARP`, `NM`, `ToRP0`, `ToRP1`, `ToRP2`, and `ToRP3`.
 - inspect `LLTF` robustness to regularization and universe size.
 
+## Benchmarking Cleaners
+
+A dedicated benchmark script is now available:
+
+```bash
+cd /Users/damien.figarol/trading_app_lab
+PYTHONPATH=src .venv/bin/python -m optimal_tf.scripts.benchmark_cleaners \
+  --config configs/optimal_tf.example.toml \
+  --universe sp500 \
+  --strategies RP,ARP,NM \
+  --methods empirical,linear_shrinkage,rie,rie_reference
+```
+
+What it produces:
+- `matrix_benchmark.csv`: matrix-level diagnostics on the same normalized-return sample used by the in-house pipeline
+- `strategy_benchmark.csv`: final strategy metrics for each cleaning method and strategy
+- `summary.json`: run metadata and file locations
+
+If `rie-estimator` is installed, the script also adds a `rie_reference_pipe` row in the matrix benchmark to compare against the external package's own normalization path.
+
+Install the optional benchmark dependency with:
+
+```bash
+.venv/bin/python -m pip install rie-estimator
+```
+
+Refactor status:
+- the shared extraction to `trading_core` is largely complete for market data, features, risk, rebalance logic, periodic backtests, comparison runs, and reporting,
+- `optimal_tf` now mainly owns strategies, config, and CLI entry points.
+
 ## Tests
 
 To run the current `optimal_tf` test suite:
 
 ```bash
-cd /Users/damien.figarol/DMN
+cd /Users/damien.figarol/trading_app_lab
 .venv/bin/python -m unittest discover -s tests/optimal_tf -p 'test_*.py'
+```
+
+To run both the application tests and the shared-core tests:
+
+```bash
+cd /Users/damien.figarol/trading_app_lab
+.venv/bin/python -m unittest discover -s tests/optimal_tf -p 'test_*.py'
+.venv/bin/python -m unittest discover -s tests/trading_core -p 'test_*.py'
 ```
 
 ## Troubleshooting
@@ -480,7 +598,7 @@ cd /Users/damien.figarol/DMN
 Reinstall the project in editable mode:
 
 ```bash
-cd /Users/damien.figarol/DMN
+cd /Users/damien.figarol/trading_app_lab
 .venv/bin/python -m pip install --no-build-isolation -e .
 ```
 
@@ -493,7 +611,7 @@ Re-run the editable install command above so the script entry point is recreated
 Re-run the editable install command above so the new script entry point is installed:
 
 ```bash
-cd /Users/damien.figarol/DMN
+cd /Users/damien.figarol/trading_app_lab
 .venv/bin/python -m pip install --no-build-isolation -e .
 ```
 

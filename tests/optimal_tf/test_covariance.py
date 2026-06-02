@@ -17,6 +17,8 @@ from optimal_tf.estimators.covariance import (  # noqa: E402
     covariance_to_correlation,
     make_psd,
 )
+from optimal_tf.estimators.pipeline import estimate_clean_covariance_panel  # noqa: E402
+from optimal_tf.config import EstimationConfig  # noqa: E402
 from optimal_tf.estimators.rie import clean_correlation_matrix  # noqa: E402
 from optimal_tf.features import alpha_from_span, ewma_cov_frame  # noqa: E402
 
@@ -123,6 +125,34 @@ class CovarianceEstimatorTests(unittest.TestCase):
             self.assertEqual(list(cov.index), list(cov.columns))
             self.assertTrue(np.allclose(cov.to_numpy(), cov.to_numpy().T))
             self.assertGreaterEqual(sample_size, 1)
+
+    def test_estimate_clean_covariance_panel_handles_staggered_histories(self) -> None:
+        prices = pd.DataFrame(
+            {
+                "A": [100, 101, 102, 103, 104, 105],
+                "B": [100, 99, 101, 100, 102, 103],
+                "C": [100, np.nan, 101, np.nan, 102, np.nan],
+                "D": [np.nan, 100, np.nan, 101, np.nan, 102],
+            },
+            index=pd.date_range("2026-01-01", periods=6, freq="B"),
+        )
+        cfg = EstimationConfig(
+            vol_span=2,
+            covariance_window=5,
+            covariance_min_periods=3,
+            cleaning_method="linear_shrinkage",
+            linear_shrinkage=0.1,
+            max_abs_return=1.0,
+        )
+
+        panel = estimate_clean_covariance_panel(prices, cfg, target_dates=pd.DatetimeIndex([prices.index[-1]]))
+
+        self.assertIn(prices.index[-1], panel)
+        cov = next(iter(panel.values()))
+        self.assertGreaterEqual(len(cov.index), 2)
+        self.assertEqual(list(cov.index), list(cov.columns))
+        self.assertIn("A", cov.index)
+        self.assertIn("B", cov.index)
 
 
 if __name__ == "__main__":

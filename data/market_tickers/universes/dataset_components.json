@@ -1,0 +1,286 @@
+{
+  "universe": "dataset",
+  "components": [
+    {
+      "ticker": "6A=F",
+      "category": "fx",
+      "description": "Australian Dollar Futures"
+    },
+    {
+      "ticker": "6B=F",
+      "category": "fx",
+      "description": "British Pound Futures"
+    },
+    {
+      "ticker": "6C=F",
+      "category": "fx",
+      "description": "Canadian Dollar Futures"
+    },
+    {
+      "ticker": "6J=F",
+      "category": "fx",
+      "description": "Japanese Yen Futures"
+    },
+    {
+      "ticker": "6M=F",
+      "category": "fx",
+      "description": "Mexican Peso Futures"
+    },
+    {
+      "ticker": "6S=F",
+      "category": "fx",
+      "description": "Swiss Franc Futures"
+    },
+    {
+      "ticker": "BZ=F",
+      "category": "energy",
+      "description": "Brent Crude Oil Futures"
+    },
+    {
+      "ticker": "CADJPY=X",
+      "category": "fx",
+      "description": "Canadian Dollar / Japanese Yen"
+    },
+    {
+      "ticker": "CC=F",
+      "category": "comdty",
+      "description": "Cocoa Futures"
+    },
+    {
+      "ticker": "CL=F",
+      "category": "energy",
+      "description": "Crude Oil Futures"
+    },
+    {
+      "ticker": "CT=F",
+      "category": "comdty",
+      "description": "Cotton Futures"
+    },
+    {
+      "ticker": "DBA",
+      "category": "comdty",
+      "description": "Invesco DB Agriculture Fund"
+    },
+    {
+      "ticker": "DBC",
+      "category": "comdty",
+      "description": "Invesco DB Commodity Index Tracking Fund"
+    },
+    {
+      "ticker": "DX-Y.NYB",
+      "category": "fx",
+      "description": "US Dollar Index"
+    },
+    {
+      "ticker": "ES=F",
+      "category": "index",
+      "description": "E-mini S&P 500 Futures"
+    },
+    {
+      "ticker": "GC=F",
+      "category": "comdty",
+      "description": "Gold Futures"
+    },
+    {
+      "ticker": "GF=F",
+      "category": "comdty",
+      "description": "Feeder Cattle Futures"
+    },
+    {
+      "ticker": "HE=F",
+      "category": "comdty",
+      "description": "Lean Hogs Futures"
+    },
+    {
+      "ticker": "HG=F",
+      "category": "comdty",
+      "description": "Copper Futures"
+    },
+    {
+      "ticker": "HO=F",
+      "category": "energy",
+      "description": "Heating Oil Futures"
+    },
+    {
+      "ticker": "IJH",
+      "category": "index",
+      "description": "iShares Core S&P Mid-Cap ETF"
+    },
+    {
+      "ticker": "KC=F",
+      "category": "comdty",
+      "description": "Coffee Futures"
+    },
+    {
+      "ticker": "KE=F",
+      "category": "comdty",
+      "description": "KC HRW Wheat Futures"
+    },
+    {
+      "ticker": "LBR=F",
+      "category": "comdty",
+      "description": "Lumber Futures"
+    },
+    {
+      "ticker": "LE=F",
+      "category": "comdty",
+      "description": "Live Cattle Futures"
+    },
+    {
+      "ticker": "NG=F",
+      "category": "energy",
+      "description": "Natural Gas Futures"
+    },
+    {
+      "ticker": "NQ=F",
+      "category": "index",
+      "description": "E-mini NASDAQ-100 Futures"
+    },
+    {
+      "ticker": "NZDUSD=X",
+      "category": "fx",
+      "description": "New Zealand Dollar / US Dollar"
+    },
+    {
+      "ticker": "OJ=F",
+      "category": "comdty",
+      "description": "Orange Juice Futures"
+    },
+    {
+      "ticker": "PA=F",
+      "category": "comdty",
+      "description": "Palladium Futures"
+    },
+    {
+      "ticker": "PL=F",
+      "category": "comdty",
+      "description": "Platinum Futures"
+    },
+    {
+      "ticker": "RB=F",
+      "category": "energy",
+      "description": "RBOB Gasoline Futures"
+    },
+    {
+      "ticker": "RTY=F",
+      "category": "index",
+      "description": "E-mini Russell 2000 Futures"
+    },
+    {
+      "ticker": "SB=F",
+      "category": "comdty",
+      "description": "Sugar Futures"
+    },
+    {
+      "ticker": "SI=F",
+      "category": "comdty",
+      "description": "Silver Futures"
+    },
+    {
+      "ticker": "USDNOK=X",
+      "category": "fx",
+      "description": "US Dollar / Norwegian Krone"
+    },
+    {
+      "ticker": "USDSEK=X",
+      "category": "fx",
+      "description": "US Dollar / Swedish Krona"
+    },
+    {
+      "ticker": "USDSGD=X",
+      "category": "fx",
+      "description": "US Dollar / Singapore Dollar"
+    },
+    {
+      "ticker": "YM=F",
+      "category": "index",
+      "description": "E-mini Dow Futures"
+    },
+    {
+      "ticker": "ZB=F",
+      "category": "bond",
+      "description": "US Treasury Bond Futures"
+    },
+    {
+      "ticker": "ZC=F",
+      "category": "comdty",
+      "description": "Corn Futures"
+    },
+    {
+      "ticker": "ZF=F",
+      "category": "bond",
+      "description": "US 5-Year Treasury Note Futures"
+    },
+    {
+      "ticker": "ZL=F",
+      "category": "comdty",
+      "description": "Soybean Oil Futures"
+    },
+    {
+      "ticker": "ZM=F",
+      "category": "comdty",
+      "description": "Soybean Meal Futures"
+    },
+    {
+      "ticker": "ZN=F",
+      "category": "bond",
+      "description": "US 10-Year Treasury Note Futures"
+    },
+    {
+      "ticker": "ZO=F",
+      "category": "comdty",
+      "description": "Oat Futures"
+    },
+    {
+      "ticker": "ZR=F",
+      "category": "comdty",
+      "description": "Rough Rice Futures"
+    },
+    {
+      "ticker": "ZS=F",
+      "category": "comdty",
+      "description": "Soybean Futures"
+    },
+    {
+      "ticker": "ZT=F",
+      "category": "bond",
+      "description": "US 2-Year Treasury Note Futures"
+    },
+    {
+      "ticker": "ZW=F",
+      "category": "comdty",
+      "description": "Wheat Futures"
+    },
+    {
+      "ticker": "^FCHI",
+      "category": "index",
+      "description": "CAC 40"
+    },
+    {
+      "ticker": "^FTSE",
+      "category": "index",
+      "description": "FTSE 100"
+    },
+    {
+      "ticker": "^HSI",
+      "category": "index",
+      "description": "Hang Seng Index"
+    },
+    {
+      "ticker": "^N225",
+      "category": "index",
+      "description": "Nikkei 225"
+    },
+    {
+      "ticker": "^SPGSCI",
+      "category": "comdty",
+      "description": "S&P GSCI"
+    },
+    {
+      "ticker": "^STOXX50E",
+      "category": "index",
+      "description": "EURO STOXX 50"
+    }
+  ],
+  "benchmark": null
+}

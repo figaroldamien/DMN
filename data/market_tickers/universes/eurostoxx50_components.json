@@ -1,0 +1,360 @@
+{
+  "universe": "eurostoxx50",
+  "components": [
+    {
+      "ticker": "ADS.DE",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "Adidas",
+      "sub_sector": "Footwear & Accessories"
+    },
+    {
+      "ticker": "ADYEN.AS",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Adyen",
+      "sub_sector": "Software - Infrastructure"
+    },
+    {
+      "ticker": "AD.AS",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "description": "Ahold Delhaize",
+      "sub_sector": "Grocery Stores"
+    },
+    {
+      "ticker": "AI.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "description": "Air Liquide",
+      "sub_sector": "Specialty Chemicals"
+    },
+    {
+      "ticker": "AIR.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Airbus",
+      "sub_sector": "Aerospace and Defense"
+    },
+    {
+      "ticker": "ALV.DE",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Allianz",
+      "sub_sector": "Insurance - Diversified"
+    },
+    {
+      "ticker": "ABI.BR",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "description": "Anheuser-Busch InBev",
+      "sub_sector": "Beverages - Brewers"
+    },
+    {
+      "ticker": "ARGX.BR",
+      "category": "equity",
+      "sector": "Healthcare",
+      "description": "Argenx",
+      "sub_sector": "Biotechnology"
+    },
+    {
+      "ticker": "ASML.AS",
+      "category": "equity",
+      "sector": "Technology",
+      "description": "ASML Holding",
+      "sub_sector": "Semiconductor Equipment & Materials"
+    },
+    {
+      "ticker": "CS.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Axa",
+      "sub_sector": "Insurance"
+    },
+    {
+      "ticker": "BAS.DE",
+      "category": "equity",
+      "sector": "Materials",
+      "description": "BASF",
+      "sub_sector": "Chemicals"
+    },
+    {
+      "ticker": "BAYN.DE",
+      "category": "equity",
+      "sector": "Healthcare",
+      "description": "Bayer",
+      "sub_sector": "Drug Manufacturers - General"
+    },
+    {
+      "ticker": "BBVA.MC",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "BBVA",
+      "sub_sector": "Banks - Diversified"
+    },
+    {
+      "ticker": "SAN.MC",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Banco Santander",
+      "sub_sector": "Banks - Diversified"
+    },
+    {
+      "ticker": "BMW.DE",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "BMW",
+      "sub_sector": "Auto Manufacturers"
+    },
+    {
+      "ticker": "BNP.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "BNP Paribas",
+      "sub_sector": "Banks"
+    },
+    {
+      "ticker": "BN.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "description": "Danone",
+      "sub_sector": "Packaged Foods"
+    },
+    {
+      "ticker": "DBK.DE",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Deutsche Bank",
+      "sub_sector": "Banks - Regional"
+    },
+    {
+      "ticker": "DB1.DE",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Deutsche Börse",
+      "sub_sector": "Financial Data & Stock Exchanges"
+    },
+    {
+      "ticker": "DHL.DE",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Deutsche Post",
+      "sub_sector": "Integrated Freight & Logistics"
+    },
+    {
+      "ticker": "DTE.DE",
+      "category": "equity",
+      "sector": "Communication Services",
+      "description": "Deutsche Telekom",
+      "sub_sector": "Telecom Services"
+    },
+    {
+      "ticker": "ENEL.MI",
+      "category": "equity",
+      "sector": "Utilities",
+      "description": "Enel",
+      "sub_sector": "Utilities - Diversified"
+    },
+    {
+      "ticker": "ENI.MI",
+      "category": "equity",
+      "sector": "Energy",
+      "description": "Eni",
+      "sub_sector": "Oil & Gas Integrated"
+    },
+    {
+      "ticker": "EL.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "description": "EssilorLuxottica",
+      "sub_sector": "Medical Devices"
+    },
+    {
+      "ticker": "RACE.MI",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "Ferrari",
+      "sub_sector": "Auto Manufacturers"
+    },
+    {
+      "ticker": "RMS.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "Hermès",
+      "sub_sector": "Luxury Goods"
+    },
+    {
+      "ticker": "IBE.MC",
+      "category": "equity",
+      "sector": "Utilities",
+      "description": "Iberdrola",
+      "sub_sector": "Utilities - Diversified"
+    },
+    {
+      "ticker": "ITX.MC",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "Inditex",
+      "sub_sector": "Apparel Retail"
+    },
+    {
+      "ticker": "IFX.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "description": "Infineon Technologies",
+      "sub_sector": "Semiconductors"
+    },
+    {
+      "ticker": "INGA.AS",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "ING Group",
+      "sub_sector": "Banks - Diversified"
+    },
+    {
+      "ticker": "ISP.MI",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Intesa Sanpaolo",
+      "sub_sector": "Banks - Regional"
+    },
+    {
+      "ticker": "OR.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "description": "L'Oréal",
+      "sub_sector": "Personal Products"
+    },
+    {
+      "ticker": "MC.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "LVMH Moët Hennessy Louis Vuitton",
+      "sub_sector": "Luxury Goods"
+    },
+    {
+      "ticker": "MBG.DE",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "Mercedes-Benz Group",
+      "sub_sector": "Auto Manufacturers"
+    },
+    {
+      "ticker": "MUV2.DE",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Munich Re",
+      "sub_sector": "Insurance - Reinsurance"
+    },
+    {
+      "ticker": "NDA-FI.HE",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "Nordea",
+      "sub_sector": "Banks - Regional"
+    },
+    {
+      "ticker": "PRX.AS",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "Prosus",
+      "sub_sector": "Internet Retail"
+    },
+    {
+      "ticker": "RHM.DE",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Rheinmetall",
+      "sub_sector": "Aerospace & Defense"
+    },
+    {
+      "ticker": "SAF.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Safran",
+      "sub_sector": "Aerospace and Defense"
+    },
+    {
+      "ticker": "SGO.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Saint-Gobain",
+      "sub_sector": "Building Products"
+    },
+    {
+      "ticker": "SAN.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "description": "Sanofi",
+      "sub_sector": "Drug Manufacturers"
+    },
+    {
+      "ticker": "SAP.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "description": "SAP",
+      "sub_sector": "Software - Application"
+    },
+    {
+      "ticker": "SU.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Schneider Electric",
+      "sub_sector": "Electrical Equipment"
+    },
+    {
+      "ticker": "SIE.DE",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Siemens",
+      "sub_sector": "Specialty Industrial Machinery"
+    },
+    {
+      "ticker": "ENR.DE",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Siemens Energy",
+      "sub_sector": "Specialty Industrial Machinery"
+    },
+    {
+      "ticker": "TTE.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "description": "TotalEnergies",
+      "sub_sector": "Integrated Oil and Gas"
+    },
+    {
+      "ticker": "DG.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Vinci SA",
+      "sub_sector": "Engineering and Construction"
+    },
+    {
+      "ticker": "UCG.MI",
+      "category": "equity",
+      "sector": "Financials",
+      "description": "UniCredit",
+      "sub_sector": "Banks - Regional"
+    },
+    {
+      "ticker": "VOW.DE",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "description": "Volkswagen Group",
+      "sub_sector": "Auto Manufacturers"
+    },
+    {
+      "ticker": "WKL.AS",
+      "category": "equity",
+      "sector": "Industrials",
+      "description": "Wolters Kluwer",
+      "sub_sector": "Specialty Business Services"
+    }
+  ],
+  "benchmark": {
+    "ticker": "^STOXX50E",
+    "name": "EURO STOXX 50",
+    "category": "index"
+  }
+}

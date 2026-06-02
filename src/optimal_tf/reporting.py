@@ -1,4 +1,4 @@
-from .plots import (
+from trading_core.reporting import (
     cumulative_nav,
     equal_weight_buy_and_hold_benchmark,
     equal_weight_rebalanced_benchmark,

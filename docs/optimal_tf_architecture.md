@@ -1,6 +1,6 @@
 # `optimal_tf` Architecture And Design Notes
 
-Last updated: 2026-04-01
+Last updated: 2026-05-27
 
 ## Purpose
 
@@ -11,9 +11,10 @@ This document is the living design log for the `optimal_tf` project. It tracks:
 - how the current modules fit together.
 
 See also:
-- [optimal_tf_specifications.md](/Users/damien.figarol/DMN/docs/optimal_tf_specifications.md) for functional requirements,
-- [optimal_tf_usage.md](/Users/damien.figarol/DMN/docs/optimal_tf_usage.md) for user-facing commands and config guidance,
-- [optimal_tf_strategies.md](/Users/damien.figarol/DMN/docs/optimal_tf_strategies.md) for strategy descriptions and current variants.
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for functional requirements,
+- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_usage.md) for user-facing commands and config guidance,
+- [optimal_tf_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_dashboard.md) for the local Streamlit UI,
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md) for strategy descriptions and current variants.
 
 Documentation stance:
 - `optimal_tf_specifications.md` is now organized as a contract-first document with separate sections for normative requirements, current implementation, and known gaps,
@@ -25,7 +26,12 @@ Maintenance rule:
 
 ## Project Positioning
 
-`optimal_tf` is a separate project inside the `DMN` repository.
+`optimal_tf` is a separate application inside the repository.
+
+Current repository direction:
+- the long-term root name target is `trading_app_lab`,
+- shared trading infrastructure is progressively moving into `trading_core`,
+- `optimal_tf` is now the main reference application for that shared layer.
 
 Why:
 - the original `dmn` codebase is centered on sequence models and ticker-level ML workflows,
@@ -64,17 +70,11 @@ Timing convention carried by the current design:
 - `config_io.py`
   Loads TOML config into typed dataclasses.
 - `data.py`
-  Loads prices from `yfinance` and reuses universes from `market_tickers_data`.
+  Compatibility facade over shared data loading in `trading_core.data`.
 - `features.py`
-  Returns, return sanitization, EWMA volatility, volatility-normalized returns, rolling correlation helpers, and basic trend signal helpers.
-- `estimators/covariance.py`
-  Covariance/correlation conversions and PSD repair.
-- `estimators/pipeline.py`
-  Estimation pipeline:
-  prices -> returns -> EWMA vol -> normalized returns -> rolling correlation on a fixed window -> cleaned correlation -> covariance
-  The module exposes both panel-style utilities and a single-date access path.
-- `estimators/rie.py`
-  Cleaning API. `empirical`, `linear_shrinkage`, and a first native `rie` implementation exist.
+  Compatibility facade for shared feature primitives plus local rolling correlation helpers still used by the legacy estimator path.
+- `estimators/`
+  Compatibility facades over shared risk code in `trading_core.risk`.
 - `portfolios.py`
   Current portfolio recipes: `RP` and `ARP`.
 - `allocation.py`
@@ -83,17 +83,17 @@ Timing convention carried by the current design:
   Strategy package split by concern:
   `base.py`, `torp.py`, `lltf.py`, `common.py`, `types.py`, `api.py`.
 - `rebalance.py`
-  Rebalance calendar generation from the available market dates.
+  Compatibility facade over shared rebalance helpers in `trading_core.rebalance`.
 - `backtest.py`
   Legacy/simple weight panel builder plus daily return engine utilities.
 - `evaluation.py`
   Compatibility facade exposing the public evaluation API.
 - `eval/`
-  Evaluation package split into result types and the periodic backtest engine.
+  Compatibility facades over shared periodic evaluation types and engine in `trading_core.backtest`.
 - `metrics.py`
-  Basic portfolio statistics plus evaluation summary metrics.
+  Compatibility facade over shared reporting metrics in `trading_core.reporting`.
 - `reporting.py`
-  Compatibility facade exposing benchmark helpers and plotting functions.
+  Compatibility facade exposing shared benchmark helpers and plotting functions from `trading_core.reporting`.
 - `plots/`
   Plot and benchmark package split into `benchmarks.py` and `renderers.py`.
 - `validation.py`
@@ -105,17 +105,36 @@ Timing convention carried by the current design:
 - `cli/compare.py`
   CLI for multi-strategy comparison runs, comparison tables, and first comparison plots.
 
+`src/trading_core/`
+
+- `market/`
+  Shared universe access.
+- `data/`
+  Shared price loading and symbol adaptation.
+- `features/`
+  Shared return, volatility, trend, and transform primitives.
+- `risk/`
+  Shared covariance and cleaning pipeline.
+- `rebalance/`
+  Shared rebalance date helpers.
+- `backtest/`
+  Shared periodic evaluation and multi-strategy comparison engine.
+- `reporting/`
+  Shared metrics, plots, benchmarks, and export helpers.
+
 ## Key Design Decisions
 
-### 1. Separate project under the same repo
+### 1. Separate application on top of a shared core
 
 Decision:
 - keep `optimal_tf` under `src/optimal_tf`,
+- keep shared quant mechanics in `src/trading_core`,
 - do not reuse `dmn` internals directly.
 
 Reason:
 - the domain model is different,
-- the portfolio engine should remain readable and independently testable.
+- the portfolio engine should remain readable and independently testable,
+- future trading apps should reuse a common infrastructure layer instead of copying `optimal_tf`.
 
 ### 2. Reuse `market_tickers_data`
 
@@ -199,6 +218,7 @@ Defaults currently used in config:
 - `cost_bps = 25.0`
 - `long_only = true`
 - `cleaning_method = "rie"`
+- reference benchmark-only cleaner also available as `cleaning_method = "rie_reference"` when the optional `rie-estimator` package is installed
 - `allocation.strategy = "ARP"`
 - `evaluation.strategy = "ARP"`
 - `universe.name = "world_index"`

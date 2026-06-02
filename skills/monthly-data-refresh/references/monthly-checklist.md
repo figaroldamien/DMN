@@ -1,6 +1,6 @@
 # Monthly Data Checklist
 
-Use this checklist when updating `src/market_tickers_data/data`.
+Use this checklist when updating `data/market_tickers/universes`, including `world_index_components.json`, `eurostoxx50_components.json`, `sp500_components.json`, and `dji_components.json` when present.
 
 ## 1. Run dry-run
 
@@ -11,13 +11,13 @@ python3 skills/monthly-data-refresh/scripts/update_data_files.py --dry-run
 ## 2. Refresh constituents (optional)
 
 ```bash
-python3 skills/monthly-data-refresh/scripts/update_data_files.py --refresh nasdaq100 cac40 --dry-run
+python3 skills/monthly-data-refresh/scripts/update_data_files.py --refresh nasdaq100 cac40 eurostoxx50 sp500 dji sp500 dji --dry-run
 ```
 
 If output looks correct:
 
 ```bash
-python3 skills/monthly-data-refresh/scripts/update_data_files.py --refresh nasdaq100 cac40
+python3 skills/monthly-data-refresh/scripts/update_data_files.py --refresh nasdaq100 cac40 eurostoxx50 sp500 dji
 ```
 
 ## 3. Validate project behavior
@@ -32,7 +32,7 @@ python3 -m dmn.cli --market cac40 --start 2020-01-01 --no-print-config
 
 Include:
 - Month/year (example: `2026-03`)
-- Sources used (`Wikipedia Nasdaq-100`, `Wikipedia CAC 40`)
+- Sources used (`Wikipedia Nasdaq-100`, `Wikipedia CAC 40`, `Wikipedia EURO STOXX 50`, `Wikipedia S&P 500`, `Wikipedia Dow Jones Industrial Average`)
 - Count of `added/removed/changed` tickers
 
 ## 5. Troubleshooting

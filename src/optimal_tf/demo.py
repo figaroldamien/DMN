@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from .backtest import backtest_portfolio
 from .config import BacktestConfig, EstimationConfig, UniverseConfig
-from .data import load_prices_for_universe
-from .metrics import performance_metrics
-from .portfolios import risk_parity_weights_from_cov
+from .portfolio_helpers import risk_parity_weights_from_cov
+from trading_core.data import load_prices_for_universe
+from trading_core.reporting import performance_metrics
 
 
 def run_demo() -> None:

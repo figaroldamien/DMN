@@ -1,6 +1,6 @@
 # `optimal_tf` Strategy Notes
 
-Last updated: 2026-04-01
+Last updated: 2026-05-12
 
 ## Purpose
 
@@ -11,13 +11,14 @@ It should be updated:
 - or whenever explicitly requested.
 
 See also:
-- [optimal_tf_specifications.md](/Users/damien.figarol/DMN/docs/optimal_tf_specifications.md) for the functional contract that strategies must satisfy,
-- [optimal_tf_architecture.md](/Users/damien.figarol/DMN/docs/optimal_tf_architecture.md) for design rationale and module layout,
-- [optimal_tf_usage.md](/Users/damien.figarol/DMN/docs/optimal_tf_usage.md) for CLI and config usage.
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for the functional contract that strategies must satisfy,
+- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_architecture.md) for design rationale and module layout,
+- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_usage.md) for CLI and config usage.
 
 Implementation note:
 - strategy code now lives primarily under `src/optimal_tf/strategies/`,
 - `src/optimal_tf/allocation.py` remains as a public compatibility facade.
+- shared estimation, backtest, and reporting mechanics used by these strategies now live mostly under `src/trading_core/`.
 
 ## Strategy List
 
@@ -46,6 +47,10 @@ Current estimator convention:
 - the standard covariance path uses a fixed historical window plus matrix cleaning,
 - `EWMA` remains in use for volatility normalization, trend signals, and portfolio volatility targeting,
 - `LLTF` is a special case because it still estimates EWMA moments internally on its virtual lead-lag streams.
+
+Execution note:
+- in periodic evaluation, the shared `trading_core.backtest` engine now handles rebalance scheduling, holding-period rollout, turnover, costs, and reporting exports,
+- strategy modules mainly provide the portfolio state computed at each rebalance date.
 
 ## Strategy Descriptions
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .config import EstimationConfig
+from trading_core.risk import supported_cleaning_methods
 
 
 def compare_cleaners(reference: pd.DataFrame, candidate: pd.DataFrame) -> dict[str, float]:
@@ -16,6 +17,11 @@ def compare_cleaners(reference: pd.DataFrame, candidate: pd.DataFrame) -> dict[s
 
 
 def validate_estimation_config(cfg: EstimationConfig) -> None:
+    if cfg.cleaning_method not in supported_cleaning_methods():
+        raise ValueError(
+            f"cleaning_method must be one of {list(supported_cleaning_methods())} "
+            f"(got {cfg.cleaning_method!r})."
+        )
     if cfg.covariance_window is not None and cfg.covariance_window <= 0:
         raise ValueError("covariance_window must be strictly positive.")
     if cfg.covariance_min_periods <= 0:

@@ -228,6 +228,99 @@ evaluation_start = "2026-01-01"
             self.assertEqual(exit_code, 0)
             self.assertTrue(stale_file.exists())
 
+    def test_compare_cli_uses_output_section_from_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.toml"
+            outdir = Path(tmpdir) / "compare_from_config"
+            config_text = self._config_text() + f"""
+
+[output]
+compare_dir = "{outdir}"
+compare_clean_dir = false
+compare_plot = false
+"""
+            config_path.write_text(config_text, encoding="utf-8")
+            prices = pd.DataFrame(
+                {"A": [100.0, 101.0, 102.0], "B": [100.0, 99.0, 101.0]},
+                index=pd.date_range("2026-01-30", periods=3, freq="B"),
+            )
+
+            with patch("optimal_tf.cli.compare.load_prices_for_universe", return_value=prices):
+                with patch(
+                    "optimal_tf.cli.compare.compare_strategies",
+                    return_value=type(
+                        "Comparison",
+                        (),
+                        {
+                            "strategy_results": {"RP": self._build_result(prices, 1.0)},
+                            "summary_table": pd.DataFrame(
+                                [{"strategy": "RP", "total_return": 0.10, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1}]
+                            ),
+                            "nav_comparison": pd.DataFrame({"RP": [1.0, 1.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
+                            "drawdown_comparison": pd.DataFrame({"RP": [0.0, -0.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
+                        },
+                    )(),
+                ):
+                    exit_code = run_compare(
+                        [
+                            "--config",
+                            str(config_path),
+                            "--strategies",
+                            "RP",
+                        ]
+                    )
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue((outdir / "manifest.json").exists())
+            self.assertFalse((outdir / "comparison" / "plots" / "nav_comparison.png").exists())
+
+    def test_compare_cli_uses_strategies_from_compare_section(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.toml"
+            outdir = Path(tmpdir) / "compare_from_config"
+            config_text = self._config_text() + f"""
+
+[compare]
+strategies = ["RP", "ARP"]
+
+[output]
+compare_dir = "{outdir}"
+compare_clean_dir = true
+compare_plot = false
+"""
+            config_path.write_text(config_text, encoding="utf-8")
+            prices = pd.DataFrame(
+                {"A": [100.0, 101.0, 102.0], "B": [100.0, 99.0, 101.0]},
+                index=pd.date_range("2026-01-30", periods=3, freq="B"),
+            )
+
+            captured = {}
+
+            def fake_compare(prices_arg, estimation_arg, backtest_arg, evaluation_arg, strategies_arg):
+                captured["strategies"] = strategies_arg
+                return type(
+                    "Comparison",
+                    (),
+                    {
+                        "strategy_results": {"RP": self._build_result(prices, 1.0), "ARP": self._build_result(prices, 1.1)},
+                        "summary_table": pd.DataFrame(
+                            [
+                                {"strategy": "ARP", "total_return": 0.11, "ann_return": 0.132, "ann_vol": 0.15, "sharpe": 0.88, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
+                                {"strategy": "RP", "total_return": 0.10, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
+                            ]
+                        ),
+                        "nav_comparison": pd.DataFrame({"RP": [1.0, 1.01], "ARP": [1.0, 1.02]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
+                        "drawdown_comparison": pd.DataFrame({"RP": [0.0, -0.01], "ARP": [0.0, -0.005]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
+                    },
+                )()
+
+            with patch("optimal_tf.cli.compare.load_prices_for_universe", return_value=prices):
+                with patch("optimal_tf.cli.compare.compare_strategies", side_effect=fake_compare):
+                    exit_code = run_compare(["--config", str(config_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(captured["strategies"], ["RP", "ARP"])
+
 
 if __name__ == "__main__":
     unittest.main()

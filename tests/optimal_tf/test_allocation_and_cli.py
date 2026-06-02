@@ -185,6 +185,64 @@ strategy = "RP"
             self.assertEqual(payload["signal_scale"], 1.0)
             self.assertAlmostEqual(payload["weights"]["A"], 0.6)
 
+    def test_cli_uses_output_paths_from_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.toml"
+            csv_path = Path(tmpdir) / "from_config.csv"
+            json_path = Path(tmpdir) / "from_config.json"
+            config_text = f"""
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+vol_span = 60
+corr_span = 252
+corr_min_periods = 252
+cleaning_method = "empirical"
+linear_shrinkage = 0.0
+rie_bandwidth = 0.001
+trend_span = 252
+
+[backtest]
+sigma_target_annual = 0.15
+portfolio_vol_target = true
+portfolio_vol_span = 60
+cost_bps = 0.0
+long_only = false
+
+[allocation]
+strategy = "RP"
+
+[output]
+allocation_csv = "{csv_path}"
+allocation_json = "{json_path}"
+"""
+            config_path.write_text(config_text, encoding="utf-8")
+
+            prices = pd.DataFrame({"A": [100.0, 101.0], "B": [100.0, 99.0]}, index=pd.date_range("2026-03-26", periods=2))
+            with patch("optimal_tf.cli.main.load_prices_for_universe", return_value=prices):
+                with patch(
+                    "optimal_tf.cli.main.compute_portfolio_strategy_state_at_date",
+                    return_value=(
+                        pd.Timestamp("2026-03-27"),
+                        type(
+                            "State",
+                            (),
+                            {
+                                "base_weights": pd.Series({"A": 0.6, "B": 0.4}),
+                                "signal_scale": 1.0,
+                                "effective_weights": pd.Series({"A": 0.6, "B": 0.4}),
+                            },
+                        )(),
+                    ),
+                ):
+                    exit_code = run(["--config", str(config_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(csv_path.exists())
+            self.assertTrue(json_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

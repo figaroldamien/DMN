@@ -1,12 +1,12 @@
 from .allocation import compute_strategy_panel
 from .config import BacktestConfig, EstimationConfig, EvaluationConfig
-from .estimators.pipeline import estimate_clean_covariance_panel
-from .eval import EvaluationResult
-from .eval.engine import (
+from trading_core.backtest import EvaluationResult
+from trading_core.backtest.engine import (
     apply_portfolio_vol_target as _engine_apply_portfolio_vol_target,
     evaluate_portfolio as _engine_evaluate_portfolio,
     slice_next_holding_period as _slice_next_holding_period,
 )
+from trading_core.risk import estimate_clean_covariance_panel
 
 
 def _apply_portfolio_vol_target(

@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dmn"
 version = "0.1.0"
-description = "DMN experiments and optimal trend-following tooling"
-readme = {text = "Local research project for DMN and optimal trend-following strategies.", content-type = "text/plain"}
+description = "Trading research applications and shared portfolio infrastructure"
+readme = {text = "Local trading research workspace with shared core infrastructure and application packages such as optimal_tf.", content-type = "text/plain"}
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
@@ -14,6 +14,7 @@ dependencies = [
     "yfinance",
     "scikit-learn",
     "torch",
+    "streamlit",
     "tomli; python_version < '3.11'",
 ]
 
@@ -27,4 +28,4 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["dmn*", "market_tickers_data*", "optimal_tf*"]
+include = ["dmn*", "market_tickers_data*", "optimal_tf*", "trading_core*"]

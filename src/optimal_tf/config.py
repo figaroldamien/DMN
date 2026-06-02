@@ -23,7 +23,6 @@ class EstimationConfig:
     rie_bandwidth: float = 1e-3
     trend_alpha: float | None = None
     trend_span: int | None = 252
-    torp_signal_gain: float = 1.0
     lltf_l2_reg: float = 1e-4
 
 
@@ -48,3 +47,19 @@ class EvaluationConfig:
     rebalance_frequency: str = "monthly"
     evaluation_start: str | None = None
     evaluation_end: str | None = None
+
+
+@dataclass(frozen=True)
+class CompareConfig:
+    strategies: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class OutputConfig:
+    allocation_csv: str | None = None
+    allocation_json: str | None = None
+    evaluation_dir: str | None = None
+    evaluation_plot: bool = True
+    compare_dir: str | None = None
+    compare_clean_dir: bool = True
+    compare_plot: bool = True

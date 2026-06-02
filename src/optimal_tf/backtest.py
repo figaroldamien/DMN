@@ -6,8 +6,8 @@ from typing import Callable
 import pandas as pd
 
 from .config import BacktestConfig, EstimationConfig
-from .estimators.pipeline import estimate_clean_covariance_at_date, estimate_clean_covariance_panel
-from .features import compute_returns
+from trading_core.features import compute_returns
+from trading_core.risk import estimate_clean_covariance_at_date, estimate_clean_covariance_panel
 
 
 def _portfolio_returns_from_weights(

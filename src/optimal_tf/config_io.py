@@ -4,7 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .config import AllocationConfig, BacktestConfig, EstimationConfig, EvaluationConfig, UniverseConfig
+from .config import AllocationConfig, BacktestConfig, CompareConfig, EstimationConfig, EvaluationConfig, OutputConfig, UniverseConfig
 from .validation import validate_estimation_config
 
 
@@ -18,19 +18,23 @@ def _read_mapping(path: Path) -> dict[str, Any]:
 
 def load_config(
     path: str | Path,
-) -> tuple[UniverseConfig, EstimationConfig, BacktestConfig, AllocationConfig, EvaluationConfig]:
+) -> tuple[UniverseConfig, EstimationConfig, BacktestConfig, AllocationConfig, EvaluationConfig, CompareConfig, OutputConfig]:
     raw = _read_mapping(Path(path))
     universe = UniverseConfig()
     estimation = EstimationConfig()
     backtest = BacktestConfig()
     allocation = AllocationConfig()
     evaluation = EvaluationConfig()
+    compare = CompareConfig()
+    output = OutputConfig()
 
     universe_raw = raw.get("universe", {}) if isinstance(raw.get("universe"), dict) else {}
     estimation_raw = raw.get("estimation", {}) if isinstance(raw.get("estimation"), dict) else {}
     backtest_raw = raw.get("backtest", {}) if isinstance(raw.get("backtest"), dict) else {}
     allocation_raw = raw.get("allocation", {}) if isinstance(raw.get("allocation"), dict) else {}
     evaluation_raw = raw.get("evaluation", {}) if isinstance(raw.get("evaluation"), dict) else {}
+    compare_raw = raw.get("compare", {}) if isinstance(raw.get("compare"), dict) else {}
+    output_raw = raw.get("output", {}) if isinstance(raw.get("output"), dict) else {}
 
     if universe_raw:
         universe = replace(universe, **{k: universe_raw[k] for k in ("name", "start") if k in universe_raw})
@@ -52,7 +56,6 @@ def load_config(
                     "rie_bandwidth",
                     "trend_alpha",
                     "trend_span",
-                    "torp_signal_gain",
                     "lltf_l2_reg",
                 )
                 if k in estimation_raw
@@ -78,6 +81,29 @@ def load_config(
                 if k in evaluation_raw
             },
         )
+    if compare_raw:
+        strategies = compare_raw.get("strategies")
+        if strategies is not None:
+            if not isinstance(strategies, list) or not all(isinstance(item, str) for item in strategies):
+                raise ValueError("[compare].strategies must be an array of strings")
+            compare = replace(compare, strategies=tuple(strategies))
+    if output_raw:
+        output = replace(
+            output,
+            **{
+                k: output_raw[k]
+                for k in (
+                    "allocation_csv",
+                    "allocation_json",
+                    "evaluation_dir",
+                    "evaluation_plot",
+                    "compare_dir",
+                    "compare_clean_dir",
+                    "compare_plot",
+                )
+                if k in output_raw
+            },
+        )
 
     validate_estimation_config(estimation)
-    return universe, estimation, backtest, allocation, evaluation
+    return universe, estimation, backtest, allocation, evaluation, compare, output

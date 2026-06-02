@@ -1,6 +1,6 @@
 # `optimal_tf` Project Specifications
 
-Last updated: 2026-04-01
+Last updated: 2026-05-12
 
 ## Purpose
 
@@ -30,6 +30,11 @@ To keep this specification testable, each area is described with three lenses:
 
 `optimal_tf` is a research and implementation package for cross-asset portfolio construction inspired by the paper:
 - `2201.06635v1` "Optimal trend following portfolios"
+
+Current implementation positioning:
+- `optimal_tf` is now mainly the application layer,
+- shared infrastructure used by the application is progressively consolidated in `trading_core`,
+- the functional contract described here still applies to the public `optimal_tf` workflows and CLI surface.
 
 The project aims to:
 - estimate cross-asset risk structure from market data,
@@ -66,6 +71,7 @@ The current implementation uses:
 - `yfinance` for price history,
 - TOML config loading through `config_io.py`,
 - CLI overrides for a subset of config fields.
+- shared market-data, feature, risk, rebalance, backtest, and reporting mechanics exposed through `trading_core`.
 
 ### Known gaps and planned changes
 
@@ -126,7 +132,7 @@ Every strategy must satisfy this contract:
 ### Current implementation
 
 Current strategy names exposed by the system are documented in:
-- [optimal_tf_strategies.md](/Users/damien.figarol/DMN/docs/optimal_tf_strategies.md)
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md)
 
 Current covariance-estimation convention:
 - the standard covariance path computes correlations on a fixed historical window,
@@ -140,7 +146,7 @@ Configuration invariant for that path:
 ### Known gaps and planned changes
 
 Strategy-specific evolution is tracked in:
-- [optimal_tf_strategies.md](/Users/damien.figarol/DMN/docs/optimal_tf_strategies.md)
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md)
 
 ## Single-Date Allocation Requirements
 
@@ -202,6 +208,7 @@ The current engine:
 - records gross and net daily returns,
 - records holding-period gross and net returns,
 - aggregates summary metrics over the evaluated window.
+- comparison runs reuse the same periodic evaluation engine strategy by strategy and export side-by-side comparison tables and charts.
 
 ### Known gaps and planned changes
 

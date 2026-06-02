@@ -1,21 +1,22 @@
 ---
 name: monthly-data-refresh
-description: Update and validate monthly market component files under `src/market_tickers_data/data` (NASDAQ100, CAC40, index, dataset). Use when the user asks to refresh constituents, normalize JSON files, review additions/removals, or run a recurring monthly data maintenance workflow.
+description: Update and validate monthly market component files under `data/market_tickers/universes` (NASDAQ100, CAC40, EUROSTOXX50, SP500, DJI, index, world_index, dataset). Use when the user asks to refresh constituents, normalize JSON files, review additions/removals, or run a recurring monthly data maintenance workflow.
 ---
 
 # Monthly Data Refresh
 
-Run a repeatable monthly workflow to refresh constituent files in `src/market_tickers_data/data`.
-Use the bundled script to fetch public constituents for NASDAQ100/CAC40, preserve local metadata (sector/sub_sector/category), normalize all JSON files, and print a diff summary.
+Run a repeatable monthly workflow to refresh constituent files in `data/market_tickers/universes`.
+Use the bundled script to fetch public constituents for NASDAQ100/CAC40/EUROSTOXX50/SP500/DJI, preserve local metadata (sector/sub_sector/category), apply project metadata overrides for known gaps, normalize all JSON files, and print a diff plus completeness summary.
 
 ## Workflow
 
-1. Inspect current files in `src/market_tickers_data/data/*.json`.
+1. Inspect current files in `data/market_tickers/universes/*.json`.
 2. Run the updater script in dry-run mode first.
 3. Review `added` / `removed` / `changed` tickers in the terminal output.
-4. Re-run without dry-run to write changes.
-5. Run a quick smoke backtest command to ensure no broken ticker format.
-6. Commit with a message that includes the month and data source.
+4. Review the completeness summary for `sector` / `sub_sector`, especially after constituent additions.
+5. Re-run without dry-run to write changes.
+6. Run a quick smoke backtest command to ensure no broken ticker format.
+7. Commit with a message that includes the month and data source.
 
 ## Commands
 
@@ -25,10 +26,10 @@ Preview only (recommended first):
 python3 skills/monthly-data-refresh/scripts/update_data_files.py --dry-run
 ```
 
-Refresh NASDAQ100 + CAC40 from Wikipedia, then normalize all files:
+Refresh NASDAQ100 + CAC40 + EUROSTOXX50 from public sources, then normalize all files:
 
 ```bash
-python3 skills/monthly-data-refresh/scripts/update_data_files.py --refresh nasdaq100 cac40
+python3 skills/monthly-data-refresh/scripts/update_data_files.py --refresh nasdaq100 cac40 eurostoxx50 sp500 dji
 ```
 
 Normalize only (no network):
@@ -44,6 +45,8 @@ python3 skills/monthly-data-refresh/scripts/update_data_files.py
   - Optional keys: `sector`, `sub_sector`
 - Keep ticker format compatible with Yahoo Finance (e.g. `AIR.PA`, `MT.AS`, `STLAM.MI`).
 - Preserve existing sector/sub-sector metadata when source tables do not provide them.
+- Apply project-level metadata overrides to fill known gaps after refresh.
+- Review completeness output and add new overrides when fresh constituents arrive without classification.
 - Prefer dry-run before writing.
 
 ## References

@@ -1,8 +1,8 @@
 from .allocation import compute_portfolio_weights_at_date
 from .backtest import backtest_portfolio
 from .config import AllocationConfig, BacktestConfig, EstimationConfig, EvaluationConfig, UniverseConfig
-from .data import load_prices_for_universe
 from .evaluation import evaluate_portfolio
+from trading_core.data import load_prices_for_universe
 
 __all__ = [
     "AllocationConfig",

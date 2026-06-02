@@ -44,6 +44,10 @@ class MetricsAndValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "covariance_min_periods must be less than or equal to covariance_window"):
             validate_estimation_config(EstimationConfig(covariance_window=60, covariance_min_periods=252))
 
+    def test_validate_estimation_config_rejects_unknown_cleaning_method(self) -> None:
+        with self.assertRaisesRegex(ValueError, "cleaning_method must be one of"):
+            validate_estimation_config(EstimationConfig(cleaning_method="unknown"))
+
     def test_load_config_rejects_incoherent_covariance_window(self) -> None:
         config_text = """
 [universe]
@@ -72,6 +76,67 @@ strategy = "RP"
 
         with self.assertRaisesRegex(ValueError, "covariance_min_periods must be less than or equal to covariance_window"):
             load_config(path)
+
+    def test_load_config_reads_output_section(self) -> None:
+        config_text = """
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+vol_span = 60
+covariance_window = 120
+covariance_min_periods = 60
+cleaning_method = "empirical"
+
+[allocation]
+strategy = "RP"
+
+[output]
+allocation_csv = "output/weights.csv"
+allocation_json = "output/weights.json"
+evaluation_dir = "output/eval"
+evaluation_plot = false
+compare_dir = "output/compare"
+compare_clean_dir = false
+compare_plot = false
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tmp:
+            tmp.write(config_text)
+            path = tmp.name
+
+        _, _, _, _, _, _, output = load_config(path)
+
+        self.assertEqual(output.allocation_csv, "output/weights.csv")
+        self.assertEqual(output.allocation_json, "output/weights.json")
+        self.assertEqual(output.evaluation_dir, "output/eval")
+        self.assertFalse(output.evaluation_plot)
+        self.assertEqual(output.compare_dir, "output/compare")
+        self.assertFalse(output.compare_clean_dir)
+        self.assertFalse(output.compare_plot)
+
+    def test_load_config_reads_compare_section(self) -> None:
+        config_text = """
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+vol_span = 60
+covariance_window = 120
+covariance_min_periods = 60
+cleaning_method = "empirical"
+
+[compare]
+strategies = ["RP", "ARP", "LLTF"]
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tmp:
+            tmp.write(config_text)
+            path = tmp.name
+
+        _, _, _, _, _, compare, _ = load_config(path)
+
+        self.assertEqual(compare.strategies, ("RP", "ARP", "LLTF"))
 
 
 if __name__ == "__main__":
