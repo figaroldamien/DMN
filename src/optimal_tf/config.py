@@ -32,6 +32,7 @@ class BacktestConfig:
     portfolio_vol_target: bool = True
     portfolio_vol_span: int = 60
     cost_bps: float = 0.0
+    weight_smoothing_alpha: float = 1.0
     long_only: bool = False
 
 

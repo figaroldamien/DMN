@@ -14,8 +14,8 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from optimal_tf.metrics import performance_metrics  # noqa: E402
-from optimal_tf.validation import compare_cleaners, validate_estimation_config  # noqa: E402
-from optimal_tf.config import EstimationConfig  # noqa: E402
+from optimal_tf.validation import compare_cleaners, validate_backtest_config, validate_estimation_config  # noqa: E402
+from optimal_tf.config import BacktestConfig, EstimationConfig  # noqa: E402
 from optimal_tf.config_io import load_config  # noqa: E402
 
 
@@ -47,6 +47,10 @@ class MetricsAndValidationTests(unittest.TestCase):
     def test_validate_estimation_config_rejects_unknown_cleaning_method(self) -> None:
         with self.assertRaisesRegex(ValueError, "cleaning_method must be one of"):
             validate_estimation_config(EstimationConfig(cleaning_method="unknown"))
+
+    def test_validate_backtest_config_rejects_invalid_weight_smoothing_alpha(self) -> None:
+        with self.assertRaisesRegex(ValueError, "weight_smoothing_alpha must be in the interval"):
+            validate_backtest_config(BacktestConfig(weight_smoothing_alpha=0.0))
 
     def test_load_config_rejects_incoherent_covariance_window(self) -> None:
         config_text = """
@@ -137,6 +141,96 @@ strategies = ["RP", "ARP", "LLTF"]
         _, _, _, _, _, compare, _ = load_config(path)
 
         self.assertEqual(compare.strategies, ("RP", "ARP", "LLTF"))
+
+    def test_load_config_reads_backtest_weight_smoothing_alpha(self) -> None:
+        config_text = """
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+vol_span = 60
+covariance_window = 120
+covariance_min_periods = 60
+cleaning_method = "empirical"
+
+[backtest]
+weight_smoothing_alpha = 0.35
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tmp:
+            tmp.write(config_text)
+            path = tmp.name
+
+        _, _, backtest, _, _, _, _ = load_config(path)
+
+        self.assertAlmostEqual(backtest.weight_smoothing_alpha, 0.35)
+
+    def test_load_config_accepts_portfolio_alias_for_backtest(self) -> None:
+        config_text = """
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+vol_span = 60
+covariance_window = 120
+covariance_min_periods = 60
+cleaning_method = "empirical"
+
+[portfolio]
+weight_smoothing_alpha = 0.35
+cost_bps = 12.0
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tmp:
+            tmp.write(config_text)
+            path = tmp.name
+
+        _, _, backtest, _, _, _, _ = load_config(path)
+
+        self.assertAlmostEqual(backtest.weight_smoothing_alpha, 0.35)
+        self.assertAlmostEqual(backtest.cost_bps, 12.0)
+
+    def test_load_config_derives_trend_span_from_explicit_alpha(self) -> None:
+        config_text = """
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+trend_alpha = 0.01575
+covariance_window = 252
+covariance_min_periods = 252
+cleaning_method = "empirical"
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tmp:
+            tmp.write(config_text)
+            path = tmp.name
+
+        _, estimation, _, _, _, _, _ = load_config(path)
+
+        self.assertAlmostEqual(float(estimation.trend_alpha or 0.0), 0.01575)
+        self.assertEqual(estimation.trend_span, 126)
+
+    def test_load_config_derives_trend_alpha_from_explicit_span(self) -> None:
+        config_text = """
+[universe]
+name = "test"
+start = "2020-01-01"
+
+[estimation]
+trend_span = 126
+covariance_window = 252
+covariance_min_periods = 252
+cleaning_method = "empirical"
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tmp:
+            tmp.write(config_text)
+            path = tmp.name
+
+        _, estimation, _, _, _, _, _ = load_config(path)
+
+        self.assertEqual(estimation.trend_span, 126)
+        self.assertAlmostEqual(float(estimation.trend_alpha or 0.0), 2.0 / 127.0)
 
 
 if __name__ == "__main__":

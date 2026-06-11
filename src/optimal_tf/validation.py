@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .config import EstimationConfig
+from .config import BacktestConfig, EstimationConfig
 from trading_core.risk import supported_cleaning_methods
 
 
@@ -30,4 +30,12 @@ def validate_estimation_config(cfg: EstimationConfig) -> None:
         raise ValueError(
             "covariance_min_periods must be less than or equal to covariance_window "
             f"(got covariance_min_periods={cfg.covariance_min_periods}, covariance_window={cfg.covariance_window})."
+        )
+
+
+def validate_backtest_config(cfg: BacktestConfig) -> None:
+    if not 0.0 < cfg.weight_smoothing_alpha <= 1.0:
+        raise ValueError(
+            "weight_smoothing_alpha must be in the interval (0, 1] "
+            f"(got weight_smoothing_alpha={cfg.weight_smoothing_alpha})."
         )

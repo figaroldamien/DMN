@@ -33,7 +33,7 @@ class EvaluationTests(unittest.TestCase):
         )
         weights_panel = pd.DataFrame(
             {
-                "A": [0.0, 1.0, 0.0, 0.0],
+                "A": [1.0, 1.0, 0.0, 0.0],
                 "B": [0.0, 0.0, 1.0, 1.0],
             },
             index=prices.index,
@@ -59,6 +59,52 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(int(result.summary.num_rebalances), 2)
         self.assertGreater(float(result.costs_by_rebalance.sum()), 0.0)
         self.assertLessEqual(result.daily_returns_net.sum(), result.daily_returns_gross.sum())
+
+    def test_evaluate_portfolio_applies_weight_smoothing_before_turnover(self) -> None:
+        prices = pd.DataFrame(
+            {
+                "A": [100.0, 101.0, 102.0, 103.0],
+                "B": [100.0, 100.0, 100.0, 100.0],
+            },
+            index=pd.to_datetime(["2026-01-30", "2026-02-02", "2026-02-27", "2026-03-02"]),
+        )
+        weights_panel = pd.DataFrame(
+            {
+                "A": [1.0, 1.0, 0.0, 0.0],
+                "B": [0.0, 0.0, 1.0, 1.0],
+            },
+            index=prices.index,
+        )
+        est_cfg = EstimationConfig()
+        bt_cfg = BacktestConfig(
+            cost_bps=0.0,
+            portfolio_vol_target=False,
+            long_only=False,
+            weight_smoothing_alpha=0.5,
+        )
+        eval_cfg = EvaluationConfig(strategy="RP", rebalance_frequency="monthly")
+
+        with patch(
+            "optimal_tf.evaluation.compute_strategy_panel",
+            return_value=type(
+                "Panel",
+                (),
+                {
+                    "base_weights": weights_panel,
+                    "effective_weights": weights_panel,
+                    "signal_scale": pd.Series(1.0, index=weights_panel.index),
+                },
+            )(),
+        ):
+            result = evaluate_portfolio(prices, est_cfg, bt_cfg, eval_cfg)
+
+        first_rebalance = pd.Timestamp("2026-01-30")
+        second_rebalance = pd.Timestamp("2026-02-27")
+        self.assertAlmostEqual(float(result.weights_by_rebalance.loc[first_rebalance, "A"]), 1.0)
+        self.assertAlmostEqual(float(result.weights_by_rebalance.loc[first_rebalance, "B"]), 0.0)
+        self.assertAlmostEqual(float(result.weights_by_rebalance.loc[second_rebalance, "A"]), 0.5)
+        self.assertAlmostEqual(float(result.weights_by_rebalance.loc[second_rebalance, "B"]), 0.5)
+        self.assertAlmostEqual(float(result.turnover_by_rebalance.loc[second_rebalance]), 1.0)
 
     def test_evaluate_cli_prints_summary(self) -> None:
         config_text = """

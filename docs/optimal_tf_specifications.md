@@ -253,7 +253,7 @@ The current cost model is portfolio-level and deterministic.
 ### Current implementation
 
 The current implementation:
-- measures turnover as the `L1` difference between current and previous target weights,
+- measures turnover as the `L1` difference between current and previous implemented weights,
 - computes one scalar cost per rebalance,
 - subtracts that cost from the first net return of the following holding period.
 
@@ -277,7 +277,8 @@ The periodic evaluation engine must support portfolio-level volatility targeting
 
 The targeting contract is return-level, not position-level:
 - the scaled portfolio is defined through scaled return series,
-- the exported rebalance weights are raw target weights unless otherwise specified by an export contract revision.
+- the exported rebalance weights may differ from raw target weights when a shared
+  portfolio-implementation overlay such as weight smoothing is enabled.
 
 ### Current implementation
 
@@ -433,6 +434,8 @@ The TOML config currently includes:
 - `[backtest]`
 - `[allocation]`
 - `[evaluation]`
+
+The loader may also accept `[portfolio]` as an alias of `[backtest]`.
 
 The config must remain:
 - human-readable,

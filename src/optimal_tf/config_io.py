@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from .config import AllocationConfig, BacktestConfig, CompareConfig, EstimationConfig, EvaluationConfig, OutputConfig, UniverseConfig
-from .validation import validate_estimation_config
+from .features import alpha_from_span, effective_span_from_alpha
+from .validation import validate_backtest_config, validate_estimation_config
 
 
 def _read_mapping(path: Path) -> dict[str, Any]:
@@ -31,10 +32,16 @@ def load_config(
     universe_raw = raw.get("universe", {}) if isinstance(raw.get("universe"), dict) else {}
     estimation_raw = raw.get("estimation", {}) if isinstance(raw.get("estimation"), dict) else {}
     backtest_raw = raw.get("backtest", {}) if isinstance(raw.get("backtest"), dict) else {}
+    portfolio_raw = raw.get("portfolio", {}) if isinstance(raw.get("portfolio"), dict) else {}
     allocation_raw = raw.get("allocation", {}) if isinstance(raw.get("allocation"), dict) else {}
     evaluation_raw = raw.get("evaluation", {}) if isinstance(raw.get("evaluation"), dict) else {}
     compare_raw = raw.get("compare", {}) if isinstance(raw.get("compare"), dict) else {}
     output_raw = raw.get("output", {}) if isinstance(raw.get("output"), dict) else {}
+
+    if backtest_raw and portfolio_raw:
+        raise ValueError("Use either [backtest] or [portfolio], not both in the same config.")
+    if portfolio_raw:
+        backtest_raw = portfolio_raw
 
     if universe_raw:
         universe = replace(universe, **{k: universe_raw[k] for k in ("name", "start") if k in universe_raw})
@@ -61,15 +68,31 @@ def load_config(
                 if k in estimation_raw
             },
         )
+        has_trend_alpha = "trend_alpha" in estimation_raw
+        has_trend_span = "trend_span" in estimation_raw
+        if has_trend_alpha and not has_trend_span:
+            estimation = replace(estimation, trend_span=effective_span_from_alpha(estimation.trend_alpha))
+        elif has_trend_span and not has_trend_alpha:
+            estimation = replace(estimation, trend_alpha=alpha_from_span(estimation.trend_span))
+    legacy_weight_smoothing_alpha = evaluation_raw.get("weight_smoothing_alpha") if "weight_smoothing_alpha" in evaluation_raw else None
     if backtest_raw:
         backtest = replace(
             backtest,
             **{
                 k: backtest_raw[k]
-                for k in ("sigma_target_annual", "portfolio_vol_target", "portfolio_vol_span", "cost_bps", "long_only")
+                for k in (
+                    "sigma_target_annual",
+                    "portfolio_vol_target",
+                    "portfolio_vol_span",
+                    "cost_bps",
+                    "weight_smoothing_alpha",
+                    "long_only",
+                )
                 if k in backtest_raw
             },
         )
+    if "weight_smoothing_alpha" not in backtest_raw and legacy_weight_smoothing_alpha is not None:
+        backtest = replace(backtest, weight_smoothing_alpha=legacy_weight_smoothing_alpha)
     if allocation_raw:
         allocation = replace(allocation, **{k: allocation_raw[k] for k in ("strategy", "date") if k in allocation_raw})
     if evaluation_raw:
@@ -77,7 +100,7 @@ def load_config(
             evaluation,
             **{
                 k: evaluation_raw[k]
-                for k in ("strategy", "rebalance_frequency", "evaluation_start", "evaluation_end")
+                for k in ("strategy", "rebalance_frequency", "evaluation_start", "evaluation_end", "weight_smoothing_alpha")
                 if k in evaluation_raw
             },
         )
@@ -106,4 +129,5 @@ def load_config(
         )
 
     validate_estimation_config(estimation)
+    validate_backtest_config(backtest)
     return universe, estimation, backtest, allocation, evaluation, compare, output

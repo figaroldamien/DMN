@@ -13,6 +13,28 @@ from trading_core.reporting.metrics import evaluation_metrics
 from .types import EvaluationResult
 
 
+def _normalize_portfolio_weights(weights: pd.Series, *, long_only: bool) -> pd.Series:
+    weights = weights.astype(float).fillna(0.0)
+    if long_only:
+        weights = weights.clip(lower=0.0)
+        total = float(weights.sum())
+        return weights / total if total > 0 else weights
+    gross = float(weights.abs().sum())
+    return weights / gross if gross > 0 else weights
+
+
+def _apply_weight_smoothing(
+    target_weights: pd.Series,
+    previous_weights: pd.Series,
+    bt_cfg: Any,
+) -> pd.Series:
+    alpha = float(getattr(bt_cfg, "weight_smoothing_alpha", 1.0))
+    if alpha >= 1.0:
+        return target_weights.astype(float).fillna(0.0)
+    smoothed = (1.0 - alpha) * previous_weights.astype(float).fillna(0.0) + alpha * target_weights.astype(float).fillna(0.0)
+    return _normalize_portfolio_weights(smoothed, long_only=bool(getattr(bt_cfg, "long_only", False)))
+
+
 def apply_portfolio_vol_target(
     gross_returns: pd.Series,
     bt_cfg: Any,
@@ -83,7 +105,7 @@ def evaluate_portfolio(
     base_weights_by_rebalance = strategy_panel.base_weights.loc[rebalance_dates].copy()
     effective_weights_by_rebalance = strategy_panel.effective_weights.loc[rebalance_dates].copy()
     signal_scale_by_rebalance = strategy_panel.signal_scale.loc[rebalance_dates].copy()
-    weights_by_rebalance = effective_weights_by_rebalance.copy()
+    weights_by_rebalance = pd.DataFrame(index=rebalance_dates, columns=effective_weights_by_rebalance.columns, dtype=float)
 
     daily_gross = pd.Series(0.0, index=prices.index, dtype=float)
     daily_net = pd.Series(0.0, index=prices.index, dtype=float)
@@ -97,7 +119,9 @@ def evaluate_portfolio(
     # the next rebalance date, and transaction costs are charged once when the
     # new allocation becomes active.
     for pos, rebalance_date in enumerate(rebalance_dates):
-        current_weights = effective_weights_by_rebalance.loc[rebalance_date].fillna(0.0)
+        target_weights = effective_weights_by_rebalance.loc[rebalance_date].fillna(0.0)
+        current_weights = _apply_weight_smoothing(target_weights, prev_weights, bt_cfg)
+        weights_by_rebalance.loc[rebalance_date] = current_weights
         next_rebalance = rebalance_dates[pos + 1] if pos + 1 < len(rebalance_dates) else None
         period_index = slice_next_holding_period(prices.index, rebalance_date, next_rebalance, eval_end)
         if len(period_index) == 0:

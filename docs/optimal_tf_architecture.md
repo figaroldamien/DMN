@@ -82,6 +82,9 @@ Timing convention carried by the current design:
 - `strategies/`
   Strategy package split by concern:
   `base.py`, `torp.py`, `lltf.py`, `common.py`, `types.py`, `api.py`.
+- `strategies_agnostic/`
+  Experimental Eq. 8 strategy lab:
+  `position_engine.py`, `q_models.py`, `signals.py`, `normalization.py`, `catalog.py`, `api.py`.
 - `rebalance.py`
   Compatibility facade over shared rebalance helpers in `trading_core.rebalance`.
 - `backtest.py`
@@ -197,6 +200,12 @@ Current note:
 - `ToRP2` computes the trend on the `RP` factor return stream itself and applies that factor signal back onto a category-aware `RP` portfolio.
 - `ToRP3` keeps the trend amplitude explicit through `signal_scale` and `effective_weights`.
 - `ToRP3` is the closest current implementation to Sec. 3.4 of the reference paper, though the framework still layers a separate portfolio volatility target on top.
+- `strategies_agnostic` is the new experimental Eq. 8 path used to compare agnostic recipes before deciding whether any should migrate into the main router.
+
+Experimental agnostic policy:
+- empirical `C` is cleaned by the standard estimator pipeline with the configured method,
+- structural `Q` models (`I`, `C`, `Q_phi`) are only stabilized structurally, not statistically re-shrunk,
+- future empirical `Q` models may later opt into the same configurable cleaning family as `C`.
 
 Performance note:
 - after the move to date-centric allocation, the evaluation engine now reuses a covariance cache within one run,
@@ -216,6 +225,7 @@ Defaults currently used in config:
 - `torp_signal_gain = 5.0`
 - `sigma_target_annual = 0.15`
 - `cost_bps = 25.0`
+- `weight_smoothing_alpha = 1.0`
 - `long_only = true`
 - `cleaning_method = "rie"`
 - reference benchmark-only cleaner also available as `cleaning_method = "rie_reference"` when the optional `rie-estimator` package is installed

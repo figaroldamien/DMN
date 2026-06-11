@@ -439,6 +439,13 @@ This section currently controls portfolio-level conventions even for the single-
   Transaction cost placeholder in basis points.
   Not heavily used by the current single-date allocation CLI yet.
 
+- `weight_smoothing_alpha`
+  Portfolio implementation smoothing parameter.
+  `1.0` means no smoothing.
+  Lower values make the implemented portfolio move more gradually toward the
+  newly computed target weights while preserving the project leverage
+  convention.
+
 - `long_only`
   If `true`, negative weights are clipped to zero and the result is renormalized.
   If `false`, long/short weights are allowed.
@@ -506,6 +513,7 @@ The current example config uses:
 - `lltf_l2_reg = 0.0001`
 - `sigma_target_annual = 0.15`
 - `cost_bps = 25.0`
+- `weight_smoothing_alpha = 1.0`
 - `long_only = true`
 - `allocation.strategy = "ARP"`
 - `evaluation.strategy = "ARP"`
