@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
+from html import escape
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -10,15 +11,21 @@ import streamlit as st
 from market_tickers_data import MARKET_TICKERS
 from optimal_tf.allocation import supported_strategies
 from optimal_tf.config_io import load_config
-from optimal_tf.data import load_prices_for_universe
+from optimal_tf.data import load_prices_for_universe, load_prices_yf
+from optimal_tf.market_fork import build_market_fork_snapshot, write_market_fork_snapshot
 from optimal_tf.rebalance import resolve_rebalance_dates, supported_rebalance_frequencies
+from optimal_tf.strategies_agnostic import (
+    supported_agnostic_strategies,
+    supported_normalization_modes,
+    supported_q_models,
+    supported_signal_models,
+)
 from optimal_tf.services import (
     AllocationRequest,
     CompareRequest,
     HyperparameterTuningRequest,
     InspectionSnapshotRequest,
-    MarketSynthesisRequest,
-    MarketSynthesisResult,
+    StrategyTestbedRequest,
     StandardEvaluationRequest,
     VaryCleaningRequest,
     VaryFrequencyRequest,
@@ -29,44 +36,44 @@ from optimal_tf.services import (
     run_evaluation,
     run_hyperparameter_tuning,
     run_inspection_snapshot,
-    run_market_synthesis,
+    run_strategy_testbed,
     run_vary_cleaning,
     run_vary_frequency,
     run_vary_strategy,
     run_vary_window,
 )
 from trading_core.risk import marchenko_pastur_law, supported_cleaning_methods
-from trading_core.reporting import evaluation_metrics
+from trading_core.market.universes import get_universe_benchmark
+from trading_core.reporting import (
+    cumulative_nav,
+    equal_weight_rebalanced_benchmark,
+    evaluation_metrics,
+    single_asset_buy_and_hold_benchmark,
+)
 from trading_core.reporting.plots import plt
+from trading_core.features import alpha_from_span, effective_span_from_alpha
 
 DEFAULT_CONFIG = 'configs/optimal_tf.example.toml'
 UNIVERSE_OPTIONS = sorted(MARKET_TICKERS)
-STRATEGY_OPTIONS = supported_strategies()
+MARKET_UNIVERSES = ['cac40', 'dji', 'eurostoxx50', 'eurostoxx600', 'nasdaq100', 'sbf120', 'sp500']
+INDEX_UNIVERSES = ['dataset_all', 'futures', 'index', 'table8_all', 'world_index', 'test']
+UNIVERSE_GROUPS = {
+    'Markets': [name for name in MARKET_UNIVERSES if name in MARKET_TICKERS],
+    'Index universes': [name for name in INDEX_UNIVERSES if name in MARKET_TICKERS],
+}
+HIDDEN_DASHBOARD_STRATEGIES = {"PHI_0", "PHI_100"}
+STRATEGY_OPTIONS = [name for name in supported_strategies() if name not in HIDDEN_DASHBOARD_STRATEGIES]
+AGNOSTIC_STRATEGY_OPTIONS = set(supported_agnostic_strategies())
 FREQUENCY_OPTIONS = supported_rebalance_frequencies()
 CLEANING_OPTIONS = list(supported_cleaning_methods())
-
-MARKET_SERVICES = {
-    'Momentum synthesis': 'Cross-sectional momentum synthesis with optional sector and sub-sector aggregation.',
-}
-
-MOMENTUM_COLUMNS = ['annual', 'semiannual', 'quarterly', 'monthly', 'weekly', 'daily']
-MOMENTUM_LABELS = {
-    'annual': 'Annual',
-    'semiannual': 'Semiannual',
-    'quarterly': 'Quarterly',
-    'monthly': 'Monthly',
-    'weekly': 'Weekly',
-    'daily': 'Daily',
-}
-
-MARKET_SORT_OPTIONS = {
-    'hierarchy': 'Sector / sub-sector',
-    'performance': 'Performance',
-}
+AGNOSTIC_SIGNAL_OPTIONS = supported_signal_models()
+AGNOSTIC_Q_OPTIONS = supported_q_models()
+AGNOSTIC_NORMALIZATION_OPTIONS = supported_normalization_modes()
 
 STANDARD_SERVICES = {
     'Allocation': 'Standard allocation of one strategy on one date.',
     'Evaluation': 'Standard backtest using the packaged configuration.',
+    'Strategy testbed': 'Custom agnostic backtest with explicit q_model, phi, signal, omega and normalization.',
     'Compare': 'Standard comparison of several strategies using the config defaults.',
 }
 
@@ -82,21 +89,67 @@ INSPECTION_SERVICES = {
     'Inspection snapshot': 'Inspect one dated allocation snapshot with matrices, spectra, features and weights.',
 }
 
+GUIDE_SERVICES = {
+    'Strategy guide': 'Short markdown guide describing the currently exposed strategies.',
+}
+
+CONFIG_SERVICES = {
+    'Config editor': 'Edit the TOML configuration used by optimal_tf directly from the dashboard.',
+}
+
+STRATEGY_DESCRIPTIONS = {
+    "EW": "Equal weight. Baseline long-only allocation equally split across available assets.",
+    "RP": "Risk parity proxy. Inverse-volatility baseline built from the covariance diagonal.",
+    "ARP": "Agnostic risk parity. Correlation-whitened allocation that spreads risk across eigenmodes.",
+    "NM": "Naive Markowitz. Uses the inverse covariance with a flat expected-return vector.",
+    "LLTF": "Lead-lag trend following. Empirical cross-asset trend strategy based on virtual return/signal interactions.",
+    "ARP_AGNOSTIC": "Eq. 8 agnostic recipe with p = 1 and Q = I. Flat-signal agnostic risk parity.",
+    "MARKOWITZ_AGNOSTIC": "Eq. 8 recipe with p = 1 and Q = C. Markowitz-like spectral allocation.",
+    "ATF_AGNOSTIC": "Eq. 8 agnostic trend following with p = trend_ema and Q = I.",
+    "ATF_RAW": "Same signal as ATF_AGNOSTIC but without gross normalization of the final weights.",
+    "ATF_EMPIRICAL_Q": "Agnostic trend following with Q estimated empirically from signal history.",
+    "PHI_25": "Eq. 8 phi-family recipe with p = 1 and Q_phi = 0.25 C + 0.75 I.",
+    "PHI_50": "Eq. 8 phi-family recipe with p = 1 and Q_phi = 0.5 C + 0.5 I.",
+}
+
+COMMON_EVALUATION_DATE_SERVICES = {
+    ('Standard', 'Evaluation'),
+    ('Standard', 'Strategy testbed'),
+    ('Standard', 'Compare'),
+    ('Tuning', 'Vary cleaning'),
+    ('Tuning', 'Vary window'),
+    ('Tuning', 'Vary strategy'),
+    ('Tuning', 'Vary frequency'),
+    ('Tuning', 'Hyperparameter tuning'),
+    ('Inspection', 'Inspection snapshot'),
+}
+
 COMMON_COLUMN_CONFIG = {
-    'strategy': st.column_config.TextColumn('Strategy', width='small'),
-    'method': st.column_config.TextColumn('Cleaning', width='small'),
-    'cleaning_method': st.column_config.TextColumn('Cleaning', width='small'),
-    'covariance_window': st.column_config.NumberColumn('Corr.\nwindow', width='small', format='%d'),
-    'window': st.column_config.NumberColumn('Window', width='small', format='%d'),
+    'universe': st.column_config.TextColumn('Uni-\nverse', width='small'),
+    'strategy': st.column_config.TextColumn('Stra-\ntegy', width='small'),
+    'method': st.column_config.TextColumn('Cleaning\nmethod', width='small'),
+    'cleaning_method': st.column_config.TextColumn('Cleaning\nmethod', width='small'),
+    'covariance_window': st.column_config.NumberColumn('Window\n(days)', width='small', format='%d'),
+    'window': st.column_config.NumberColumn('Window\n(days)', width='small', format='%d'),
     'rebalance_frequency': st.column_config.TextColumn('Rebalance\nfrequency', width='small'),
-    'sharpe': st.column_config.NumberColumn('Sharpe', width='small', format='%.3f'),
-    'total_return': st.column_config.NumberColumn('Total\nreturn', width='small', format='%.3f'),
-    'ann_return': st.column_config.NumberColumn('Ann.\nreturn', width='small', format='%.3f'),
-    'ann_vol': st.column_config.NumberColumn('Ann.\nvol', width='small', format='%.3f'),
-    'mdd': st.column_config.NumberColumn('Max\nDD', width='small', format='%.3f'),
-    'avg_turnover': st.column_config.NumberColumn('Avg.\nturnover', width='small', format='%.3f'),
-    'total_cost': st.column_config.NumberColumn('Total\ncost', width='small', format='%.3f'),
-    'final_nav': st.column_config.NumberColumn('Final\nNAV', width='small', format='%.3f'),
+    'sharpe': st.column_config.NumberColumn('Sharpe', width='small', format='%.2f'),
+    'ann_return': st.column_config.NumberColumn('Ann\nret\n(%/yr)', width='small', format='%.1f'),
+    'cagr': st.column_config.NumberColumn('CAGR\n(%/yr)', width='small', format='%.1f'),
+    'ann_vol': st.column_config.NumberColumn('Ann\nvol\n(%/yr)', width='small', format='%.1f'),
+    'sortino': st.column_config.NumberColumn('Sortino', width='small', format='%.2f'),
+    'skewness': st.column_config.NumberColumn('Skew', width='small', format='%.2f'),
+    'mar': st.column_config.NumberColumn('MAR', width='small', format='%.2f'),
+    'mdd': st.column_config.NumberColumn('Max\nDD\n(%)', width='small', format='%.1f'),
+    'annualized_turnover': st.column_config.NumberColumn('Ann\nturn\n(%/yr)', width='small', format='%.0f'),
+    'annualized_cost': st.column_config.NumberColumn('Ann\ntrade cost\n(%/yr)', width='small', format='%.2f'),
+    'total_return_gross': st.column_config.NumberColumn('Gross\nret\n(%)', width='small', format='%.1f'),
+    'total_return': st.column_config.NumberColumn('Net\nret\n(%)', width='small', format='%.1f'),
+    'total_cost': st.column_config.NumberColumn('Trade\ncost pct\n(%)', width='small', format='%.2f'),
+    'total_return_cost_drag': st.column_config.NumberColumn('Trade\ncost', width='small', format='%.2f'),
+    'avg_turnover': st.column_config.NumberColumn('Average\nturnover\n(%/day)', width='small', format='%.2f'),
+    'avg_turnover_per_rebalance': st.column_config.NumberColumn('Average\nturnover\n(%/reb.)', width='small', format='%.1f'),
+    'avg_cost_per_rebalance': st.column_config.NumberColumn('Average\ntrade cost\n(%/reb.)', width='small', format='%.2f'),
+    'final_nav': st.column_config.NumberColumn('NAV', width='small', format='%.2f'),
     'signal_scale': st.column_config.NumberColumn('Signal\nscale', width='small', format='%.3f'),
     'allocation_date': st.column_config.TextColumn('Allocation\ndate', width='small'),
     'matrix_date': st.column_config.TextColumn('Matrix\ndate', width='small'),
@@ -106,26 +159,63 @@ COMMON_COLUMN_CONFIG = {
     'cumulative_variance_share': st.column_config.NumberColumn('Cum.\nvar', width='small', format='%.4f'),
     'num_assets': st.column_config.NumberColumn('Num\nassets', width='small', format='%d'),
     'sample_size': st.column_config.NumberColumn('Sample\nsize', width='small', format='%d'),
+    'num_rebalances': st.column_config.NumberColumn('Number of\nrebalances', width='small', format='%d'),
+    'num_days': st.column_config.NumberColumn('Number of\ndays', width='small', format='%d'),
     'reason': st.column_config.TextColumn('Reason', width='medium'),
     'name': st.column_config.TextColumn('Artifact', width='medium'),
     'path': st.column_config.TextColumn('Path', width='large'),
     'ticker': st.column_config.TextColumn('Ticker', width='small'),
-    'instrument': st.column_config.TextColumn('Instrument', width='medium'),
+    'sector': st.column_config.TextColumn('Sector', width='small'),
+    'sub_sector': st.column_config.TextColumn('Sub-\nsector', width='small'),
+    'category': st.column_config.TextColumn('Cate-\ngory', width='small'),
+    'instrument': st.column_config.TextColumn('Instru-\nment', width='medium'),
     'description': st.column_config.TextColumn('Name', width='medium'),
-    'weight': st.column_config.NumberColumn('Weight', width='small', format='%.4f'),
-    'base_weight': st.column_config.NumberColumn('Base\nweight', width='small', format='%.4f'),
-    'effective_weight': st.column_config.NumberColumn('Eff.\nweight', width='small', format='%.4f'),
-    'abs_effective_weight': st.column_config.NumberColumn('Abs eff.\nweight', width='small', format='%.4f'),
+    'weight': st.column_config.NumberColumn('Weight\n(%)', width='small', format='%.2f'),
+    'base_weight': st.column_config.NumberColumn('Base\nweight\n(%)', width='small', format='%.2f'),
+    'effective_weight': st.column_config.NumberColumn('Eff.\nweight\n(%)', width='small', format='%.2f'),
+    'abs_effective_weight': st.column_config.NumberColumn('Abs eff.\nweight\n(%)', width='small', format='%.2f'),
     'last_price': st.column_config.NumberColumn('Last\nprice', width='small', format='%.4f'),
-    'last_return': st.column_config.NumberColumn('Last\nreturn', width='small', format='%.4f'),
-    'ewma_vol': st.column_config.NumberColumn('EWMA\nvol', width='small', format='%.4f'),
-    'z_return': st.column_config.NumberColumn('Z\nreturn', width='small', format='%.4f'),
-    'trend_signal': st.column_config.NumberColumn('Trend\nsignal', width='small', format='%.4f'),
+    'last_return': st.column_config.NumberColumn('Last\nreturn\n(%)', width='small', format='%.2f'),
+    'ewma_vol': st.column_config.NumberColumn('EWMA\nvol\n(%)', width='small', format='%.2f'),
+    'z_return': st.column_config.NumberColumn('Z\nreturn', width='small', format='%.2f'),
+    'trend_signal': st.column_config.NumberColumn('Trend\nsignal', width='small', format='%.2f'),
 }
+
+UTILITY_COLUMN_ORDER = [
+    'universe', 'sector', 'sub_sector', 'category', 'ticker', 'description', 'instrument',
+    'strategy', 'strategies', 'method', 'cleaning_method', 'covariance_window', 'window', 'rebalance_frequency',
+    'allocation_date', 'matrix_date', 'num_assets', 'sample_size',
+    'signal_scale', 'sharpe', 'ann_return', 'cagr', 'ann_vol', 'sortino', 'skewness', 'mar', 'mdd', 'annualized_turnover', 'annualized_cost',
+    'total_return_gross', 'total_return', 'total_cost', 'total_return_cost_drag',
+    'final_nav', 'avg_turnover', 'avg_turnover_per_rebalance', 'avg_cost_per_rebalance',
+    'num_rebalances', 'num_days',
+    'weight', 'base_weight', 'effective_weight', 'abs_effective_weight',
+    'benchmark_label', 'buy_hold_label', 'name', 'path', 'reason',
+]
 
 st.set_page_config(page_title='optimal_tf dashboard', layout='wide')
 st.title('optimal_tf dashboard MVP')
 st.caption('Pilotage interactif des services standard, tuning et inspection via l\'API Python.')
+st.markdown(
+    """
+    <style>
+    [data-testid="stDataFrame"] div[role="columnheader"],
+    [data-testid="stDataFrame"] div[role="gridcell"] {
+        font-size: 0.68rem;
+        line-height: 0.92;
+    }
+    [data-testid="stDataFrame"] div[role="columnheader"] *,
+    [data-testid="stDataFrame"] div[role="gridcell"] * {
+        white-space: pre-line !important;
+    }
+    [data-testid="stDataFrame"] [data-testid="StyledCell"] {
+        padding-top: 0.08rem;
+        padding-bottom: 0.08rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 def _json_safe(value: Any) -> Any:
@@ -163,6 +253,195 @@ def _load_defaults(config_path: str) -> tuple[dict[str, Any], str | None]:
     return defaults, None
 
 
+def _toml_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if value is None:
+        raise ValueError('None values must be handled before TOML serialization.')
+    if isinstance(value, (int, float)):
+        return repr(value)
+    escaped = str(value).replace('\\', '\\\\').replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _toml_array(values: Iterable[Any]) -> str:
+    return '[' + ', '.join(_toml_scalar(value) for value in values) + ']'
+
+
+def _build_config_toml(payload: dict[str, dict[str, Any]]) -> str:
+    lines: list[str] = []
+    section_order = ['universe', 'estimation', 'backtest', 'allocation', 'evaluation', 'compare', 'output']
+    for section in section_order:
+        values = payload.get(section, {})
+        lines.append(f'[{section}]')
+        for key, value in values.items():
+            if value is None or value == '':
+                continue
+            if isinstance(value, (list, tuple)):
+                lines.append(f'{key} = {_toml_array(value)}')
+            else:
+                lines.append(f'{key} = {_toml_scalar(value)}')
+        lines.append('')
+    return '\n'.join(lines).rstrip() + '\n'
+
+
+def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> None:
+    st.markdown(
+        "Edit the `optimal_tf` TOML config directly from the dashboard. "
+        "Saving rewrites the file with the fields exposed below."
+    )
+    st.caption(f'Editing: `{config_path}`')
+    default_save_path = st.session_state.get('config::save_path', config_path)
+
+    universe_defaults = config_defaults.get('universe', {})
+    estimation_defaults = config_defaults.get('estimation', {})
+    backtest_defaults = config_defaults.get('backtest', {})
+    allocation_defaults = config_defaults.get('allocation', {})
+    evaluation_defaults = config_defaults.get('evaluation', {})
+    compare_defaults = config_defaults.get('compare', {})
+    output_defaults = config_defaults.get('output', {})
+
+    with st.form('config_editor_form'):
+        st.markdown('### Universe')
+        universe_col, start_col = st.columns(2)
+        with universe_col:
+            universe_name = st.selectbox(
+                'Universe',
+                UNIVERSE_OPTIONS,
+                index=UNIVERSE_OPTIONS.index(universe_defaults.get('name', UNIVERSE_OPTIONS[0])) if universe_defaults.get('name') in UNIVERSE_OPTIONS else 0,
+            )
+        with start_col:
+            universe_start = st.text_input('Start date', value=str(universe_defaults.get('start', '2000-01-01') or '2000-01-01'))
+
+        st.markdown('### Estimation')
+        est_left, est_right = st.columns(2)
+        with est_left:
+            vol_span = int(st.number_input('Vol span', min_value=2, value=int(estimation_defaults.get('vol_span', 60) or 60), step=1))
+            covariance_window = int(st.number_input('Covariance window', min_value=2, value=int(estimation_defaults.get('covariance_window', 252) or 252), step=1))
+            covariance_min_periods = int(st.number_input('Covariance min periods', min_value=1, value=int(estimation_defaults.get('covariance_min_periods', 252) or 252), step=1))
+            max_abs_return = float(st.number_input('Max abs return', min_value=0.0, value=float(estimation_defaults.get('max_abs_return', 1.0) or 1.0), step=0.1))
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(estimation_defaults.get('cleaning_method', CLEANING_OPTIONS[0])) if estimation_defaults.get('cleaning_method') in CLEANING_OPTIONS else 0,
+            )
+            linear_shrinkage = float(st.number_input('Linear shrinkage', min_value=0.0, max_value=1.0, value=float(estimation_defaults.get('linear_shrinkage', 0.0) or 0.0), step=0.05))
+        with est_right:
+            rie_bandwidth = float(st.number_input('RIE bandwidth', min_value=0.0, value=float(estimation_defaults.get('rie_bandwidth', 0.001) or 0.001), step=0.0005, format='%.6f'))
+            trend_alpha = float(st.number_input('Trend alpha', min_value=0.0, value=float(estimation_defaults.get('trend_alpha', 0.01575) or 0.01575), step=0.001, format='%.6f'))
+            lltf_l2_reg = float(st.number_input('LLTF L2 reg', min_value=0.0, value=float(estimation_defaults.get('lltf_l2_reg', 0.0001) or 0.0001), step=0.0001, format='%.6f'))
+
+        st.markdown('### Backtest')
+        bt_left, bt_right = st.columns(2)
+        with bt_left:
+            sigma_target_annual = float(st.number_input('Sigma target annual', min_value=0.0, value=float(backtest_defaults.get('sigma_target_annual', 0.15) or 0.15), step=0.01))
+            portfolio_vol_target = st.checkbox('Portfolio vol target', value=bool(backtest_defaults.get('portfolio_vol_target', True)))
+            portfolio_vol_span = int(st.number_input('Portfolio vol span', min_value=2, value=int(backtest_defaults.get('portfolio_vol_span', 60) or 60), step=1))
+        with bt_right:
+            cost_bps = float(st.number_input('Cost bps', min_value=0.0, value=float(backtest_defaults.get('cost_bps', 0.0) or 0.0), step=1.0))
+            weight_smoothing_alpha = float(st.number_input('Weight smoothing alpha', min_value=0.0, max_value=1.0, value=float(backtest_defaults.get('weight_smoothing_alpha', 1.0) or 1.0), step=0.05))
+            long_only = st.checkbox('Long only', value=bool(backtest_defaults.get('long_only', False)))
+
+        st.markdown('### Allocation / Evaluation')
+        alloc_col, eval_col = st.columns(2)
+        with alloc_col:
+            allocation_strategy = _strategy_selectbox('Allocation strategy', STRATEGY_OPTIONS, str(allocation_defaults.get('strategy', STRATEGY_OPTIONS[0])), key='config::allocation_strategy')
+        with eval_col:
+            evaluation_strategy = _strategy_selectbox('Evaluation strategy', STRATEGY_OPTIONS, str(evaluation_defaults.get('strategy', STRATEGY_OPTIONS[0])), key='config::evaluation_strategy')
+            rebalance_frequency = st.selectbox(
+                'Rebalance frequency',
+                FREQUENCY_OPTIONS,
+                index=FREQUENCY_OPTIONS.index(evaluation_defaults.get('rebalance_frequency', FREQUENCY_OPTIONS[0])) if evaluation_defaults.get('rebalance_frequency') in FREQUENCY_OPTIONS else 0,
+            )
+        eval_start_col, eval_end_col = st.columns(2)
+        with eval_start_col:
+            evaluation_start = st.text_input('Evaluation start', value=str(evaluation_defaults.get('evaluation_start', '') or ''))
+        with eval_end_col:
+            evaluation_end = st.text_input('Evaluation end', value=str(evaluation_defaults.get('evaluation_end', '') or ''))
+
+        st.markdown('### Compare')
+        compare_strategies = _strategy_selector_columns(
+            options=STRATEGY_OPTIONS,
+            default_values=list(compare_defaults.get('strategies') or [evaluation_strategy]),
+            key='config::compare_strategies',
+        )
+
+        st.markdown('### Output')
+        out_left, out_right = st.columns(2)
+        with out_left:
+            allocation_csv = st.text_input('Allocation CSV', value=str(output_defaults.get('allocation_csv', 'output/optimal_tf/weights.csv') or ''))
+            allocation_json = st.text_input('Allocation JSON', value=str(output_defaults.get('allocation_json', 'output/optimal_tf/weights.json') or ''))
+            evaluation_dir = st.text_input('Evaluation dir', value=str(output_defaults.get('evaluation_dir', 'output/optimal_tf/evaluation_run') or ''))
+            evaluation_plot = st.checkbox('Evaluation plot', value=bool(output_defaults.get('evaluation_plot', True)))
+        with out_right:
+            compare_dir = st.text_input('Compare dir', value=str(output_defaults.get('compare_dir', 'output/optimal_tf/compare_run') or ''))
+            compare_clean_dir = st.checkbox('Clean compare dir', value=bool(output_defaults.get('compare_clean_dir', True)))
+            compare_plot = st.checkbox('Compare plot', value=bool(output_defaults.get('compare_plot', True)))
+
+        save_col, path_col = st.columns([1, 3])
+        with save_col:
+            save_clicked = st.form_submit_button('Save config')
+        with path_col:
+            save_path = st.text_input('Save config as', value=str(default_save_path), help='Destination TOML file path to write when saving.')
+
+    if save_clicked:
+        st.session_state['config::save_path'] = save_path
+        payload = {
+            'universe': {
+                'name': universe_name,
+                'start': universe_start,
+            },
+            'estimation': {
+                'vol_span': vol_span,
+                'covariance_window': covariance_window,
+                'covariance_min_periods': covariance_min_periods,
+                'max_abs_return': max_abs_return,
+                'cleaning_method': cleaning_method,
+                'linear_shrinkage': linear_shrinkage,
+                'rie_bandwidth': rie_bandwidth,
+                'trend_alpha': trend_alpha,
+                'lltf_l2_reg': lltf_l2_reg,
+            },
+            'backtest': {
+                'sigma_target_annual': sigma_target_annual,
+                'portfolio_vol_target': portfolio_vol_target,
+                'portfolio_vol_span': portfolio_vol_span,
+                'cost_bps': cost_bps,
+                'weight_smoothing_alpha': weight_smoothing_alpha,
+                'long_only': long_only,
+            },
+            'allocation': {
+                'strategy': allocation_strategy,
+            },
+            'evaluation': {
+                'strategy': evaluation_strategy,
+                'rebalance_frequency': rebalance_frequency,
+                'evaluation_start': evaluation_start,
+                'evaluation_end': evaluation_end,
+            },
+            'compare': {
+                'strategies': compare_strategies,
+            },
+            'output': {
+                'allocation_csv': allocation_csv,
+                'allocation_json': allocation_json,
+                'evaluation_dir': evaluation_dir,
+                'evaluation_plot': evaluation_plot,
+                'compare_dir': compare_dir,
+                'compare_clean_dir': compare_clean_dir,
+                'compare_plot': compare_plot,
+            },
+        }
+        config_text = _build_config_toml(payload)
+        destination = Path(save_path).expanduser()
+        if not destination.suffix:
+            destination = destination.with_suffix('.toml')
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(config_text, encoding='utf-8')
+        st.success(f'Config saved to `{destination}`.')
+        st.rerun()
+
+
 def _selectbox_with_default(label: str, options: list[str], default_value: str) -> str:
     default_index = options.index(default_value) if default_value in options else 0
     return st.sidebar.selectbox(label, options, index=default_index)
@@ -171,6 +450,272 @@ def _selectbox_with_default(label: str, options: list[str], default_value: str) 
 def _multiselect_with_defaults(label: str, options: list[str], default_values: list[str]) -> list[str]:
     defaults = [item for item in default_values if item in options]
     return st.sidebar.multiselect(label, options, default=defaults)
+
+
+def _format_universe_label(value: str) -> str:
+    labels = {
+        'cac40': 'CAC 40',
+        'dji': 'DJI',
+        'eurostoxx50': 'EURO STOXX 50',
+        'eurostoxx600': 'EURO STOXX 600',
+        'nasdaq100': 'NASDAQ 100',
+        'sbf120': 'SBF 120',
+        'sp500': 'S&P 500',
+        'dataset_all': 'Dataset all',
+        'futures': 'Futures',
+        'index': 'Index',
+        'table8_all': 'Table 8 all',
+        'world_index': 'World index',
+        'test': 'Test',
+    }
+    return labels.get(value, value)
+
+
+def _default_universe_group(universe: str) -> str:
+    for group_name, options in UNIVERSE_GROUPS.items():
+        if universe in options:
+            return group_name
+    return 'Markets'
+
+
+def _strategy_label(strategy: str) -> str:
+    if strategy == "EW":
+        return "Baseline | EW"
+    if strategy == "RP":
+        return "Baseline | RP"
+    if strategy in AGNOSTIC_STRATEGY_OPTIONS:
+        return f"Agnostic | {strategy}"
+    return f"Legacy | {strategy}"
+
+
+def _strategy_selectbox(label: str, options: list[str], default_value: str, *, key: str | None = None) -> str:
+    return _strategy_selector_single_columns(
+        label=label,
+        options=options,
+        default_value=default_value,
+        key=key or f"{label.lower().replace(' ', '_')}::single_selector",
+    )
+
+
+def _strategy_multiselect(label: str, options: list[str], default_values: list[str]) -> list[str]:
+    st.caption(label)
+    return _strategy_selector_columns(
+        options=options,
+        default_values=default_values,
+        key=f"{label.lower().replace(' ', '_')}::multi_selector",
+    )
+
+
+def _strategy_group(strategy: str) -> str:
+    if strategy in {"EW", "RP"}:
+        return "Baselines"
+    if strategy in AGNOSTIC_STRATEGY_OPTIONS:
+        return "Agnostic Eq. 8"
+    return "Legacy"
+
+
+def _strategy_selection_error(key: str) -> str | None:
+    return st.session_state.get(f"{key}::error")
+
+
+def _strategy_selector_single_columns(
+    *,
+    label: str,
+    options: list[str],
+    default_value: str,
+    key: str,
+) -> str:
+    default = default_value if default_value in options else options[0]
+    selected_key = f"{key}::selected"
+    error_key = f"{key}::error"
+    if selected_key not in st.session_state or st.session_state[selected_key] not in options:
+        st.session_state[selected_key] = default
+    selected = st.session_state[selected_key]
+    grouped_options = {
+        "Baselines + Legacy": [
+            name for name in options if _strategy_group(name) in {"Baselines", "Legacy"}
+        ],
+        "Agnostic Eq. 8": [
+            name for name in options if _strategy_group(name) == "Agnostic Eq. 8"
+        ],
+    }
+    st.caption(label)
+    selected_names: list[str] = []
+    columns = st.columns([1.0, 1.5])
+    for column, title in zip(columns, ("Baselines + Legacy", "Agnostic Eq. 8")):
+        names = grouped_options[title]
+        if not names:
+            continue
+        frame = pd.DataFrame(
+            {
+                "Select": [name == selected for name in names],
+                "Strategy": names,
+            }
+        )
+        with column:
+            st.caption(title)
+            edited = st.data_editor(
+                frame,
+                key=f"{key}::{title}",
+                width="stretch",
+                hide_index=True,
+                disabled=["Strategy"],
+                height=min(460, max(140, 36 + 35 * len(frame))),
+                column_config={
+                    "Select": st.column_config.CheckboxColumn("Select"),
+                    "Strategy": st.column_config.TextColumn("Strategy", width="large"),
+                },
+            )
+            selected_names.extend(edited.loc[edited["Select"], "Strategy"].tolist())
+    if len(selected_names) == 1:
+        st.session_state[selected_key] = selected_names[0]
+        st.session_state[error_key] = None
+    elif len(selected_names) == 0:
+        st.session_state[error_key] = "Select exactly one strategy."
+    else:
+        st.session_state[error_key] = "Select exactly one strategy."
+    return str(st.session_state[selected_key])
+
+
+def _render_strategy_guide(options: list[str]) -> None:
+    groups: dict[str, list[str]] = {"Baselines": [], "Legacy": [], "Agnostic Eq. 8": []}
+    for strategy in options:
+        groups[_strategy_group(strategy)].append(strategy)
+
+    with st.expander("Strategy guide", expanded=False):
+        st.markdown(
+            "This guide gives a compact overview of what changes from one strategy to another. "
+            "The detailed reference notes still live in the project docs."
+        )
+        st.markdown(
+            """
+            ### General principles
+
+            The main difference between the strategies is the way they compute positions.
+
+            What stays mostly shared across strategies:
+            - the same historical price inputs,
+            - the same rebalance schedule,
+            - the same backtest engine for turnover, costs, gross returns, and net returns,
+            - the same reporting layer.
+
+            What changes is mainly the position engine:
+            - the signal vector,
+            - whether the strategy uses no matrix, a covariance matrix, or a correlation matrix,
+            - how that object is transformed into portfolio weights.
+
+            ### Eq. 8
+
+            The agnostic research family is organized around:
+
+            `w = omega * C^{-1/2} * Q^{-1/2} * p`
+
+            where `C` is the cleaned correlation matrix, `Q` is the signal correlation matrix or a structural matrix normalized as a correlation matrix, `p` is the signal vector, and `omega` sets the overall scale.
+
+            Intuition:
+            - `p` expresses the directional view,
+            - `Q` describes how the signal co-moves across assets,
+            - `C^{-1/2}` whitens the correlation structure,
+            - `omega` rescales the final allocation.
+
+            ### Weight smoothing
+
+            After the strategy computes raw target weights, the portfolio layer can smooth implementation:
+
+            `w_t^{impl} = alpha * w_t^{target} + (1 - alpha) * w_{t-1}^{impl}`
+
+            where `alpha = 1` means no smoothing. Lower `alpha` reduces turnover and costs, but slows the reaction to new estimates and signals.
+
+            ### General workflow
+
+            1. Load prices and define rebalance dates.
+            2. Estimate the relevant objects from the historical window.
+            3. Compute raw target positions with the selected strategy.
+            4. Optionally smooth the weights.
+            5. Roll the portfolio over the holding period.
+            6. Compute turnover, costs, gross returns, net returns, and summary metrics.
+
+            ### Strategy taxonomy
+
+            **Independent from full covariance/correlation matrices**
+            - `EW`: equal-weight baseline with no matrix input.
+            - `RP`: inverse-volatility baseline driven by per-asset volatility rather than the full covariance/correlation structure.
+
+            **Using covariance matrices**
+            - `NM`: covariance-inverse allocation with a flat expected-return vector.
+            - `LLTF`: empirical lead-lag trend strategy using internally estimated EWMA covariance objects on virtual return streams.
+
+            **Using correlation matrices**
+            - `ARP`: correlation whitening / mode-balancing baseline.
+            - `ARP_AGNOSTIC`, `MARKOWITZ_AGNOSTIC`, `ATF_AGNOSTIC`, `ATF_RAW`, `ATF_EMPIRICAL_Q`, `PHI_25`, `PHI_50`: Eq. 8 research recipes built around cleaned correlation plus different `Q` and `p` choices.
+            """
+        )
+        for title in ("Baselines", "Legacy", "Agnostic Eq. 8"):
+            names = groups.get(title, [])
+            if not names:
+                continue
+            lines = [f"**{title}**"]
+            for name in names:
+                lines.append(f"- `{name}`: {STRATEGY_DESCRIPTIONS.get(name, 'No description available.')}")
+            st.markdown("\n".join(lines))
+
+
+def _strategy_selector_columns(
+    *,
+    options: list[str],
+    default_values: list[str],
+    key: str,
+) -> list[str]:
+    defaults = set(default_values)
+    grouped_options = {
+        "Baselines + Legacy": [
+            name for name in options if _strategy_group(name) in {"Baselines", "Legacy"}
+        ],
+        "Agnostic Eq. 8": [
+            name for name in options if _strategy_group(name) == "Agnostic Eq. 8"
+        ],
+    }
+    selected: set[str] = set()
+    columns = st.columns([1.0, 1.5])
+    for column, title in zip(columns, ("Baselines + Legacy", "Agnostic Eq. 8")):
+        names = grouped_options[title]
+        if not names:
+            continue
+        frame = pd.DataFrame(
+            {
+                "Select": [name in defaults for name in names],
+                "Strategy": names,
+            }
+        )
+        with column:
+            st.caption(title)
+            edited = st.data_editor(
+                frame,
+                key=f"{key}::{title}",
+                width="stretch",
+                hide_index=True,
+                disabled=["Strategy"],
+                height=min(460, max(140, 36 + 35 * len(frame))),
+                column_config={
+                    "Select": st.column_config.CheckboxColumn("Select"),
+                    "Strategy": st.column_config.TextColumn("Strategy", width="large"),
+                },
+            )
+            selected.update(edited.loc[edited["Select"], "Strategy"].tolist())
+    return [name for name in options if name in selected]
+
+
+def _linear_shrinkage_input(*, key: str, default_value: float) -> float:
+    return float(
+        st.number_input(
+            'Linear shrinkage',
+            min_value=0.0,
+            max_value=1.0,
+            value=float(default_value),
+            step=0.05,
+            key=key,
+        )
+    )
 
 
 def _parse_default_date(default_value: Any) -> pd.Timestamp:
@@ -245,9 +790,10 @@ def _inspection_date_controls(config_defaults: dict[str, Any], *, universe: str,
 
 
 def _mode_service_selector() -> tuple[str, str]:
-    usage_mode = st.sidebar.radio('Usage mode', ['Market', 'Standard', 'Tuning', 'Inspection'])
+    usage_mode = st.sidebar.radio('Usage mode', ['Guide', 'Config', 'Standard', 'Tuning', 'Inspection'])
     catalog = {
-        'Market': MARKET_SERVICES,
+        'Guide': GUIDE_SERVICES,
+        'Config': CONFIG_SERVICES,
         'Standard': STANDARD_SERVICES,
         'Tuning': TUNING_SERVICES,
         'Inspection': INSPECTION_SERVICES,
@@ -319,10 +865,41 @@ def _prepare_table(
     if drop_cols:
         table = table.drop(columns=drop_cols)
     ordered = [column for column in priority if column in table.columns]
+    utility_rank = {column: index for index, column in enumerate(UTILITY_COLUMN_ORDER)}
     remaining = [column for column in table.columns if column not in ordered]
+    remaining.sort(key=lambda column: (utility_rank.get(column, 10_000), column))
     table = table.loc[:, ordered + remaining]
     if max_rows is not None:
         table = table.head(max_rows)
+    return table
+
+
+def _compact_metric_display(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    table = frame.copy()
+    percent_columns = {
+        'total_cost',
+        'ann_return',
+        'cagr',
+        'ann_vol',
+        'annualized_turnover',
+        'annualized_cost',
+        'mdd',
+        'avg_turnover',
+        'avg_turnover_per_rebalance',
+        'avg_cost_per_rebalance',
+        'pct_positive_days',
+        'weight',
+        'base_weight',
+        'effective_weight',
+        'abs_effective_weight',
+        'last_return',
+        'ewma_vol',
+    }
+    for column in percent_columns:
+        if column in table.columns:
+            table[column] = pd.to_numeric(table[column], errors='coerce') * 100.0
     return table
 
 
@@ -334,13 +911,280 @@ def _render_compact_table(
     max_rows: int | None = None,
     empty_message: str = 'No data available.',
 ) -> None:
-    table = _prepare_table(frame, priority=priority, drop=drop, max_rows=max_rows)
+    table = _compact_metric_display(_prepare_table(frame, priority=priority, drop=drop, max_rows=max_rows))
     if table.empty:
         st.info(empty_message)
         return
-    column_config = {key: value for key, value in COMMON_COLUMN_CONFIG.items() if key in table.columns}
-    height = min(620, max(180, 38 + 35 * min(len(table), 12)))
-    st.dataframe(table, use_container_width=True, hide_index=True, column_config=column_config, height=height)
+    column_config = {}
+    for key, value in COMMON_COLUMN_CONFIG.items():
+        if key not in table.columns:
+            continue
+        if key in {'covariance_window', 'window'} and not pd.api.types.is_numeric_dtype(table[key]):
+            column_config[key] = st.column_config.TextColumn('Window\n(days)', width='small')
+            continue
+        column_config[key] = value
+    height = min(560, max(160, 34 + 30 * min(len(table), 12)))
+    st.dataframe(table, width="stretch", hide_index=True, column_config=column_config, height=height)
+
+
+SUMMARY_CORE_METRICS = [
+    'sharpe',
+    'ann_return',
+    'cagr',
+    'ann_vol',
+    'sortino',
+    'skewness',
+    'mar',
+    'annualized_turnover',
+    'annualized_cost',
+    'mdd',
+    'final_nav',
+    'total_return_gross',
+    'total_return',
+    'total_return_cost_drag',
+    'total_cost',
+]
+
+SUMMARY_DETAIL_METRICS = [
+    'avg_turnover',
+    'avg_turnover_per_rebalance',
+    'avg_cost_per_rebalance',
+    'pct_positive_days',
+    'num_rebalances',
+]
+
+SUMMARY_COLUMN_LABELS = {
+    'strategy': 'Stra<br>tegy',
+    'method': 'Cleaning<br>method',
+    'covariance_window': 'Window<br>(days)',
+    'rebalance_frequency': 'Rebalance<br>freq.',
+    'sharpe': 'Sharpe',
+    'ann_return': 'Ann<br>ret<br>(%/yr)',
+    'cagr': 'CAGR<br>(%/yr)',
+    'ann_vol': 'Ann<br>vol<br>(%/yr)',
+    'sortino': 'Sortino',
+    'skewness': 'Skew',
+    'mar': 'MAR',
+    'mdd': 'Max<br>DD<br>(%)',
+    'annualized_turnover': 'Ann<br>turn<br>(%/yr)',
+    'annualized_cost': 'Ann<br>trade cost<br>(%/yr)',
+    'total_return_gross': 'Gross<br>return',
+    'total_return': 'Net<br>return',
+    'total_return_cost_drag': 'Trade<br>cost',
+    'total_cost': 'Trade<br>cost pct<br>(%)',
+    'final_nav': 'NAV',
+    'avg_turnover': 'Avg<br>turn<br>(%/day)',
+    'avg_turnover_per_rebalance': 'Avg<br>turn<br>(%/reb.)',
+    'avg_cost_per_rebalance': 'Avg<br>trade cost<br>(%/reb.)',
+    'pct_positive_days': 'Pos.<br>days<br>(%)',
+    'num_days': 'Num<br>days',
+    'num_rebalances': 'Num<br>rebal.',
+}
+
+SUMMARY_COLUMN_FORMATS = {
+    'sharpe': '{:.2f}',
+    'ann_return': '{:.1f}',
+    'cagr': '{:.1f}',
+    'ann_vol': '{:.1f}',
+    'sortino': '{:.2f}',
+    'skewness': '{:.2f}',
+    'mar': '{:.2f}',
+    'mdd': '{:.1f}',
+    'annualized_turnover': '{:.0f}',
+    'annualized_cost': '{:.2f}',
+    'total_return_gross': '{:.2f}',
+    'total_return': '{:.2f}',
+    'total_cost': '{:.2f}',
+    'total_return_cost_drag': '{:.2f}',
+    'final_nav': '{:.2f}',
+    'avg_turnover': '{:.2f}',
+    'avg_turnover_per_rebalance': '{:.1f}',
+    'avg_cost_per_rebalance': '{:.2f}',
+    'pct_positive_days': '{:.1f}',
+    'num_days': '{:.0f}',
+    'num_rebalances': '{:.0f}',
+}
+
+
+def _load_benchmark_summary_row(
+    *,
+    config_path: str,
+    universe_name: str,
+    request_start: str | None,
+    target_index: pd.Index,
+    scenario_column: str,
+    refresh_policy: str = 'auto',
+) -> dict[str, Any] | None:
+    if len(target_index) == 0:
+        return None
+    try:
+        universe_cfg, estimation, *_ = load_config(config_path)
+        effective_start = request_start or universe_cfg.start
+        prices = load_prices_for_universe(universe_name, start=effective_start, refresh_policy=refresh_policy)
+        benchmark = get_universe_benchmark(universe_name)
+        if benchmark and benchmark.get('ticker'):
+            benchmark_prices = load_prices_yf([str(benchmark['ticker'])], start=effective_start)
+            benchmark_returns = single_asset_buy_and_hold_benchmark(
+                benchmark_prices,
+                max_abs_return=getattr(estimation, 'max_abs_return', None),
+            )
+            benchmark_label = str(benchmark.get('name') or benchmark.get('ticker'))
+        else:
+            benchmark_returns = equal_weight_rebalanced_benchmark(
+                prices,
+                max_abs_return=getattr(estimation, 'max_abs_return', None),
+            )
+            benchmark_label = 'universe equal-weight index'
+        aligned_returns = benchmark_returns.reindex(pd.Index(target_index)).ffill().fillna(0.0)
+        zero_turnover = pd.Series(0.0, index=aligned_returns.index, dtype=float)
+        zero_costs = pd.Series(0.0, index=aligned_returns.index, dtype=float)
+        benchmark_summary = evaluation_metrics(aligned_returns, zero_turnover, zero_costs, num_rebalances=0)
+        benchmark_nav = float(cumulative_nav(aligned_returns).iloc[-1]) if len(aligned_returns) else 1.0
+        return {scenario_column: benchmark_label, 'final_nav': benchmark_nav, **benchmark_summary.__dict__}
+    except Exception:
+        return None
+
+
+def _append_market_benchmark_row(
+    frame: pd.DataFrame,
+    *,
+    benchmark_label: str | None = None,
+    benchmark_summary: dict[str, Any] | None = None,
+    config_path: str,
+    universe_name: str,
+    request_start: str | None,
+    target_index: pd.Index,
+    scenario_column: str,
+    refresh_policy: str = 'auto',
+) -> pd.DataFrame:
+    if frame.empty or scenario_column not in frame.columns:
+        return frame
+    if benchmark_label is not None and benchmark_summary is not None:
+        benchmark_row = {scenario_column: benchmark_label, **benchmark_summary}
+    else:
+        benchmark_row = _load_benchmark_summary_row(
+            config_path=config_path,
+            universe_name=universe_name,
+            request_start=request_start,
+            target_index=target_index,
+            scenario_column=scenario_column,
+            refresh_policy=refresh_policy,
+        )
+    if benchmark_row is None:
+        return frame
+    benchmark_label = benchmark_row.get(scenario_column)
+    existing_labels = frame[scenario_column].astype(str).tolist()
+    if benchmark_label in existing_labels:
+        return frame
+    augmented = pd.concat([frame, pd.DataFrame([benchmark_row])], ignore_index=True)
+    if 'sharpe' in augmented.columns:
+        augmented = augmented.sort_values('sharpe', ascending=False, na_position='last')
+    return augmented.reset_index(drop=True)
+
+
+def _render_performance_summary_table(
+    frame: pd.DataFrame,
+    *,
+    lead_columns: Iterable[str],
+    empty_message: str = 'No data available.',
+) -> None:
+    if frame.empty:
+        st.info(empty_message)
+        return
+    table = frame.copy()
+    lead = [column for column in lead_columns if column in table.columns]
+    core = [column for column in SUMMARY_CORE_METRICS if column in table.columns]
+    detail = [column for column in SUMMARY_DETAIL_METRICS if column in table.columns]
+    shown = [column for column in lead + core + detail if column in table.columns]
+    table = _compact_metric_display(table.loc[:, shown])
+    for nav_like_column in ('total_return_gross', 'total_return'):
+        if nav_like_column in table.columns:
+            table[nav_like_column] = pd.to_numeric(table[nav_like_column], errors='coerce') + 1.0
+    num_days_value = None
+    if 'num_days' in frame.columns:
+        numeric_days = pd.to_numeric(frame['num_days'], errors='coerce').dropna()
+        if not numeric_days.empty and numeric_days.nunique() == 1:
+            num_days_value = int(numeric_days.iloc[0])
+        elif not numeric_days.empty:
+            num_days_value = f"{int(numeric_days.min())}-{int(numeric_days.max())}"
+
+    def _format_summary_value(column: str, value: Any) -> str:
+        if pd.isna(value):
+            return ''
+        if column in SUMMARY_COLUMN_FORMATS:
+            try:
+                return SUMMARY_COLUMN_FORMATS[column].format(float(value))
+            except Exception:
+                return escape(str(value))
+        return escape(str(value))
+
+    header_html = ''.join(
+        f"<th>{SUMMARY_COLUMN_LABELS.get(column, escape(str(column)).replace('_', '<br>'))}</th>"
+        for column in shown
+    )
+    body_rows = []
+    for _, row in table.iterrows():
+        cells = ''.join(
+            f"<td>{_format_summary_value(column, row[column])}</td>"
+            for column in shown
+        )
+        body_rows.append(f"<tr>{cells}</tr>")
+    body_html = ''.join(body_rows)
+
+    st.markdown(
+        f"""
+        <style>
+        .otf-summary-wrap {{
+            width: 100%;
+            overflow-x: auto;
+        }}
+        .otf-summary-table {{
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            font-size: 0.68rem;
+            line-height: 1.0;
+        }}
+        .otf-summary-table th,
+        .otf-summary-table td {{
+            border: 1px solid rgba(120, 120, 120, 0.25);
+            padding: 0.18rem 0.28rem;
+            text-align: center;
+            vertical-align: middle;
+            word-break: break-word;
+        }}
+        .otf-summary-table th {{
+            background: rgba(120, 120, 120, 0.10);
+            font-weight: 600;
+        }}
+        .otf-summary-table th:first-child,
+        .otf-summary-table td:first-child {{
+            text-align: left;
+            min-width: 8rem;
+        }}
+        </style>
+        <div class="otf-summary-wrap">
+          <table class="otf-summary-table">
+            <thead><tr>{header_html}</tr></thead>
+            <tbody>{body_html}</tbody>
+          </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if num_days_value is not None:
+        st.caption(f'Num days: {num_days_value}')
+
+
+def _attach_final_nav_from_series(frame: pd.DataFrame, *, label_column: str, nav_by_label: dict[str, float]) -> pd.DataFrame:
+    if frame.empty or label_column not in frame.columns:
+        return frame
+    augmented = frame.copy()
+    augmented['final_nav'] = [
+        nav_by_label.get(str(label), augmented.iloc[idx]['final_nav'] if 'final_nav' in augmented.columns else np.nan)
+        for idx, label in enumerate(augmented[label_column])
+    ]
+    return augmented
 
 
 def _render_colored_frame(
@@ -356,7 +1200,7 @@ def _render_colored_frame(
         return
     preview = frame.iloc[:max_rows, :max_cols].copy()
     styled = preview.style.format('{:.4f}').background_gradient(cmap=cmap, axis=None)
-    st.dataframe(styled, use_container_width=True, height=min(720, max(220, 38 + 28 * min(len(preview), 16))))
+    st.dataframe(styled, width="stretch", height=min(720, max(220, 38 + 28 * min(len(preview), 16))))
     if len(frame) > max_rows or frame.shape[1] > max_cols:
         st.caption(f'Showing a preview of {min(len(frame), max_rows)} rows x {min(frame.shape[1], max_cols)} columns. Full data is available in the artifacts.')
 
@@ -492,8 +1336,57 @@ def _request_block(request: Any, config_defaults: dict[str, Any], resolved: dict
         st.json(_json_safe(resolved or {}), expanded=2)
 
 
-def _service_tabs() -> tuple[Any, Any, Any]:
-    return st.tabs(['Results', 'Config', 'Artifacts'])
+def _service_result_view(options: list[str], *, key: str) -> str:
+    return st.radio(
+        'View',
+        options,
+        key=key,
+        horizontal=True,
+        label_visibility='collapsed',
+    )
+
+
+def _market_fork_export_block(
+    *,
+    source_service: str,
+    config_path: str,
+    universe: str,
+    start: str | None,
+    as_of_date: str | None,
+    source_request: Any,
+    source_context: dict[str, Any],
+    source_artifacts: dict[str, Path],
+    key_prefix: str,
+) -> None:
+    st.caption('Fork vers market')
+    latest_snapshot_key = f'{key_prefix}::latest_snapshot_path'
+    output_dir = st.text_input(
+        'Fork output dir',
+        value='output/optimal_tf/market_forks',
+        key=f'{key_prefix}::output_dir',
+    )
+    if st.button('Create market fork snapshot', key=f'{key_prefix}::create'):
+        snapshot = build_market_fork_snapshot(
+            source_service=source_service,
+            config_path=config_path,
+            market_universe=universe,
+            market_start=start,
+            market_as_of_date=as_of_date,
+            source_request=source_request,
+            source_context=source_context,
+            source_artifacts=source_artifacts,
+        )
+        snapshot_path = write_market_fork_snapshot(snapshot, output_dir or 'output/optimal_tf/market_forks')
+        st.session_state[latest_snapshot_key] = str(snapshot_path)
+        st.success(f'Market fork snapshot written to {snapshot_path}')
+    latest_snapshot_path = st.session_state.get(latest_snapshot_key)
+    if latest_snapshot_path:
+        st.caption('Latest snapshot')
+        st.code(str(latest_snapshot_path), language='text')
+        st.caption(
+            "In `market_dashboard`, set `Fork snapshot dir` to this folder and pick the file from "
+            "`Recent fork snapshots`."
+        )
 
 
 REFRESH_NEXT_RUN_KEY = 'global::refresh_next_run'
@@ -509,170 +1402,13 @@ def _consume_refresh_policy() -> str:
     return 'auto'
 
 
-def _momentum_display_label(column: str) -> str:
-    return MOMENTUM_LABELS.get(column, column)
-
-
-def _rename_momentum_columns(frame: pd.DataFrame) -> pd.DataFrame:
-    rename_map = {column: _momentum_display_label(column) for column in frame.columns if column in MOMENTUM_LABELS}
-    return frame.rename(columns=rename_map)
-
-
-def _compact_description(value: object, *, limit: int = 26) -> str:
-    text = str(value or '').strip()
-    if len(text) <= limit:
-        return text
-    clipped = text[: limit - 1].rsplit(' ', 1)[0].strip()
-    if not clipped:
-        clipped = text[: limit - 1].strip()
-    return f"{clipped}..."
-
-
-def _prepare_market_display_columns(frame: pd.DataFrame) -> pd.DataFrame:
-    table = frame.copy()
-    if 'description' in table.columns:
-        table['description'] = table['description'].map(_compact_description)
-    return table
-
-
-def _merge_repeated_labels(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    if frame.empty:
-        return frame
-    merged = frame.copy()
-    if not columns:
-        return merged
-    previous_values: dict[str, object] = {}
-    for idx in merged.index:
-        reset_lower = False
-        for position, column in enumerate(columns):
-            if column not in merged.columns:
-                continue
-            value = merged.at[idx, column]
-            if position > 0 and reset_lower:
-                previous_values[column] = None
-            if value == previous_values.get(column):
-                merged.at[idx, column] = ''
-                reset_lower = False
-            else:
-                previous_values[column] = value
-                reset_lower = True
-    return merged
-
-
-def _render_momentum_table(
-    frame: pd.DataFrame,
-    *,
-    empty_message: str = 'No momentum data available.',
-    merge_columns: Iterable[str] = (),
-) -> None:
-    if frame.empty:
-        st.info(empty_message)
-        return
-    table = _prepare_market_display_columns(frame.copy())
-    table = _rename_momentum_columns(table)
-    table = _merge_repeated_labels(table, [column for column in merge_columns if column in table.columns])
-    momentum_cols = [_momentum_display_label(column) for column in MOMENTUM_COLUMNS if _momentum_display_label(column) in table.columns]
-    bound = float(np.nanmax(np.abs(table[momentum_cols].to_numpy(dtype=float)))) if momentum_cols else 0.0
-    bound = max(bound, 1e-6)
-    styled = (
-        table.style
-        .format({column: '{:.2%}' for column in momentum_cols})
-        .background_gradient(cmap='RdYlGn', subset=momentum_cols, vmin=-bound, vmax=bound, axis=None)
-    )
-    st.table(styled)
-
-
-def _sort_market_frame(
-    frame: pd.DataFrame,
-    sort_by: str,
-    *,
-    sort_mode: str = 'performance',
-) -> pd.DataFrame:
-    if frame.empty:
-        return frame
-    if sort_mode == 'hierarchy':
-        hierarchy_cols = [column for column in ['sector', 'sub_sector', 'category', 'ticker'] if column in frame.columns]
-        if hierarchy_cols:
-            return frame.sort_values(hierarchy_cols, kind='stable').reset_index(drop=True)
-        return frame.reset_index(drop=True)
-    if sort_by not in frame.columns:
-        return frame.reset_index(drop=True)
-    return frame.sort_values(sort_by, ascending=False, kind='stable').reset_index(drop=True)
-
-
-def _render_market_overview(
-    result: MarketSynthesisResult,
-    *,
-    ranking_column: str,
-    ranking_label: str,
-    top_n: int,
-    sort_mode: str,
-) -> None:
-    ticker_detail = result.ticker_frame.reset_index() if isinstance(result.ticker_frame.index, pd.MultiIndex) else result.ticker_frame.reset_index().rename(columns={'index': 'ticker'})
-    ranked = _sort_market_frame(ticker_detail, ranking_column, sort_mode=sort_mode)
-    positive_share = float((ranked[ranking_column] > 0).mean()) if not ranked.empty else 0.0
-    negative_share = float((ranked[ranking_column] < 0).mean()) if not ranked.empty else 0.0
-    metric_cols = st.columns(4)
-    metric_cols[0].metric('As of date', result.as_of_date.strftime('%Y-%m-%d'))
-    metric_cols[1].metric('Universe', result.universe.upper())
-    metric_cols[2].metric(f'Positive {ranking_label}', f'{positive_share:.0%}')
-    metric_cols[3].metric(f'Negative {ranking_label}', f'{negative_share:.0%}')
-
-    if not ranked.empty:
-        leader_cols = st.columns(2)
-        best = ranked.iloc[0]
-        worst = ranked.iloc[-1]
-        best_label = best.get('ticker', best.name)
-        worst_label = worst.get('ticker', worst.name)
-        if 'sector' in ranked.columns:
-            best_label = f"{best_label} ({best.get('sector', '')})".strip()
-            worst_label = f"{worst_label} ({worst.get('sector', '')})".strip()
-        leader_cols[0].metric(f'Best ticker on {ranking_label}', str(best_label), delta=f"{best[ranking_column]:.2%}")
-        leader_cols[1].metric(f'Weakest ticker on {ranking_label}', str(worst_label), delta=f"{worst[ranking_column]:.2%}")
-
-    top_col, bottom_col = st.columns(2)
-    with top_col:
-        st.caption(f'Top {top_n} tickers on {ranking_label}')
-        cols = [column for column in ['sector', 'sub_sector', 'ticker', 'description', *MOMENTUM_COLUMNS] if column in ranked.columns]
-        _render_momentum_table(ranked[cols].head(top_n), empty_message='No ticker data available.')
-    with bottom_col:
-        st.caption(f'Bottom {top_n} tickers on {ranking_label}')
-        cols = [column for column in ['sector', 'sub_sector', 'ticker', 'description', *MOMENTUM_COLUMNS] if column in ranked.columns]
-        _render_momentum_table(ranked[cols].tail(top_n).sort_values(ranking_column, ascending=True, kind='stable').reset_index(drop=True), empty_message='No ticker data available.')
-
-    if result.has_hierarchy and not result.consolidated_frame.empty:
-        sector_frame = _sort_market_frame(result.consolidated_frame.loc[result.consolidated_frame['level'] == 'sector', ['sector', 'num_tickers', *MOMENTUM_COLUMNS]].copy(), ranking_column, sort_mode=sort_mode)
-        sub_sector_frame = _sort_market_frame(result.consolidated_frame.loc[result.consolidated_frame['level'] == 'sub_sector', ['sector', 'sub_sector', 'num_tickers', *MOMENTUM_COLUMNS]].copy(), ranking_column, sort_mode=sort_mode)
-        summary_cols = st.columns(2)
-        with summary_cols[0]:
-            st.caption(f'Strongest sectors on {ranking_label}')
-            _render_momentum_table(sector_frame.head(min(top_n, 8)), empty_message='No sector summary available.')
-        with summary_cols[1]:
-            st.caption(f'Strongest sub-sectors on {ranking_label}')
-            _render_momentum_table(sub_sector_frame.head(min(top_n, 8)), empty_message='No sub-sector summary available.')
-
-
 def _render_hyperparameter_results_table(frame: pd.DataFrame) -> None:
-    _render_compact_table(
-        frame,
-        priority=['strategy', 'method', 'covariance_window', 'rebalance_frequency', 'sharpe', 'total_return', 'ann_return', 'ann_vol', 'mdd', 'avg_turnover', 'total_cost', 'final_nav'],
-        drop=['covariance_min_periods', 'num_rebalances', 'num_days'],
+    trimmed = frame.drop(columns=[column for column in ['covariance_min_periods', 'num_days'] if column in frame.columns])
+    _render_performance_summary_table(
+        trimmed,
+        lead_columns=['strategy', 'method', 'covariance_window', 'rebalance_frequency'],
         empty_message='No hyperparameter results available.',
     )
-
-
-def _market_nav_chart_frame(frame: pd.DataFrame, *, lookback: str, sampling: str) -> pd.DataFrame:
-    if frame.empty:
-        return frame
-    periods = {'1Y': 252, '2Y': 504}.get(lookback, 252)
-    window = frame.tail(min(periods, len(frame))).copy()
-    if window.empty:
-        return window
-    base = window.iloc[0].replace(0.0, np.nan)
-    rebased = 100.0 * window.divide(base)
-    if sampling == 'Weekly':
-        rebased = rebased.resample('W-FRI').last().dropna(how='all')
-    return rebased
 
 
 usage_mode, service_name = _mode_service_selector()
@@ -684,157 +1420,114 @@ if config_error:
 
 universe_default = config_defaults.get('universe', {}).get('name', UNIVERSE_OPTIONS[0])
 start_default = config_defaults.get('universe', {}).get('start', '')
-universe = _selectbox_with_default('Universe', UNIVERSE_OPTIONS, universe_default)
-st.sidebar.caption(f'Default from config: {universe_default}')
-start = _date_input_value('Start date', start_default, key='global::start_date')
-st.sidebar.caption(f'Default from config: {start_default}')
-if st.sidebar.button('Refresh prices now'):
-    _queue_force_refresh()
-if st.session_state.get(REFRESH_NEXT_RUN_KEY, False):
-    st.sidebar.caption('Next run will force-refresh cached prices.')
+universe = universe_default
+start = start_default
+common_evaluation_start = config_defaults.get('evaluation', {}).get('evaluation_start')
+common_evaluation_end = config_defaults.get('evaluation', {}).get('evaluation_end')
+if usage_mode not in {'Guide', 'Config'}:
+    group_default = _default_universe_group(universe_default)
+    group_names = [name for name, options in UNIVERSE_GROUPS.items() if options]
+    group_index = group_names.index(group_default) if group_default in group_names else 0
+    universe_group = st.sidebar.selectbox('Universe group', group_names, index=group_index)
+    group_options = UNIVERSE_GROUPS.get(universe_group, UNIVERSE_OPTIONS)
+    if not group_options:
+        group_options = UNIVERSE_OPTIONS
+    universe_index = group_options.index(universe_default) if universe_default in group_options else 0
+    universe = st.sidebar.selectbox('Universe', group_options, index=universe_index, format_func=_format_universe_label)
+    st.sidebar.caption(f'Default from config: {universe_default}')
+    start = _date_input_value('Start date', start_default, key='global::start_date')
+    st.sidebar.caption(f'Default from config: {start_default}')
+    if (usage_mode, service_name) in COMMON_EVALUATION_DATE_SERVICES:
+        common_evaluation_start = _date_input_value(
+            'Evaluation start',
+            config_defaults.get('evaluation', {}).get('evaluation_start'),
+            key='global::evaluation_start',
+        )
+        common_evaluation_end = _date_input_value(
+            'Evaluation end',
+            config_defaults.get('evaluation', {}).get('evaluation_end'),
+            key='global::evaluation_end',
+        )
+    if st.sidebar.button('Refresh prices now'):
+        _queue_force_refresh()
+    if st.session_state.get(REFRESH_NEXT_RUN_KEY, False):
+        st.sidebar.caption('Next run will force-refresh cached prices.')
 
 st.subheader(f'{usage_mode} / {service_name}')
 
-if usage_mode == 'Market' and service_name == 'Momentum synthesis':
-    market_date = _latest_or_date_input('Market date', config_defaults.get('evaluation', {}).get('evaluation_end'), key_prefix='market::date', latest_default=True)
-    ranking_column = st.sidebar.selectbox('Ranking horizon', MOMENTUM_COLUMNS, format_func=lambda value: MOMENTUM_LABELS[value], index=0)
-    sort_mode = st.sidebar.selectbox('Market sort mode', list(MARKET_SORT_OPTIONS), format_func=lambda value: MARKET_SORT_OPTIONS[value], index=0)
-    top_n = int(st.sidebar.slider('Top / bottom rows', min_value=3, max_value=12, value=6, step=1))
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/market')
-    market_state_key = 'market::result'
-    if st.sidebar.button('Run market synthesis'):
-        request = MarketSynthesisRequest(
-            config_path=config_path_input,
-            universe=universe,
-            start=start or None,
-            as_of_date=market_date or None,
-            refresh_policy=_consume_refresh_policy(),
-            output_dir=output_dir or None,
-        )
-        st.session_state[market_state_key] = run_market_synthesis(request)
-
-    result = st.session_state.get(market_state_key)
-    if result is not None:
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        ranking_label = MOMENTUM_LABELS[ranking_column]
-        with results_tab:
-            overview_tab, synthesis_tab, details_tab = st.tabs(['Overview', 'Synthesis', 'Details'])
-            with overview_tab:
-                st.subheader('Momentum synthesis')
-                st.caption(f'Cross-sectional snapshot ranked by {ranking_label.lower()} momentum.')
-                _render_market_overview(result, ranking_column=ranking_column, ranking_label=ranking_label, top_n=top_n, sort_mode=sort_mode)
-            with synthesis_tab:
-                synthesis_sort_mode = 'hierarchy' if sort_mode == 'hierarchy' else 'performance'
-                if result.synthesis_mode == 'hierarchy' and not result.consolidated_frame.empty:
-                    sector_tab, sub_sector_tab = st.tabs(['Sectors', 'Sub-sectors'])
-                    sector_frame = _sort_market_frame(
-                        result.consolidated_frame.loc[
-                            result.consolidated_frame['level'] == 'sector',
-                            ['sector', 'num_tickers', *MOMENTUM_COLUMNS],
-                        ].copy(),
-                        ranking_column,
-                        sort_mode=synthesis_sort_mode,
-                    )
-                    sub_sector_frame = _sort_market_frame(
-                        result.consolidated_frame.loc[
-                            result.consolidated_frame['level'] == 'sub_sector',
-                            ['sector', 'sub_sector', 'num_tickers', *MOMENTUM_COLUMNS],
-                        ].copy(),
-                        ranking_column,
-                        sort_mode=synthesis_sort_mode,
-                    )
-                    with sector_tab:
-                        st.caption('Equal-weight sector portfolios built from the universe constituents.')
-                        _render_momentum_table(sector_frame, empty_message='No sector synthesis available.')
-                        if not result.sector_nav_frame.empty:
-                            nav_left, nav_right = st.columns(2)
-                            with nav_left:
-                                nav_lookback = st.selectbox('NAV lookback', ['1Y', '2Y'], index=0, key='market::sector_nav_lookback')
-                            with nav_right:
-                                nav_sampling = st.selectbox('NAV sampling', ['Daily', 'Weekly'], index=0, key='market::sector_nav_sampling')
-                            nav_frame = _market_nav_chart_frame(result.sector_nav_frame, lookback=nav_lookback, sampling=nav_sampling)
-                            st.caption('Sector equal-weight NAV comparison rebased to 100.')
-                            st.line_chart(nav_frame)
-                    with sub_sector_tab:
-                        st.caption('Equal-weight sub-sector portfolios built from the universe constituents.')
-                        _render_momentum_table(sub_sector_frame, empty_message='No sub-sector synthesis available.', merge_columns=['sector'])
-                elif result.synthesis_mode == 'category':
-                    st.caption('Categories are used here as a reading aid, not as equal-weight portfolio buckets.')
-                    detail_frame = result.ticker_frame.reset_index() if isinstance(result.ticker_frame.index, pd.MultiIndex) else result.ticker_frame.reset_index().rename(columns={'index': 'ticker'})
-                    detail_frame = _sort_market_frame(detail_frame, ranking_column, sort_mode=sort_mode)
-                    categories = detail_frame['category'].drop_duplicates().tolist() if 'category' in detail_frame.columns else []
-                    for category in categories:
-                        with st.expander(str(category), expanded=False):
-                            category_frame = detail_frame.loc[detail_frame['category'] == category, ['ticker', 'description', *MOMENTUM_COLUMNS]].reset_index(drop=True)
-                            _render_momentum_table(category_frame, empty_message='No ticker momentum available for this category.')
-                else:
-                    st.info('No grouping metadata are available for this universe, so only ticker-level momentum is available.')
-                    detail_frame = result.ticker_frame.reset_index() if isinstance(result.ticker_frame.index, pd.MultiIndex) else result.ticker_frame.reset_index().rename(columns={'index': 'ticker'})
-                    _render_momentum_table(_sort_market_frame(detail_frame, ranking_column, sort_mode=sort_mode), empty_message='No ticker momentum available.')
-            with details_tab:
-                detail_frame = result.ticker_frame.reset_index() if isinstance(result.ticker_frame.index, pd.MultiIndex) else result.ticker_frame.reset_index().rename(columns={'index': 'ticker'})
-                detail_frame = _sort_market_frame(detail_frame, ranking_column, sort_mode=sort_mode)
-                if result.synthesis_mode == 'hierarchy' and {'sector', 'sub_sector'}.issubset(detail_frame.columns):
-                    sectors = detail_frame['sector'].drop_duplicates().tolist()
-                    selected_sector = st.selectbox('Sector', sectors, key='market::selected_sector')
-                    sector_frame = detail_frame.loc[detail_frame['sector'] == selected_sector].copy()
-                    sub_sector_summary = _sort_market_frame(
-                        sector_frame.groupby('sub_sector', as_index=False)[MOMENTUM_COLUMNS].mean(),
-                        ranking_column,
-                        sort_mode='hierarchy' if sort_mode == 'hierarchy' else 'performance',
-                    )
-                    counts = sector_frame.groupby('sub_sector').size().rename('num_tickers').reset_index()
-                    sub_sector_summary = sub_sector_summary.merge(counts, on='sub_sector', how='left')
-                    sub_sector_summary = sub_sector_summary[['sub_sector', 'num_tickers', *MOMENTUM_COLUMNS]]
-                    st.caption(f'Sub-sector equal-weight portfolios for {selected_sector}, sorted by {ranking_label.lower()} momentum.')
-                    _render_momentum_table(sub_sector_summary, empty_message='No sub-sector detail available for this sector.')
-                    st.subheader('Ticker breakdown')
-                    for sub_sector in sub_sector_summary['sub_sector'].tolist():
-                        with st.expander(str(sub_sector)):
-                            ticker_frame = _sort_market_frame(
-                                sector_frame.loc[sector_frame['sub_sector'] == sub_sector, ['ticker', 'description', *MOMENTUM_COLUMNS]].reset_index(drop=True),
-                                ranking_column,
-                                sort_mode=sort_mode,
-                            )
-                            _render_momentum_table(ticker_frame, empty_message='No ticker detail available for this sub-sector.')
-                elif result.synthesis_mode == 'category' and 'category' in detail_frame.columns:
-                    categories = detail_frame['category'].drop_duplicates().tolist()
-                    selected_category = st.selectbox('Category', categories, key='market::selected_category')
-                    category_frame = detail_frame.loc[detail_frame['category'] == selected_category, ['ticker', 'description', *MOMENTUM_COLUMNS]].reset_index(drop=True)
-                    st.caption(f'Ticker details for {selected_category}, sorted by {ranking_label.lower()} momentum.')
-                    _render_momentum_table(category_frame, empty_message='No ticker detail available for this category.')
-                else:
-                    st.caption(f'Ticker details sorted by {ranking_label.lower()} momentum.')
-                    _render_momentum_table(detail_frame, empty_message='No ticker detail available.')
-        with config_tab:
-            _request_block(
-                result.request,
-                config_defaults,
-                {
-                    'universe': result.universe,
-                    'start': result.start,
-                    'as_of_date': result.as_of_date,
-                    'synthesis_mode': result.synthesis_mode,
-                    'has_hierarchy': result.has_hierarchy,
-                    'num_tickers': int(len(result.ticker_frame)),
-                    'ranking_horizon': ranking_column,
-                    'sort_mode': sort_mode,
-                    'top_n': top_n,
-                },
-            )
-        with artifacts_tab:
-            _artifacts_block(result.artifacts.files)
-
+if usage_mode == 'Guide' and service_name == 'Strategy guide':
+    st.markdown(
+        "This page summarizes the strategy families exposed in the dashboard. "
+        "Use it as a quick orientation aid before running allocation, evaluation, or tuning services."
+    )
+    st.info(
+        "Market synthesis now lives in `apps/market_dashboard.py`. "
+        "Use `market_dashboard` for market views instead of `optimal_tf_dashboard`."
+    )
+    _render_strategy_guide(STRATEGY_OPTIONS)
+elif usage_mode == 'Config' and service_name == 'Config editor':
+    _render_config_editor(config_path_input, config_defaults)
 elif usage_mode == 'Standard' and service_name == 'Allocation':
     allocation_default = config_defaults.get('allocation', {}).get('strategy', STRATEGY_OPTIONS[0])
-    strategy = _selectbox_with_default('Strategy', STRATEGY_OPTIONS, allocation_default)
-    st.sidebar.caption(f'Default from config: {allocation_default}')
-    cleaning_method, covariance_window = _estimation_controls(config_defaults, prefix='Allocation', universe=universe)
-    as_of_date = _latest_or_date_input('Allocation date', config_defaults.get('allocation', {}).get('date'), key_prefix='allocation::date', latest_default=config_defaults.get('allocation', {}).get('date') in (None, '', 'None'))
-    long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
-    long_only = st.sidebar.checkbox('Long only', value=long_only_default)
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/allocation')
-    if st.sidebar.button('Run allocation'):
+    allocation_state_key = 'standard::allocation::result'
+    st.markdown('### Service parameters')
+    with st.form('standard_allocation_form'):
+        strategy = _strategy_selectbox('Strategy', STRATEGY_OPTIONS, allocation_default, key='standard::allocation::strategy')
+        left, right = st.columns(2)
+        with left:
+            allocation_date_default = config_defaults.get('allocation', {}).get('date')
+            use_latest_allocation = st.checkbox(
+                'Use latest available allocation date',
+                value=allocation_date_default in (None, '', 'None'),
+                key='standard::allocation::latest_date',
+            )
+            allocation_date_selected = st.date_input(
+                'Allocation date',
+                value=_parse_default_date(allocation_date_default).date(),
+                key='standard::allocation::date',
+                disabled=use_latest_allocation,
+            )
+            as_of_date = None if use_latest_allocation else pd.Timestamp(allocation_date_selected).date().isoformat()
+            long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
+            long_only = st.checkbox('Long only', value=long_only_default, key='standard::allocation::long_only')
+        with right:
+            cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='standard::allocation::cleaning_method',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='standard::allocation::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            num_assets = len(MARKET_TICKERS.get(universe, []))
+            config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
+            covariance_window = int(
+                st.number_input(
+                    'Covariance window',
+                    min_value=2,
+                    value=recommended_window,
+                    step=1,
+                    key='standard::allocation::covariance_window',
+                )
+            )
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/allocation', key='standard::allocation::output_dir')
+        st.caption(
+            f"Config defaults: strategy={allocation_default}, cleaning={cleaning_default}, "
+            f"window={config_window_default}"
+        )
+        if cleaning_method == 'rie_reference':
+            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        run_clicked = st.form_submit_button('Run allocation')
+    if run_clicked:
+        selection_error = _strategy_selection_error('standard::allocation::strategy')
+        if selection_error:
+            st.error(selection_error)
+            st.stop()
         request = AllocationRequest(
             config_path=config_path_input,
             universe=universe,
@@ -842,14 +1535,35 @@ elif usage_mode == 'Standard' and service_name == 'Allocation':
             as_of_date=as_of_date or None,
             strategy=strategy,
             cleaning_method=cleaning_method,
+            linear_shrinkage=linear_shrinkage,
             covariance_window=covariance_window,
             long_only=long_only,
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
         )
-        result = run_allocation(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[allocation_state_key] = run_allocation(request)
+    result = st.session_state.get(allocation_state_key)
+    if result is not None:
+        section = _service_result_view(['Summary', 'Config', 'Artifacts'], key='standard::allocation::view')
+        _market_fork_export_block(
+            source_service='Allocation',
+            config_path=config_path_input,
+            universe=result.universe,
+            start=result.request.start,
+            as_of_date=str(result.allocation_date.date()),
+            source_request=result.request,
+            source_context={
+                'strategy': result.strategy,
+                'cleaning_method': result.cleaning_method,
+                'covariance_window': result.covariance_window,
+                'allocation_date': result.allocation_date,
+                'signal_scale': result.signal_scale,
+                'top_weights': result.weights.sort_values(ascending=False).head(15),
+            },
+            source_artifacts=result.artifacts.files,
+            key_prefix='standard::allocation::fork',
+        )
+        if section == 'Summary':
             st.subheader('Allocation summary')
             _render_compact_table(pd.DataFrame([{
                 'universe': result.universe,
@@ -861,103 +1575,532 @@ elif usage_mode == 'Standard' and service_name == 'Allocation':
             }]), priority=['universe', 'strategy', 'cleaning_method', 'covariance_window', 'allocation_date', 'signal_scale'])
             st.subheader('Weights')
             _render_compact_table(result.weights.rename('weight').reset_index().rename(columns={'index': 'ticker'}), priority=['ticker', 'weight'])
-        with config_tab:
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'strategy': result.strategy, 'cleaning_method': result.cleaning_method, 'covariance_window': result.covariance_window, 'allocation_date': result.allocation_date, 'signal_scale': result.signal_scale})
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Standard' and service_name == 'Evaluation':
     strategy_default = config_defaults.get('evaluation', {}).get('strategy', STRATEGY_OPTIONS[0])
-    strategy = _selectbox_with_default('Strategy', STRATEGY_OPTIONS, strategy_default)
-    st.sidebar.caption(f'Default from config: {strategy_default}')
-    cleaning_method, covariance_window = _estimation_controls(config_defaults, prefix='Evaluation', universe=universe)
-    freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-    rebalance_frequency = _selectbox_with_default('Rebalance frequency', FREQUENCY_OPTIONS, freq_default)
-    st.sidebar.caption(f'Default from config: {freq_default}')
-    evaluation_start = _date_input_value('Evaluation start', config_defaults.get('evaluation', {}).get('evaluation_start'), key='standard::evaluation_start')
-    evaluation_end = _date_input_value('Evaluation end', config_defaults.get('evaluation', {}).get('evaluation_end'), key='standard::evaluation_end')
-    long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
-    long_only = st.sidebar.checkbox('Long only', value=long_only_default)
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/evaluation')
-    if st.sidebar.button('Run evaluation'):
+    eval_state_key = 'standard::evaluation::result'
+    st.markdown('### Service parameters')
+    with st.form('standard_evaluation_form'):
+        strategy = _strategy_selectbox('Strategy', STRATEGY_OPTIONS, strategy_default, key='standard::evaluation::strategy')
+        left, right = st.columns(2)
+        with left:
+            freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+            rebalance_frequency = st.selectbox(
+                'Rebalance frequency',
+                FREQUENCY_OPTIONS,
+                index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
+                key='standard::evaluation::rebalance_frequency',
+            )
+            long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
+            long_only = st.checkbox('Long only', value=long_only_default, key='standard::evaluation::long_only')
+        with right:
+            cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='standard::evaluation::cleaning_method',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='standard::evaluation::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            num_assets = len(MARKET_TICKERS.get(universe, []))
+            config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
+            covariance_window = int(
+                st.number_input(
+                    'Covariance window',
+                    min_value=2,
+                    value=recommended_window,
+                    step=1,
+                    key='standard::evaluation::covariance_window',
+                )
+            )
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/evaluation', key='standard::evaluation::output_dir')
+        st.caption(
+            f"Config defaults: strategy={strategy_default}, cleaning={cleaning_default}, "
+            f"window={config_window_default}, frequency={freq_default}"
+        )
+        if cleaning_method == 'rie_reference':
+            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        run_clicked = st.form_submit_button('Run evaluation')
+    if run_clicked:
+        selection_error = _strategy_selection_error('standard::evaluation::strategy')
+        if selection_error:
+            st.error(selection_error)
+            st.stop()
         request = StandardEvaluationRequest(
             config_path=config_path_input,
             universe=universe,
             start=start or None,
             strategy=strategy,
             cleaning_method=cleaning_method,
+            linear_shrinkage=linear_shrinkage,
             covariance_window=covariance_window,
             rebalance_frequency=rebalance_frequency,
-            evaluation_start=evaluation_start or None,
-            evaluation_end=evaluation_end or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
             long_only=long_only,
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
         )
-        result = run_evaluation(request)
-        nav = (1.0 + result.evaluation_result.daily_returns_net.fillna(0.0)).cumprod()
-        benchmark_nav = (1.0 + result.benchmark_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
-        buy_hold_nav = (1.0 + result.buy_hold_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
-        nav_frame = pd.DataFrame({
-            'optimal_tf portfolio': nav,
-            result.benchmark_label: benchmark_nav,
-            result.buy_hold_label: buy_hold_nav,
-        })
+        st.session_state[eval_state_key] = run_evaluation(request)
+    result = st.session_state.get(eval_state_key)
+    if result is not None:
+        strategy_nav = float(cumulative_nav(result.evaluation_result.daily_returns_net.fillna(0.0)).iloc[-1]) if len(result.evaluation_result.daily_returns_net) else 1.0
+        benchmark_nav_value = float(cumulative_nav(result.benchmark_returns.fillna(0.0)).iloc[-1]) if len(result.benchmark_returns) else 1.0
+        buy_hold_nav_value = float(cumulative_nav(result.buy_hold_returns.fillna(0.0)).iloc[-1]) if len(result.buy_hold_returns) else 1.0
         zero_turnover = pd.Series(0.0, index=result.benchmark_returns.index, dtype=float)
         zero_costs = pd.Series(0.0, index=result.benchmark_returns.index, dtype=float)
         benchmark_summary = evaluation_metrics(result.benchmark_returns, zero_turnover, zero_costs, num_rebalances=0)
         buy_hold_summary = evaluation_metrics(result.buy_hold_returns, zero_turnover, zero_costs, num_rebalances=0)
         summary_rows = [
-            {'strategy': result.strategy, **result.evaluation_result.summary.__dict__},
-            {'strategy': result.benchmark_label, **benchmark_summary.__dict__},
-            {'strategy': result.buy_hold_label, **buy_hold_summary.__dict__},
+            {'strategy': result.strategy, 'final_nav': strategy_nav, **result.evaluation_result.summary.__dict__},
+            {'strategy': result.benchmark_label, 'final_nav': benchmark_nav_value, **benchmark_summary.__dict__},
+            {'strategy': result.buy_hold_label, 'final_nav': buy_hold_nav_value, **buy_hold_summary.__dict__},
         ]
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        section = _service_result_view(['Summary', 'NAV', 'Config', 'Artifacts'], key='standard::evaluation::view')
+        _market_fork_export_block(
+            source_service='Evaluation',
+            config_path=config_path_input,
+            universe=result.universe,
+            start=result.request.start,
+            as_of_date=result.request.evaluation_end or None,
+            source_request=result.request,
+            source_context={
+                'strategy': result.strategy,
+                'cleaning_method': result.cleaning_method,
+                'covariance_window': result.covariance_window,
+                'rebalance_frequency': result.rebalance_frequency,
+                'benchmark_label': result.benchmark_label,
+                'buy_hold_label': result.buy_hold_label,
+                'summary_rows': summary_rows,
+            },
+            source_artifacts=result.artifacts.files,
+            key_prefix='standard::evaluation::fork',
+        )
+        if section == 'Summary':
             st.subheader('Summary')
-            _render_compact_table(pd.DataFrame(summary_rows), priority=['strategy', 'sharpe', 'total_return', 'ann_return', 'ann_vol', 'mdd', 'avg_turnover', 'total_cost', 'num_rebalances'])
+            _render_performance_summary_table(pd.DataFrame(summary_rows), lead_columns=['strategy'])
+        elif section == 'NAV':
+            nav = (1.0 + result.evaluation_result.daily_returns_net.fillna(0.0)).cumprod()
+            benchmark_nav = (1.0 + result.benchmark_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
+            buy_hold_nav = (1.0 + result.buy_hold_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
+            nav_frame = pd.DataFrame({
+                'optimal_tf portfolio': nav,
+                result.benchmark_label: benchmark_nav,
+                result.buy_hold_label: buy_hold_nav,
+            })
             st.subheader('NAV comparison')
             st.line_chart(nav_frame)
-        with config_tab:
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'strategy': result.strategy, 'cleaning_method': result.cleaning_method, 'covariance_window': result.covariance_window, 'rebalance_frequency': result.rebalance_frequency, 'benchmark_label': result.benchmark_label, 'benchmark_metadata': result.benchmark_metadata, 'buy_hold_label': result.buy_hold_label, 'summary': result.evaluation_result.summary.__dict__})
-        with artifacts_tab:
+        else:
+            _artifacts_block(result.artifacts.files)
+
+elif usage_mode == 'Standard' and service_name == 'Strategy testbed':
+    testbed_state_key = 'standard::testbed::result'
+    estimation_defaults = config_defaults.get('estimation', {})
+    backtest_defaults = config_defaults.get('backtest', {})
+    evaluation_defaults = config_defaults.get('evaluation', {})
+    st.markdown('### Service parameters')
+    with st.form('standard_testbed_form'):
+        trend_span_default = int(estimation_defaults.get('trend_span', 252) or 252)
+        trend_alpha_default = estimation_defaults.get('trend_alpha', 0.0)
+        trend_alpha_value = 0.0 if trend_alpha_default in (None, '') else float(trend_alpha_default)
+        smoothing_default = float(backtest_defaults.get('weight_smoothing_alpha', 1.0) or 1.0)
+        cleaning_default = estimation_defaults.get('cleaning_method', CLEANING_OPTIONS[0])
+        num_assets = len(MARKET_TICKERS.get(universe, []))
+        config_window_default = int(estimation_defaults.get('covariance_window', 252) or 252)
+        freq_default = evaluation_defaults.get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+
+        row1 = st.columns(3)
+        with row1[0]:
+            signal_model = st.selectbox(
+                'Signal model',
+                AGNOSTIC_SIGNAL_OPTIONS,
+                index=AGNOSTIC_SIGNAL_OPTIONS.index('ones'),
+                key='standard::testbed::signal_model',
+            )
+        trend_disabled = signal_model != 'trend_ema'
+        with row1[1]:
+            trend_span = int(
+                st.number_input(
+                    'Trend span',
+                    min_value=2,
+                    value=trend_span_default,
+                    step=1,
+                    key='standard::testbed::trend_span',
+                    help="Used only when Signal model = trend_ema. Ignored otherwise.",
+                )
+            )
+        with row1[2]:
+            trend_alpha = float(
+                st.number_input(
+                    'Trend alpha',
+                    min_value=0.0,
+                    value=trend_alpha_value,
+                    step=0.001,
+                    format='%.6f',
+                    key='standard::testbed::trend_alpha',
+                    help="Used only when Signal model = trend_ema. Ignored otherwise.",
+                )
+            )
+        if trend_disabled:
+            effective_trend_span = None
+            effective_trend_alpha = None
+        else:
+            base_trend_span = trend_span_default
+            base_trend_alpha = trend_alpha_value
+            alpha_changed = trend_alpha != base_trend_alpha
+            span_changed = trend_span != base_trend_span
+            if span_changed and not alpha_changed:
+                effective_trend_span = trend_span
+                effective_trend_alpha = alpha_from_span(trend_span)
+            elif alpha_changed:
+                effective_trend_alpha = trend_alpha
+                effective_trend_span = effective_span_from_alpha(trend_alpha)
+            else:
+                effective_trend_span = trend_span
+                effective_trend_alpha = trend_alpha
+
+        row2 = st.columns(2)
+        with row2[0]:
+            q_model = st.selectbox(
+                'Q model',
+                AGNOSTIC_Q_OPTIONS,
+                index=AGNOSTIC_Q_OPTIONS.index('identity'),
+                key='standard::testbed::q_model',
+            )
+        with row2[1]:
+            phi = float(
+                st.number_input(
+                    'Phi',
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.0,
+                    step=0.05,
+                    key='standard::testbed::phi',
+                    help="Used only when Q model = phi_shrink_correlation. Ignored otherwise.",
+                )
+            )
+
+        row3 = st.columns(2)
+        with row3[0]:
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='standard::testbed::cleaning_method',
+            )
+        recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
+        with row3[1]:
+            covariance_window = int(
+                st.number_input(
+                    'Covariance window',
+                    min_value=2,
+                    value=recommended_window,
+                    step=1,
+                    key='standard::testbed::covariance_window',
+                )
+            )
+
+        row4 = st.columns(2)
+        with row4[0]:
+            normalization = st.selectbox(
+                'Normalization',
+                AGNOSTIC_NORMALIZATION_OPTIONS,
+                index=AGNOSTIC_NORMALIZATION_OPTIONS.index('gross'),
+                key='standard::testbed::normalization',
+            )
+        with row4[1]:
+            omega = float(st.number_input('Omega', value=1.0, step=0.1, key='standard::testbed::omega'))
+
+        row5 = st.columns(2)
+        with row5[0]:
+            rebalance_frequency = st.selectbox(
+                'Rebalance frequency',
+                FREQUENCY_OPTIONS,
+                index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
+                key='standard::testbed::rebalance_frequency',
+            )
+        with row5[1]:
+            weight_smoothing_alpha = float(
+                st.number_input(
+                    'Weight smoothing alpha',
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=smoothing_default,
+                    step=0.05,
+                    key='standard::testbed::weight_smoothing_alpha',
+                    help='1.0 = no smoothing. Lower values reduce turnover and slow reallocation.',
+                )
+            )
+
+        row6 = st.columns(2)
+        with row6[0]:
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/testbed', key='standard::testbed::output_dir')
+        with row6[1]:
+            long_only = st.checkbox(
+                'Long only',
+                value=bool(backtest_defaults.get('long_only', False)),
+                key='standard::testbed::long_only',
+            )
+        st.caption(
+            f"Config defaults: cleaning={cleaning_default}, window={config_window_default}, "
+            f"frequency={freq_default}, smoothing={smoothing_default}, long_only={bool(backtest_defaults.get('long_only', False))}"
+        )
+        if trend_disabled:
+            st.caption("`trend span` and `trend alpha` are used only when `Signal model` is `trend_ema`.")
+        else:
+            st.caption(
+                f"Effective trend settings on run: span={effective_trend_span}, "
+                f"alpha={float(effective_trend_alpha):.6f}"
+            )
+        if q_model != 'phi_shrink_correlation':
+            st.caption("`phi` is ignored unless `Q model` is `phi_shrink_correlation`.")
+        if cleaning_method == 'rie_reference':
+            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        run_clicked = st.form_submit_button('Run strategy testbed')
+    if run_clicked:
+        request = StrategyTestbedRequest(
+            config_path=config_path_input,
+            universe=universe,
+            start=start or None,
+            cleaning_method=cleaning_method,
+            covariance_window=covariance_window,
+            trend_alpha=None if trend_disabled else trend_alpha,
+            trend_span=None if trend_disabled else trend_span,
+            rebalance_frequency=rebalance_frequency,
+            weight_smoothing_alpha=weight_smoothing_alpha,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
+            long_only=long_only,
+            signal_model=signal_model,
+            q_model=q_model,
+            phi=phi,
+            omega=omega,
+            normalization=normalization,
+            refresh_policy=_consume_refresh_policy(),
+            output_dir=output_dir or None,
+        )
+        st.session_state[testbed_state_key] = run_strategy_testbed(request)
+    result = st.session_state.get(testbed_state_key)
+    if result is not None:
+        strategy_nav = float(cumulative_nav(result.evaluation_result.daily_returns_net.fillna(0.0)).iloc[-1]) if len(result.evaluation_result.daily_returns_net) else 1.0
+        benchmark_nav_value = float(cumulative_nav(result.benchmark_returns.fillna(0.0)).iloc[-1]) if len(result.benchmark_returns) else 1.0
+        buy_hold_nav_value = float(cumulative_nav(result.buy_hold_returns.fillna(0.0)).iloc[-1]) if len(result.buy_hold_returns) else 1.0
+        zero_turnover = pd.Series(0.0, index=result.benchmark_returns.index, dtype=float)
+        zero_costs = pd.Series(0.0, index=result.benchmark_returns.index, dtype=float)
+        benchmark_summary = evaluation_metrics(result.benchmark_returns, zero_turnover, zero_costs, num_rebalances=0)
+        buy_hold_summary = evaluation_metrics(result.buy_hold_returns, zero_turnover, zero_costs, num_rebalances=0)
+        summary_rows = [
+            {'strategy': 'Testbed', 'final_nav': strategy_nav, **result.evaluation_result.summary.__dict__},
+            {'strategy': result.benchmark_label, 'final_nav': benchmark_nav_value, **benchmark_summary.__dict__},
+            {'strategy': result.buy_hold_label, 'final_nav': buy_hold_nav_value, **buy_hold_summary.__dict__},
+        ]
+        testbed_parameter_rows = [
+            {'parameter': 'signal_model', 'value': result.signal_model},
+            {'parameter': 'trend_span', 'value': result.request.trend_span},
+            {'parameter': 'trend_alpha', 'value': result.request.trend_alpha},
+            {'parameter': 'q_model', 'value': result.q_model},
+            {'parameter': 'phi', 'value': result.phi},
+            {'parameter': 'cleaning_method', 'value': result.cleaning_method},
+            {'parameter': 'covariance_window', 'value': result.covariance_window},
+            {'parameter': 'normalization', 'value': result.normalization},
+            {'parameter': 'omega', 'value': result.omega},
+            {'parameter': 'rebalance_frequency', 'value': result.rebalance_frequency},
+            {'parameter': 'weight_smoothing_alpha', 'value': result.request.weight_smoothing_alpha},
+            {'parameter': 'long_only', 'value': result.request.long_only},
+        ]
+        section = _service_result_view(['Summary', 'NAV', 'Config', 'Artifacts'], key='standard::testbed::view')
+        _market_fork_export_block(
+            source_service='Strategy testbed',
+            config_path=config_path_input,
+            universe=result.universe,
+            start=result.request.start,
+            as_of_date=result.request.evaluation_end or None,
+            source_request=result.request,
+            source_context={
+                'strategy_label': result.strategy_label,
+                'signal_model': result.signal_model,
+                    'q_model': result.q_model,
+                    'phi': result.phi,
+                    'omega': result.omega,
+                    'normalization': result.normalization,
+                    'trend_span': result.request.trend_span,
+                    'trend_alpha': result.request.trend_alpha,
+                    'cleaning_method': result.cleaning_method,
+                    'covariance_window': result.covariance_window,
+                    'rebalance_frequency': result.rebalance_frequency,
+                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    'benchmark_label': result.benchmark_label,
+                    'buy_hold_label': result.buy_hold_label,
+                    'summary_rows': summary_rows,
+                },
+            source_artifacts=result.artifacts.files,
+            key_prefix='standard::testbed::fork',
+        )
+        if section == 'Summary':
+            st.subheader('Summary')
+            _render_performance_summary_table(pd.DataFrame(summary_rows), lead_columns=['strategy'])
+            st.caption('Parameters used')
+            _render_compact_table(
+                pd.DataFrame(testbed_parameter_rows),
+                priority=['parameter', 'value'],
+            )
+        elif section == 'NAV':
+            nav = (1.0 + result.evaluation_result.daily_returns_net.fillna(0.0)).cumprod()
+            benchmark_nav = (1.0 + result.benchmark_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
+            buy_hold_nav = (1.0 + result.buy_hold_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
+            nav_frame = pd.DataFrame({
+                'Testbed': nav,
+                result.benchmark_label: benchmark_nav,
+                result.buy_hold_label: buy_hold_nav,
+            })
+            st.subheader('NAV comparison')
+            st.line_chart(nav_frame)
+        elif section == 'Config':
+            _request_block(
+                result.request,
+                config_defaults,
+                {
+                    'universe': result.universe,
+                    'strategy_label': result.strategy_label,
+                    'signal_model': result.signal_model,
+                    'q_model': result.q_model,
+                    'phi': result.phi,
+                    'omega': result.omega,
+                    'normalization': result.normalization,
+                    'trend_span': result.request.trend_span,
+                    'trend_alpha': result.request.trend_alpha,
+                    'cleaning_method': result.cleaning_method,
+                    'covariance_window': result.covariance_window,
+                    'rebalance_frequency': result.rebalance_frequency,
+                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    'benchmark_label': result.benchmark_label,
+                    'benchmark_metadata': result.benchmark_metadata,
+                    'buy_hold_label': result.buy_hold_label,
+                    'summary': result.evaluation_result.summary.__dict__,
+                },
+            )
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Standard' and service_name == 'Compare':
     compare_defaults = list(config_defaults.get('compare', {}).get('strategies') or [])
     if not compare_defaults:
         compare_defaults = [config_defaults.get('evaluation', {}).get('strategy', STRATEGY_OPTIONS[0])]
-    strategies = _multiselect_with_defaults('Strategies', STRATEGY_OPTIONS, compare_defaults)
-    st.sidebar.caption(f"Default from config: {', '.join(compare_defaults)}")
-    cleaning_method, covariance_window = _estimation_controls(config_defaults, prefix='Compare', universe=universe)
-    freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-    rebalance_frequency = _selectbox_with_default('Rebalance frequency', FREQUENCY_OPTIONS, freq_default)
-    st.sidebar.caption(f'Default from config: {freq_default}')
-    evaluation_start = _date_input_value('Evaluation start', config_defaults.get('evaluation', {}).get('evaluation_start'), key='compare::evaluation_start')
-    evaluation_end = _date_input_value('Evaluation end', config_defaults.get('evaluation', {}).get('evaluation_end'), key='compare::evaluation_end')
-    long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
-    long_only = st.sidebar.checkbox('Long only', value=long_only_default)
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/compare')
-    if st.sidebar.button('Run compare'):
+    compare_state_key = 'standard::compare::result'
+    st.markdown('### Service parameters')
+    with st.form('standard_compare_form'):
+        strategies = _strategy_selector_columns(
+            options=STRATEGY_OPTIONS,
+            default_values=compare_defaults,
+            key='standard::compare::table',
+        )
+        left, right = st.columns(2)
+        with left:
+            cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='standard::compare::cleaning_method',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='standard::compare::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+            rebalance_frequency = st.selectbox(
+                'Rebalance frequency',
+                FREQUENCY_OPTIONS,
+                index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
+                key='standard::compare::rebalance_frequency',
+            )
+            long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
+            long_only = st.checkbox('Long only', value=long_only_default, key='standard::compare::long_only')
+        with right:
+            num_assets = len(MARKET_TICKERS.get(universe, []))
+            config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
+            covariance_window = int(
+                st.number_input(
+                    'Covariance window',
+                    min_value=2,
+                    value=recommended_window,
+                    step=1,
+                    key='standard::compare::covariance_window',
+                )
+            )
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/compare', key='standard::compare::output_dir')
+        st.caption(f"Config defaults: strategies={', '.join(compare_defaults)}, cleaning={cleaning_default}, window={config_window_default}, frequency={freq_default}")
+        if cleaning_method == 'rie_reference':
+            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        run_clicked = st.form_submit_button('Run compare')
+    if run_clicked:
         request = CompareRequest(
             config_path=config_path_input,
             universe=universe,
             start=start or None,
             strategies=strategies,
             cleaning_method=cleaning_method,
+            linear_shrinkage=linear_shrinkage,
             covariance_window=covariance_window,
             rebalance_frequency=rebalance_frequency,
-            evaluation_start=evaluation_start or None,
-            evaluation_end=evaluation_end or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
             long_only=long_only,
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
         )
-        result = run_compare(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[compare_state_key] = run_compare(request)
+    result = st.session_state.get(compare_state_key)
+    if result is not None:
+        nav_by_label = {
+            str(column): float(result.comparison.nav_comparison[column].dropna().iloc[-1])
+            for column in result.comparison.nav_comparison.columns
+            if result.comparison.nav_comparison[column].dropna().any()
+        }
+        benchmark_nav_series = result.benchmark_nav.dropna()
+        if not benchmark_nav_series.empty:
+            nav_by_label[result.benchmark_label] = float(benchmark_nav_series.iloc[-1])
+        comparison_summary = _attach_final_nav_from_series(
+            result.comparison.summary_table,
+            label_column='strategy',
+            nav_by_label=nav_by_label,
+        )
+        section = _service_result_view(['Summary', 'NAV', 'Config', 'Artifacts'], key='standard::compare::view')
+        _market_fork_export_block(
+            source_service='Compare',
+            config_path=config_path_input,
+            universe=result.universe,
+            start=result.request.start,
+            as_of_date=result.request.evaluation_end or None,
+            source_request=result.request,
+            source_context={
+                'strategies': result.strategies,
+                'cleaning_method': result.cleaning_method,
+                'covariance_window': result.covariance_window,
+                'rebalance_frequency': result.rebalance_frequency,
+                'benchmark_label': result.benchmark_label,
+                'summary_table': result.comparison.summary_table,
+            },
+            source_artifacts=result.artifacts.files,
+            key_prefix='standard::compare::fork',
+        )
+        if section == 'Summary':
             st.subheader('Summary table')
-            _render_compact_table(result.comparison.summary_table, priority=['strategy', 'sharpe', 'total_return', 'ann_return', 'ann_vol', 'mdd', 'avg_turnover', 'total_cost'])
+            _render_performance_summary_table(comparison_summary, lead_columns=['strategy'])
+        elif section == 'NAV':
             st.subheader('NAV comparison')
             nav_frame = result.comparison.nav_comparison.copy()
             nav_frame[result.benchmark_label] = result.benchmark_nav.reindex(nav_frame.index).ffill()
@@ -966,46 +2109,76 @@ elif usage_mode == 'Standard' and service_name == 'Compare':
             drawdown_frame = result.comparison.drawdown_comparison.copy()
             drawdown_frame[result.benchmark_label] = result.benchmark_drawdown.reindex(drawdown_frame.index).ffill()
             st.line_chart(drawdown_frame)
-        with config_tab:
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'strategies': result.strategies, 'cleaning_method': result.cleaning_method, 'covariance_window': result.covariance_window, 'rebalance_frequency': result.rebalance_frequency, 'benchmark_label': result.benchmark_label, 'benchmark_metadata': result.benchmark_metadata})
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Tuning' and service_name == 'Vary cleaning':
     strategy_default = config_defaults.get('evaluation', {}).get('strategy', STRATEGY_OPTIONS[0])
-    strategy = _selectbox_with_default('Strategy', STRATEGY_OPTIONS, strategy_default)
-    methods_defaults = [config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0]), 'linear_shrinkage']
-    methods = _multiselect_with_defaults('Methods', CLEANING_OPTIONS, methods_defaults)
-    window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
-    window = st.sidebar.number_input('Window', value=window_default, min_value=2, step=1)
-    st.sidebar.caption(f'Default from config: {window_default}')
-    log_scale = st.sidebar.checkbox('Scree plot log scale', value=True, key='vary_cleaning::log_scale')
-    evaluation_start = _date_input_value('Evaluation start', config_defaults.get('evaluation', {}).get('evaluation_start'), key='vary_cleaning::evaluation_start')
-    evaluation_end = _date_input_value('Evaluation end', config_defaults.get('evaluation', {}).get('evaluation_end'), key='vary_cleaning::evaluation_end')
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/vary_cleaning')
-    if st.sidebar.button('Run vary cleaning'):
+    vary_cleaning_state_key = 'tuning::vary_cleaning::result'
+    st.markdown('### Service parameters')
+    with st.form('vary_cleaning_form'):
+        strategy = _strategy_selectbox('Strategy', STRATEGY_OPTIONS, strategy_default, key='tuning::vary_cleaning::strategy')
+        left, right = st.columns(2)
+        with left:
+            methods_defaults = [config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0]), 'linear_shrinkage']
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            methods = st.multiselect(
+                'Methods',
+                CLEANING_OPTIONS,
+                default=[method for method in methods_defaults if method in CLEANING_OPTIONS],
+                key='vary_cleaning::methods',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='vary_cleaning::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            log_scale = st.checkbox('Scree plot log scale', value=True, key='vary_cleaning::log_scale')
+        with right:
+            window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            window = int(st.number_input('Window', value=window_default, min_value=2, step=1, key='vary_cleaning::window'))
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/vary_cleaning', key='vary_cleaning::output_dir')
+        st.caption(f"Config defaults: methods={', '.join(methods_defaults)}, window={window_default}")
+        run_clicked = st.form_submit_button('Run vary cleaning')
+    if run_clicked:
+        selection_error = _strategy_selection_error('tuning::vary_cleaning::strategy')
+        if selection_error:
+            st.error(selection_error)
+            st.stop()
         request = VaryCleaningRequest(
             config_path=config_path_input,
             universe=universe,
             start=start or None,
-            evaluation_start=evaluation_start or None,
-            evaluation_end=evaluation_end or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
             strategy=strategy,
             methods=methods,
+            linear_shrinkage=linear_shrinkage,
             window=int(window),
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
             log_scale=log_scale,
         )
-        result = run_vary_cleaning(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[vary_cleaning_state_key] = run_vary_cleaning(request)
+    result = st.session_state.get(vary_cleaning_state_key)
+    if result is not None:
+        section = _service_result_view(['Summary', 'NAV', 'Config', 'Artifacts'], key='tuning::vary_cleaning::view')
+        if section == 'Summary':
             st.subheader('Scenario summary')
-            _render_compact_table(result.scenario_summary, priority=['method', 'sharpe', 'total_return', 'ann_return', 'ann_vol', 'mdd', 'avg_turnover', 'total_cost', 'final_nav'])
+            tuning_summary = _append_market_benchmark_row(
+                result.strategy_benchmark,
+                benchmark_label=result.benchmark_label,
+                benchmark_summary=result.benchmark_summary,
+                config_path=config_path_input,
+                universe_name=result.universe,
+                request_start=result.request.start,
+                target_index=result.nav_comparison.index,
+                scenario_column='method',
+            )
+            _render_performance_summary_table(tuning_summary, lead_columns=['method'])
             st.subheader('Highlights')
             st.json(result.highlights)
-            st.subheader('NAV comparison')
-            st.line_chart(result.nav_comparison)
             st.subheader('Cleaner scree plot')
             _render_scree_overlay(
                 result.scree_frame,
@@ -1013,43 +2186,89 @@ elif usage_mode == 'Tuning' and service_name == 'Vary cleaning':
                 title=f'Cleaner scree plot ({strategy}, window={int(window)})',
                 log_scale=result.request.log_scale,
             )
-        with config_tab:
+        elif section == 'NAV':
+            st.subheader('NAV comparison')
+            nav_frame = result.nav_comparison.copy()
+            if result.benchmark_label and not result.benchmark_nav.empty:
+                nav_frame[result.benchmark_label] = result.benchmark_nav.reindex(nav_frame.index).ffill()
+            st.line_chart(nav_frame)
+            st.subheader('Drawdown comparison')
+            drawdown_frame = result.drawdown_comparison.copy()
+            if result.benchmark_label and not result.benchmark_drawdown.empty:
+                drawdown_frame[result.benchmark_label] = result.benchmark_drawdown.reindex(drawdown_frame.index).ffill()
+            st.line_chart(drawdown_frame)
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'scenario_key': result.scenario_key, 'covariance_window': int(window), 'highlights': result.highlights})
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Tuning' and service_name == 'Vary window':
     strategy_default = config_defaults.get('evaluation', {}).get('strategy', STRATEGY_OPTIONS[0])
-    strategy = _selectbox_with_default('Strategy', STRATEGY_OPTIONS, strategy_default)
-    cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
-    method = _selectbox_with_default('Cleaning method', CLEANING_OPTIONS, cleaning_default)
-    windows_default = str(config_defaults.get('estimation', {}).get('covariance_window', 252))
-    windows = st.sidebar.text_input('Windows', value=f'{max(20, int(windows_default)//2)},{windows_default},{max(int(windows_default), 252)}')
-    log_scale = st.sidebar.checkbox('Scree plot log scale', value=True, key='vary_window::log_scale')
-    evaluation_start = _date_input_value('Evaluation start', config_defaults.get('evaluation', {}).get('evaluation_start'), key='vary_window::evaluation_start')
-    evaluation_end = _date_input_value('Evaluation end', config_defaults.get('evaluation', {}).get('evaluation_end'), key='vary_window::evaluation_end')
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/vary_window')
-    if st.sidebar.button('Run vary window'):
+    vary_window_state_key = 'tuning::vary_window::result'
+    st.markdown('### Service parameters')
+    with st.form('vary_window_form'):
+        strategy = _strategy_selectbox('Strategy', STRATEGY_OPTIONS, strategy_default, key='tuning::vary_window::strategy')
+        left, right = st.columns(2)
+        with left:
+            cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='vary_window::method',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='vary_window::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            log_scale = st.checkbox('Scree plot log scale', value=True, key='vary_window::log_scale')
+        with right:
+            window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            windows = st.text_input(
+                'Windows',
+                value=f'{max(20, window_default // 2)},{window_default},{max(window_default, 252)}',
+                key='vary_window::windows',
+            )
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/vary_window', key='vary_window::output_dir')
+        st.caption(f'Default from config: cleaning={cleaning_default}, window={window_default}')
+        run_clicked = st.form_submit_button('Run vary window')
+    if run_clicked:
+        selection_error = _strategy_selection_error('tuning::vary_window::strategy')
+        if selection_error:
+            st.error(selection_error)
+            st.stop()
         request = VaryWindowRequest(
             config_path=config_path_input,
             universe=universe,
             start=start or None,
-            evaluation_start=evaluation_start or None,
-            evaluation_end=evaluation_end or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
             strategy=strategy,
             method=method,
+            linear_shrinkage=linear_shrinkage,
             windows=[int(item.strip()) for item in windows.split(',') if item.strip()],
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
             log_scale=log_scale,
         )
-        result = run_vary_window(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[vary_window_state_key] = run_vary_window(request)
+    result = st.session_state.get(vary_window_state_key)
+    if result is not None:
+        section = _service_result_view(['Summary', 'NAV', 'Config', 'Artifacts'], key='tuning::vary_window::view')
+        if section == 'Summary':
             st.subheader('Scenario summary')
-            _render_compact_table(result.scenario_summary, priority=['covariance_window', 'sharpe', 'total_return', 'ann_return', 'ann_vol', 'mdd', 'avg_turnover', 'total_cost', 'final_nav'])
-            st.subheader('NAV comparison')
-            st.line_chart(result.nav_comparison)
+            tuning_summary = _append_market_benchmark_row(
+                result.strategy_benchmark,
+                benchmark_label=result.benchmark_label,
+                benchmark_summary=result.benchmark_summary,
+                config_path=config_path_input,
+                universe_name=result.universe,
+                request_start=result.request.start,
+                target_index=result.nav_comparison.index,
+                scenario_column='covariance_window',
+            )
+            _render_performance_summary_table(tuning_summary, lead_columns=['covariance_window'])
             st.subheader('Window scree plot')
             _render_scree_overlay(
                 result.scree_frame,
@@ -1057,151 +2276,353 @@ elif usage_mode == 'Tuning' and service_name == 'Vary window':
                 title=f'Window scree plot ({strategy}, {method})',
                 log_scale=result.request.log_scale,
             )
-        with config_tab:
+        elif section == 'NAV':
+            st.subheader('NAV comparison')
+            nav_frame = result.nav_comparison.copy()
+            if result.benchmark_label and not result.benchmark_nav.empty:
+                nav_frame[result.benchmark_label] = result.benchmark_nav.reindex(nav_frame.index).ffill()
+            st.line_chart(nav_frame)
+            st.subheader('Drawdown comparison')
+            drawdown_frame = result.drawdown_comparison.copy()
+            if result.benchmark_label and not result.benchmark_drawdown.empty:
+                drawdown_frame[result.benchmark_label] = result.benchmark_drawdown.reindex(drawdown_frame.index).ffill()
+            st.line_chart(drawdown_frame)
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'scenario_key': result.scenario_key, 'highlights': result.highlights})
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Tuning' and service_name == 'Vary strategy':
     strategy_defaults = ['RP', config_defaults.get('evaluation', {}).get('strategy', 'ARP'), 'NM']
-    strategies = _multiselect_with_defaults('Strategies', STRATEGY_OPTIONS, strategy_defaults)
-    cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
-    method = _selectbox_with_default('Cleaning method', CLEANING_OPTIONS, cleaning_default)
-    window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
-    window = st.sidebar.number_input('Window', value=window_default, min_value=2, step=1)
-    evaluation_start = _date_input_value('Evaluation start', config_defaults.get('evaluation', {}).get('evaluation_start'), key='vary_strategy::evaluation_start')
-    evaluation_end = _date_input_value('Evaluation end', config_defaults.get('evaluation', {}).get('evaluation_end'), key='vary_strategy::evaluation_end')
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/vary_strategy')
-    if st.sidebar.button('Run vary strategy'):
+    vary_strategy_state_key = 'tuning::vary_strategy::result'
+    st.markdown('### Service parameters')
+    with st.form('vary_strategy_form'):
+        left, right = st.columns([1, 1])
+        with left:
+            cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='vary_strategy::method',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='vary_strategy::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            window = int(st.number_input('Window', value=window_default, min_value=2, step=1, key='vary_strategy::window'))
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/vary_strategy', key='vary_strategy::output_dir')
+        with right:
+            st.caption('Select the strategies to compare in one run.')
+            strategies = _strategy_selector_columns(
+                options=STRATEGY_OPTIONS,
+                default_values=strategy_defaults,
+                key='vary_strategy::table',
+            )
+        st.caption(f'Config defaults: cleaner={cleaning_default}, window={window_default}')
+        run_clicked = st.form_submit_button('Run vary strategy')
+    if run_clicked:
         request = VaryStrategyRequest(
             config_path=config_path_input,
             universe=universe,
             start=start or None,
-            evaluation_start=evaluation_start or None,
-            evaluation_end=evaluation_end or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
             strategies=strategies,
             method=method,
+            linear_shrinkage=linear_shrinkage,
             window=int(window),
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
         )
-        result = run_vary_strategy(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[vary_strategy_state_key] = run_vary_strategy(request)
+    result = st.session_state.get(vary_strategy_state_key)
+    if result is not None:
+        section = _service_result_view(['Summary', 'NAV', 'Config', 'Artifacts'], key='tuning::vary_strategy::view')
+        if section == 'Summary':
             st.subheader('Scenario summary')
-            _render_compact_table(result.scenario_summary, priority=['strategy', 'sharpe', 'total_return', 'ann_return', 'ann_vol', 'mdd', 'avg_turnover', 'total_cost', 'final_nav'])
+            tuning_summary = _append_market_benchmark_row(
+                result.strategy_benchmark,
+                benchmark_label=result.benchmark_label,
+                benchmark_summary=result.benchmark_summary,
+                config_path=config_path_input,
+                universe_name=result.universe,
+                request_start=result.request.start,
+                target_index=result.nav_comparison.index,
+                scenario_column='strategy',
+            )
+            _render_performance_summary_table(tuning_summary, lead_columns=['strategy'])
+        elif section == 'NAV':
             st.subheader('NAV comparison')
-            st.line_chart(result.nav_comparison)
+            nav_frame = result.nav_comparison.copy()
+            if result.benchmark_label and not result.benchmark_nav.empty:
+                nav_frame[result.benchmark_label] = result.benchmark_nav.reindex(nav_frame.index).ffill()
+            st.line_chart(nav_frame)
             st.subheader('Drawdown comparison')
-            st.line_chart(result.drawdown_comparison)
-        with config_tab:
+            drawdown_frame = result.drawdown_comparison.copy()
+            if result.benchmark_label and not result.benchmark_drawdown.empty:
+                drawdown_frame[result.benchmark_label] = result.benchmark_drawdown.reindex(drawdown_frame.index).ffill()
+            st.line_chart(drawdown_frame)
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'scenario_key': result.scenario_key, 'highlights': result.highlights})
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Tuning' and service_name == 'Vary frequency':
     strategy_default = config_defaults.get('evaluation', {}).get('strategy', STRATEGY_OPTIONS[0])
-    strategy = _selectbox_with_default('Strategy', STRATEGY_OPTIONS, strategy_default)
-    method, window = _estimation_controls(config_defaults, prefix='Vary frequency', universe=universe)
-    freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-    frequencies = _multiselect_with_defaults('Rebalance frequencies', FREQUENCY_OPTIONS, FREQUENCY_OPTIONS)
-    st.sidebar.caption(f'Default from config: {freq_default}')
-    evaluation_start = _date_input_value('Evaluation start', config_defaults.get('evaluation', {}).get('evaluation_start'), key='vary_frequency::evaluation_start')
-    evaluation_end = _date_input_value('Evaluation end', config_defaults.get('evaluation', {}).get('evaluation_end'), key='vary_frequency::evaluation_end')
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/vary_frequency')
-    if st.sidebar.button('Run vary frequency'):
+    vary_frequency_state_key = 'tuning::vary_frequency::result'
+    st.markdown('### Service parameters')
+    with st.form('vary_frequency_form'):
+        strategy = _strategy_selectbox('Strategy', STRATEGY_OPTIONS, strategy_default, key='tuning::vary_frequency::strategy')
+        left, right = st.columns(2)
+        with left:
+            cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='vary_frequency::method',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='vary_frequency::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+            frequencies = st.multiselect(
+                'Rebalance frequencies',
+                FREQUENCY_OPTIONS,
+                default=FREQUENCY_OPTIONS,
+                key='vary_frequency::frequencies',
+            )
+        with right:
+            num_assets = len(MARKET_TICKERS.get(universe, []))
+            config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if method == 'rie_reference' else config_window_default
+            window = int(
+                st.number_input(
+                    'Covariance window',
+                    min_value=2,
+                    value=recommended_window,
+                    step=1,
+                    key='vary_frequency::window',
+                )
+            )
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/vary_frequency', key='vary_frequency::output_dir')
+        st.caption(f'Default from config: cleaning={cleaning_default}, frequency={freq_default}, window={config_window_default}')
+        if method == 'rie_reference':
+            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        run_clicked = st.form_submit_button('Run vary frequency')
+    if run_clicked:
+        selection_error = _strategy_selection_error('tuning::vary_frequency::strategy')
+        if selection_error:
+            st.error(selection_error)
+            st.stop()
         request = VaryFrequencyRequest(
             config_path=config_path_input,
             universe=universe,
             start=start or None,
-            evaluation_start=evaluation_start or None,
-            evaluation_end=evaluation_end or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
             strategy=strategy,
             method=method,
+            linear_shrinkage=linear_shrinkage,
             window=int(window),
             frequencies=frequencies,
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
         )
-        result = run_vary_frequency(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[vary_frequency_state_key] = run_vary_frequency(request)
+    result = st.session_state.get(vary_frequency_state_key)
+    if result is not None:
+        section = _service_result_view(['Summary', 'NAV', 'Config', 'Artifacts'], key='tuning::vary_frequency::view')
+        if section == 'Summary':
             st.subheader('Scenario summary')
-            _render_compact_table(result.scenario_summary, priority=['rebalance_frequency', 'sharpe', 'total_return', 'ann_return', 'ann_vol', 'mdd', 'avg_turnover', 'total_cost', 'final_nav'])
+            tuning_summary = _append_market_benchmark_row(
+                result.strategy_benchmark,
+                benchmark_label=result.benchmark_label,
+                benchmark_summary=result.benchmark_summary,
+                config_path=config_path_input,
+                universe_name=result.universe,
+                request_start=result.request.start,
+                target_index=result.nav_comparison.index,
+                scenario_column='rebalance_frequency',
+            )
+            _render_performance_summary_table(tuning_summary, lead_columns=['rebalance_frequency'])
+        elif section == 'NAV':
             st.subheader('NAV comparison')
-            st.line_chart(result.nav_comparison)
+            nav_frame = result.nav_comparison.copy()
+            if result.benchmark_label and not result.benchmark_nav.empty:
+                nav_frame[result.benchmark_label] = result.benchmark_nav.reindex(nav_frame.index).ffill()
+            st.line_chart(nav_frame)
             st.subheader('Drawdown comparison')
-            st.line_chart(result.drawdown_comparison)
-        with config_tab:
+            drawdown_frame = result.drawdown_comparison.copy()
+            if result.benchmark_label and not result.benchmark_drawdown.empty:
+                drawdown_frame[result.benchmark_label] = result.benchmark_drawdown.reindex(drawdown_frame.index).ffill()
+            st.line_chart(drawdown_frame)
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'scenario_key': result.scenario_key, 'highlights': result.highlights})
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Tuning' and service_name == 'Hyperparameter tuning':
     strategy_defaults = STRATEGY_OPTIONS
-    strategies = _multiselect_with_defaults('Strategies', STRATEGY_OPTIONS, strategy_defaults)
-    methods = _multiselect_with_defaults('Cleaning methods', CLEANING_OPTIONS, CLEANING_OPTIONS)
-    window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
-    windows = st.sidebar.text_input('Windows', value=f'40,60,80,120,{window_default},504')
-    freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-    frequencies = _multiselect_with_defaults('Rebalance frequencies', FREQUENCY_OPTIONS, FREQUENCY_OPTIONS)
-    st.sidebar.caption(f'Default from config: {freq_default}')
-    evaluation_start = _date_input_value('Evaluation start', config_defaults.get('evaluation', {}).get('evaluation_start'), key='hyperparameter::evaluation_start')
-    evaluation_end = _date_input_value('Evaluation end', config_defaults.get('evaluation', {}).get('evaluation_end'), key='hyperparameter::evaluation_end')
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/hyperparameter_tuning')
-    if st.sidebar.button('Run hyperparameter tuning'):
+    hyper_state_key = 'tuning::hyperparameter::result'
+    st.markdown('### Service parameters')
+    with st.form('hyperparameter_tuning_form'):
+        strategies = _strategy_selector_columns(
+            options=STRATEGY_OPTIONS,
+            default_values=strategy_defaults,
+            key='hyperparameter::strategies',
+        )
+        left, right = st.columns(2)
+        with left:
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            methods = st.multiselect(
+                'Cleaning methods',
+                CLEANING_OPTIONS,
+                default=CLEANING_OPTIONS,
+                key='hyperparameter::methods',
+            )
+            linear_shrinkage = _linear_shrinkage_input(
+                key='hyperparameter::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+            frequencies = st.multiselect(
+                'Rebalance frequencies',
+                FREQUENCY_OPTIONS,
+                default=FREQUENCY_OPTIONS,
+                key='hyperparameter::frequencies',
+            )
+        with right:
+            window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            windows = st.text_input('Windows', value=f'40,60,80,120,{window_default},504', key='hyperparameter::windows')
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/hyperparameter_tuning', key='hyperparameter::output_dir')
+        st.caption(f'Default from config: frequency={freq_default}, window={window_default}')
+        run_clicked = st.form_submit_button('Run hyperparameter tuning')
+    if run_clicked:
         request = HyperparameterTuningRequest(
             config_path=config_path_input,
             universe=universe,
             start=start or None,
-            evaluation_start=evaluation_start or None,
-            evaluation_end=evaluation_end or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
             frequencies=frequencies,
             strategies=strategies,
             methods=methods,
+            linear_shrinkage=linear_shrinkage,
             windows=[int(item.strip()) for item in windows.split(',') if item.strip()],
             refresh_policy=_consume_refresh_policy(),
             output_dir=output_dir or None,
         )
-        result = run_hyperparameter_tuning(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[hyper_state_key] = run_hyperparameter_tuning(request)
+    result = st.session_state.get(hyper_state_key)
+    if result is not None:
+        section = _service_result_view(['Summary', 'Config', 'Artifacts'], key='tuning::hyperparameter::view')
+        if section == 'Summary':
             st.subheader('Results table')
             _render_hyperparameter_results_table(result.results_table)
             st.subheader('Skipped configs')
             _render_compact_table(result.skipped_configs, priority=['strategy', 'method', 'covariance_window', 'rebalance_frequency', 'num_assets', 'reason'], empty_message='No skipped configurations.')
             st.subheader('Highlights')
             st.json(result.highlights)
-        with config_tab:
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {'universe': result.universe, 'num_scenarios': int(len(result.results_table)), 'skipped_configs': int(len(result.skipped_configs)), 'visible_columns': list(_prepare_table(result.results_table, priority=['strategy', 'method', 'covariance_window', 'rebalance_frequency']).columns), 'highlights': result.highlights})
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 elif usage_mode == 'Inspection' and service_name == 'Inspection snapshot':
     strategy_default = config_defaults.get('evaluation', {}).get('strategy', STRATEGY_OPTIONS[0])
-    strategy = _selectbox_with_default('Strategy', STRATEGY_OPTIONS, strategy_default)
-    st.sidebar.caption(f'Default from config: {strategy_default}')
-    cleaning_method, covariance_window = _estimation_controls(config_defaults, prefix='Inspection', universe=universe)
-    inspection_date, inspection_frequency = _inspection_date_controls(config_defaults, universe=universe, start=start)
-    long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
-    long_only = st.sidebar.checkbox('Long only', value=long_only_default)
-    output_dir = st.sidebar.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_snapshot')
-    if st.sidebar.button('Run inspection snapshot'):
+    inspection_state_key = 'inspection::snapshot::result'
+    st.markdown('### Service parameters')
+    with st.form('inspection_snapshot_form'):
+        strategy = _strategy_selectbox('Strategy', STRATEGY_OPTIONS, strategy_default, key='inspection::snapshot::strategy')
+        left, right = st.columns(2)
+        with left:
+            cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='inspection::snapshot::cleaning_method',
+            )
+            shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+            linear_shrinkage = _linear_shrinkage_input(
+                key='inspection::snapshot::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+            freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+            rebalance_frequency = st.selectbox(
+                'Rebalance frequency',
+                FREQUENCY_OPTIONS,
+                index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
+                key='inspection::snapshot::rebalance_frequency',
+            )
+            long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
+            long_only = st.checkbox('Long only', value=long_only_default, key='inspection::snapshot::long_only')
+        with right:
+            num_assets = len(MARKET_TICKERS.get(universe, []))
+            config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+            recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
+            covariance_window = int(
+                st.number_input(
+                    'Covariance window',
+                    min_value=2,
+                    value=recommended_window,
+                    step=1,
+                    key='inspection::snapshot::covariance_window',
+                )
+            )
+            inspection_date_default = config_defaults.get('allocation', {}).get('date')
+            use_latest_inspection = st.checkbox(
+                'Use latest available inspection date',
+                value=inspection_date_default in (None, '', 'None'),
+                key='inspection::snapshot::latest_date',
+            )
+            inspection_date_selected = st.date_input(
+                'Inspection date',
+                value=_parse_default_date(inspection_date_default).date(),
+                key='inspection::snapshot::date',
+                disabled=use_latest_inspection,
+            )
+            inspection_date = None if use_latest_inspection else pd.Timestamp(inspection_date_selected).date().isoformat()
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_snapshot', key='inspection::snapshot::output_dir')
+        st.caption(
+            f"Config defaults: strategy={strategy_default}, cleaning={cleaning_default}, "
+            f"window={config_window_default}"
+        )
+        if cleaning_method == 'rie_reference':
+            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        run_clicked = st.form_submit_button('Run inspection snapshot')
+    if run_clicked:
+        selection_error = _strategy_selection_error('inspection::snapshot::strategy')
+        if selection_error:
+            st.error(selection_error)
+            st.stop()
         request = InspectionSnapshotRequest(
             refresh_policy=_consume_refresh_policy(),
             config_path=config_path_input,
             universe=universe,
             start=start or None,
+            evaluation_start=common_evaluation_start or None,
+            evaluation_end=common_evaluation_end or None,
+            rebalance_frequency=rebalance_frequency,
             strategy=strategy,
             date=inspection_date,
             cleaning_method=cleaning_method,
+            linear_shrinkage=linear_shrinkage,
             covariance_window=int(covariance_window),
             long_only=long_only,
             output_dir=output_dir or None,
         )
-        result = run_inspection_snapshot(request)
-        results_tab, config_tab, artifacts_tab = _service_tabs()
-        with results_tab:
+        st.session_state[inspection_state_key] = run_inspection_snapshot(request)
+    result = st.session_state.get(inspection_state_key)
+    if result is not None:
+        section = _service_result_view(['Results', 'Config', 'Artifacts'], key='inspection::snapshot::view')
+        if section == 'Results':
             overview_tab, matrices_tab, spectrum_tab, eigenvectors_tab, features_tab, allocation_tab = st.tabs([
                 'Overview',
                 'Matrices',
@@ -1222,17 +2643,61 @@ elif usage_mode == 'Inspection' and service_name == 'Inspection snapshot':
                     'sample_size': result.sample_size,
                     'signal_scale': result.signal_scale,
                 }]), priority=['universe', 'strategy', 'cleaning_method', 'covariance_window', 'allocation_date', 'num_assets', 'sample_size', 'signal_scale'])
+                st.subheader('Cleaner diagnostic vs empirical')
+                _render_compact_table(
+                    result.cleaner_comparison_frame,
+                    priority=[
+                        'reference_cleaner',
+                        'selected_cleaner',
+                        'linear_shrinkage',
+                        'max_abs_corr_diff_vs_empirical',
+                        'mean_abs_corr_diff_vs_empirical',
+                        'max_abs_weight_diff_vs_empirical',
+                        'mean_abs_weight_diff_vs_empirical',
+                        'l1_weight_diff_vs_empirical',
+                        'signal_scale_vs_empirical',
+                        'empirical_signal_scale',
+                    ],
+                )
+                st.subheader('Portfolio diagnostic vs empirical')
+                _render_compact_table(
+                    result.portfolio_comparison_frame,
+                    priority=[
+                        'selected_cleaner',
+                        'reference_cleaner',
+                        'selected_total_return',
+                        'empirical_total_return',
+                        'total_return_diff_vs_empirical',
+                        'selected_sharpe',
+                        'empirical_sharpe',
+                        'sharpe_diff_vs_empirical',
+                        'selected_avg_turnover',
+                        'empirical_avg_turnover',
+                        'avg_turnover_diff_vs_empirical',
+                        'daily_return_corr_vs_empirical',
+                        'tracking_error_ann_vs_empirical',
+                        'max_abs_daily_return_diff_vs_empirical',
+                        'mean_abs_daily_return_diff_vs_empirical',
+                    ],
+                )
+                st.subheader('Portfolio NAV vs empirical')
+                st.line_chart(result.portfolio_nav_comparison)
             with matrices_tab:
                 st.subheader('Sample correlation heatmap')
                 _render_matrix_heatmap(result.sample_correlation, title='Sample correlation')
+                st.subheader('Empirical cleaned correlation heatmap')
+                _render_matrix_heatmap(result.empirical_cleaned_correlation, title='Empirical cleaned correlation')
                 st.subheader('Cleaned correlation heatmap')
                 _render_matrix_heatmap(result.cleaned_correlation, title='Cleaned correlation')
                 st.subheader('Cleaned covariance heatmap')
                 _render_matrix_heatmap(result.cleaned_covariance, title='Cleaned covariance', cmap='viridis')
-                left, right = st.columns(2)
+                left, center, right = st.columns(3)
                 with left:
                     st.caption('Sample correlation preview')
                     _render_colored_frame(result.sample_correlation, max_rows=30, max_cols=30)
+                with center:
+                    st.caption('Empirical cleaned correlation preview')
+                    _render_colored_frame(result.empirical_cleaned_correlation, max_rows=30, max_cols=30)
                 with right:
                     st.caption('Cleaned correlation preview')
                     _render_colored_frame(result.cleaned_correlation, max_rows=30, max_cols=30)
@@ -1254,9 +2719,11 @@ elif usage_mode == 'Inspection' and service_name == 'Inspection snapshot':
                 st.subheader('Features at inspection date')
                 _render_colored_frame(result.feature_frame, max_rows=200, max_cols=result.feature_frame.shape[1], cmap='RdYlBu_r')
             with allocation_tab:
-                st.subheader('Allocation snapshot')
+                st.subheader('Selected cleaner allocation snapshot')
                 _render_colored_frame(result.allocation_frame, max_rows=200, max_cols=result.allocation_frame.shape[1], cmap='RdBu_r')
-        with config_tab:
+                st.subheader('Empirical allocation snapshot')
+                _render_colored_frame(result.empirical_allocation_frame, max_rows=200, max_cols=result.empirical_allocation_frame.shape[1], cmap='RdBu_r')
+        elif section == 'Config':
             _request_block(result.request, config_defaults, {
                 'universe': result.universe,
                 'strategy': result.strategy,
@@ -1266,9 +2733,13 @@ elif usage_mode == 'Inspection' and service_name == 'Inspection snapshot':
                 'sample_size': result.sample_size,
                 'num_assets': result.num_assets,
                 'signal_scale': result.signal_scale,
-                'inspection_rebalance_frequency': inspection_frequency,
+                'cleaner_comparison': result.cleaner_comparison_frame.iloc[0].to_dict(),
+                'portfolio_comparison': result.portfolio_comparison_frame.iloc[0].to_dict(),
+                'inspection_rebalance_frequency': rebalance_frequency,
+                'evaluation_start': common_evaluation_start,
+                'evaluation_end': common_evaluation_end,
             })
-        with artifacts_tab:
+        else:
             _artifacts_block(result.artifacts.files)
 
 else:

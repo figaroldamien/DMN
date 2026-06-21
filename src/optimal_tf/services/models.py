@@ -23,6 +23,7 @@ class AllocationRequest:
     as_of_date: str | None = None
     strategy: str | None = None
     cleaning_method: str | None = None
+    linear_shrinkage: float | None = None
     covariance_window: int | None = None
     long_only: bool | None = None
     refresh_policy: str = 'auto'
@@ -50,6 +51,7 @@ class StandardEvaluationRequest:
     start: str | None = None
     strategy: str | None = None
     cleaning_method: str | None = None
+    linear_shrinkage: float | None = None
     covariance_window: int | None = None
     rebalance_frequency: str | None = None
     evaluation_start: str | None = None
@@ -78,12 +80,60 @@ class StandardEvaluationResult:
 
 
 @dataclass(frozen=True)
+class StrategyTestbedRequest:
+    config_path: str = "configs/optimal_tf.example.toml"
+    universe: str | None = None
+    start: str | None = None
+    cleaning_method: str | None = None
+    linear_shrinkage: float | None = None
+    covariance_window: int | None = None
+    trend_alpha: float | None = None
+    trend_span: int | None = None
+    rebalance_frequency: str | None = None
+    weight_smoothing_alpha: float | None = None
+    evaluation_start: str | None = None
+    evaluation_end: str | None = None
+    long_only: bool | None = None
+    signal_model: str = "ones"
+    q_model: str = "identity"
+    phi: float = 0.0
+    omega: float = 1.0
+    normalization: str = "gross"
+    refresh_policy: str = 'auto'
+    output_dir: str | None = None
+    output_plot: bool = True
+
+
+@dataclass(frozen=True)
+class StrategyTestbedResult:
+    request: StrategyTestbedRequest
+    universe: str
+    strategy_label: str
+    cleaning_method: str
+    covariance_window: int | None
+    rebalance_frequency: str
+    signal_model: str
+    q_model: str
+    phi: float
+    omega: float
+    normalization: str
+    evaluation_result: EvaluationResult
+    benchmark_returns: pd.Series
+    benchmark_label: str
+    benchmark_metadata: dict[str, Any] | None
+    buy_hold_returns: pd.Series
+    buy_hold_label: str
+    artifacts: RunArtifacts
+
+
+@dataclass(frozen=True)
 class CompareRequest:
     config_path: str = "configs/optimal_tf.example.toml"
     universe: str | None = None
     start: str | None = None
     strategies: list[str] = field(default_factory=list)
     cleaning_method: str | None = None
+    linear_shrinkage: float | None = None
     covariance_window: int | None = None
     rebalance_frequency: str | None = None
     evaluation_start: str | None = None
@@ -132,6 +182,9 @@ class MarketSynthesisResult:
     consolidated_frame: pd.DataFrame
     ticker_frame: pd.DataFrame
     sector_nav_frame: pd.DataFrame
+    ticker_nav_frame: pd.DataFrame
+    monthly_consolidated_frame: pd.DataFrame
+    monthly_ticker_frame: pd.DataFrame
     artifacts: RunArtifacts
 
 
@@ -145,6 +198,7 @@ class VaryCleaningRequest:
     rebalance_frequency: str | None = None
     strategy: str | None = None
     methods: list[str] = field(default_factory=list)
+    linear_shrinkage: float | None = None
     window: int | None = None
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
@@ -162,6 +216,7 @@ class VaryWindowRequest:
     rebalance_frequency: str | None = None
     strategy: str | None = None
     method: str | None = None
+    linear_shrinkage: float | None = None
     windows: list[int] = field(default_factory=list)
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
@@ -180,6 +235,7 @@ class VaryStrategyRequest:
     rebalance_frequency: str | None = None
     strategies: list[str] = field(default_factory=list)
     method: str | None = None
+    linear_shrinkage: float | None = None
     window: int | None = None
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
@@ -196,6 +252,7 @@ class VaryFrequencyRequest:
     evaluation_end: str | None = None
     strategy: str | None = None
     method: str | None = None
+    linear_shrinkage: float | None = None
     window: int | None = None
     frequencies: list[str] = field(default_factory=list)
     matrix_date: str | None = None
@@ -213,6 +270,7 @@ class SpectrumByCleanerRequest:
     evaluation_end: str | None = None
     rebalance_frequency: str | None = None
     methods: list[str] = field(default_factory=list)
+    linear_shrinkage: float | None = None
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
     output_dir: str | None = None
@@ -228,6 +286,7 @@ class SpectrumByWindowRequest:
     evaluation_end: str | None = None
     rebalance_frequency: str | None = None
     method: str | None = None
+    linear_shrinkage: float | None = None
     windows: list[int] = field(default_factory=list)
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
@@ -245,6 +304,7 @@ class EigenvectorInspectionRequest:
     evaluation_end: str | None = None
     rebalance_frequency: str | None = None
     method: str = "rie_reference"
+    linear_shrinkage: float | None = None
     windows: list[int] = field(default_factory=list)
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
@@ -265,6 +325,10 @@ class ScenarioEvaluationResult:
     matrix_benchmark: pd.DataFrame
     nav_comparison: pd.DataFrame
     drawdown_comparison: pd.DataFrame
+    benchmark_label: str | None
+    benchmark_summary: dict[str, Any] | None
+    benchmark_nav: pd.Series
+    benchmark_drawdown: pd.Series
     highlights: dict[str, str]
     artifacts: RunArtifacts
 
@@ -302,6 +366,7 @@ class HyperparameterTuningRequest:
     frequencies: list[str] = field(default_factory=list)
     strategies: list[str] = field(default_factory=list)
     methods: list[str] = field(default_factory=list)
+    linear_shrinkage: float | None = None
     windows: list[int] = field(default_factory=list)
     refresh_policy: str = 'auto'
     output_dir: str | None = None
@@ -362,9 +427,13 @@ class InspectionSnapshotRequest:
     config_path: str = "configs/optimal_tf.example.toml"
     universe: str | None = None
     start: str | None = None
+    evaluation_start: str | None = None
+    evaluation_end: str | None = None
+    rebalance_frequency: str | None = None
     strategy: str | None = None
     date: str | None = None
     cleaning_method: str | None = None
+    linear_shrinkage: float | None = None
     covariance_window: int | None = None
     long_only: bool | None = None
     refresh_policy: str = 'auto'
@@ -383,6 +452,7 @@ class InspectionSnapshotResult:
     num_assets: int
     signal_scale: float
     sample_correlation: pd.DataFrame
+    empirical_cleaned_correlation: pd.DataFrame
     cleaned_correlation: pd.DataFrame
     cleaned_covariance: pd.DataFrame
     correlation_spectrum: pd.DataFrame
@@ -390,5 +460,9 @@ class InspectionSnapshotResult:
     correlation_eigenvectors: pd.DataFrame
     covariance_eigenvectors: pd.DataFrame
     feature_frame: pd.DataFrame
+    empirical_allocation_frame: pd.DataFrame
     allocation_frame: pd.DataFrame
+    cleaner_comparison_frame: pd.DataFrame
+    portfolio_comparison_frame: pd.DataFrame
+    portfolio_nav_comparison: pd.DataFrame
     artifacts: RunArtifacts

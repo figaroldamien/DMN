@@ -38,11 +38,14 @@ from .standard import (
     AllocationResult,
     CompareRequest,
     CompareResult,
+    StrategyTestbedRequest,
+    StrategyTestbedResult,
     StandardEvaluationRequest,
     StandardEvaluationResult,
     run_allocation,
     run_compare,
     run_evaluation,
+    run_strategy_testbed,
 )
 
 __all__ = [name for name in globals() if not name.startswith('_')]

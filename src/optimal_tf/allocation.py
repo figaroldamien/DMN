@@ -1,6 +1,11 @@
 import pandas as pd
 
 from .config import EstimationConfig
+from .strategies_agnostic import (
+    agnostic_recipe_state_at_date as _agnostic_recipe_state_at_date,
+    compute_agnostic_recipe_panel as _compute_agnostic_recipe_panel,
+    supported_agnostic_strategies,
+)
 from .strategies import (
     StrategyPanel,
     StrategyState,
@@ -13,8 +18,18 @@ from .strategies import (
     resolve_allocation_date,
     resolve_strategy,
     strategy_registry,
-    supported_strategies,
+    supported_strategies as _supported_legacy_strategies,
 )
+
+
+def supported_strategies() -> list[str]:
+    """Return the full set of dashboard/CLI-visible strategy identifiers.
+
+    This now includes both the legacy `optimal_tf.strategies` family and the
+    experimental Eq. 8 agnostic recipes, so service and UI layers can expose a
+    unified strategy selector.
+    """
+    return sorted({*_supported_legacy_strategies(), *supported_agnostic_strategies()})
 
 
 def compute_strategy_state_at_date(
@@ -27,6 +42,15 @@ def compute_strategy_state_at_date(
     covariance_cache: dict[pd.Timestamp, pd.DataFrame] | None = None,
     strategy_context: dict[str, pd.DataFrame | pd.Series] | None = None,
 ) -> StrategyState:
+    if strategy in supported_agnostic_strategies():
+        return _agnostic_recipe_state_at_date(
+            prices,
+            est_cfg,
+            strategy,
+            date=date,
+            long_only=long_only,
+            covariance_cache=covariance_cache,
+        )
     return _compute_strategy_state_at_date(
         prices,
         est_cfg,
@@ -47,6 +71,15 @@ def compute_strategy_panel(
     target_dates: pd.Index | None = None,
     covariance_cache: dict[pd.Timestamp, pd.DataFrame] | None = None,
 ) -> StrategyPanel:
+    if strategy in supported_agnostic_strategies():
+        return _compute_agnostic_recipe_panel(
+            prices,
+            est_cfg,
+            strategy,
+            long_only=long_only,
+            target_dates=target_dates,
+            covariance_cache=covariance_cache,
+        )
     return _compute_strategy_panel(
         prices,
         est_cfg,

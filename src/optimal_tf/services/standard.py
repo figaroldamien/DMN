@@ -11,8 +11,11 @@ from optimal_tf.config import AllocationConfig, BacktestConfig, EvaluationConfig
 from optimal_tf.config_io import load_config
 from optimal_tf.data import load_prices_for_universe, load_prices_yf
 from optimal_tf.evaluation import evaluate_portfolio
+from optimal_tf.features import alpha_from_span, effective_span_from_alpha
 from optimal_tf.rebalance import supported_rebalance_frequencies
+from optimal_tf.strategies_agnostic import compute_agnostic_panel, supported_normalization_modes, supported_q_models, supported_signal_models
 from optimal_tf.validation import validate_estimation_config
+from trading_core.backtest.engine import evaluate_portfolio as _engine_evaluate_portfolio
 from trading_core.market import get_universe_benchmark
 from trading_core.reporting import (
     cumulative_nav,
@@ -24,6 +27,7 @@ from trading_core.reporting import (
     single_asset_buy_and_hold_benchmark,
     write_evaluation_outputs,
 )
+from trading_core.risk import estimate_clean_covariance_panel
 
 from .io import ensure_output_dir, write_json, write_request_json
 from .models import (
@@ -32,6 +36,8 @@ from .models import (
     CompareRequest,
     CompareResult,
     RunArtifacts,
+    StrategyTestbedRequest,
+    StrategyTestbedResult,
     StandardEvaluationRequest,
     StandardEvaluationResult,
 )
@@ -59,10 +65,15 @@ def _apply_estimation_overrides(
     estimation,
     *,
     override_cleaning_method: str | None,
+    override_linear_shrinkage: float | None,
     override_covariance_window: int | None,
+    override_trend_alpha: float | None = None,
+    override_trend_span: int | None = None,
 ):
     if override_cleaning_method is not None:
         estimation = replace(estimation, cleaning_method=override_cleaning_method)
+    if override_linear_shrinkage is not None:
+        estimation = replace(estimation, linear_shrinkage=float(override_linear_shrinkage))
     if override_covariance_window is not None:
         min_periods = min(estimation.covariance_min_periods, override_covariance_window)
         estimation = replace(
@@ -70,6 +81,10 @@ def _apply_estimation_overrides(
             covariance_window=override_covariance_window,
             covariance_min_periods=min_periods,
         )
+    if override_trend_alpha is not None:
+        estimation = replace(estimation, trend_alpha=float(override_trend_alpha))
+    if override_trend_span is not None:
+        estimation = replace(estimation, trend_span=int(override_trend_span))
     validate_estimation_config(estimation)
     return estimation
 
@@ -148,6 +163,62 @@ def _render_compare_plots(outdir: Path, comparison) -> tuple[Path, Path]:
     return nav_plot, drawdown_plot
 
 
+def _validate_testbed_request(request: StrategyTestbedRequest) -> None:
+    if request.q_model not in supported_q_models():
+        raise ValueError(f"Unknown q_model '{request.q_model}'. Allowed values: {supported_q_models()}")
+    if request.signal_model not in supported_signal_models():
+        raise ValueError(f"Unknown signal_model '{request.signal_model}'. Allowed values: {supported_signal_models()}")
+    if request.normalization not in supported_normalization_modes():
+        raise ValueError(
+            f"Unknown normalization mode '{request.normalization}'. Allowed values: {supported_normalization_modes()}"
+        )
+    if request.q_model != "phi_shrink_correlation" and float(request.phi) != 0.0:
+        raise ValueError("phi is only supported with q_model='phi_shrink_correlation'.")
+    if request.rebalance_frequency is not None and request.rebalance_frequency not in supported_rebalance_frequencies():
+        raise ValueError(f"Unknown rebalance frequency '{request.rebalance_frequency}'.")
+
+
+def _format_testbed_strategy_label(request: StrategyTestbedRequest) -> str:
+    return (
+        "TESTBED"
+        f"[signal={request.signal_model},q={request.q_model},phi={float(request.phi):.2f},"
+        f"omega={float(request.omega):.2f},norm={request.normalization}]"
+    )
+
+
+def _resolve_testbed_trend_overrides(
+    estimation,
+    request: StrategyTestbedRequest,
+) -> tuple[float | None, int | None]:
+    """Make `trend_span` and `trend_alpha` overrides consistent for the testbed UI.
+
+    The dashboard exposes both controls simultaneously, but the underlying EWMA
+    resolver gives priority to `alpha` whenever both are present. We therefore
+    infer user intent relative to the config defaults:
+    - if only span changed, derive alpha from the new span
+    - if only alpha changed, derive span from the new alpha
+    - if both changed, alpha wins because the EWMA implementation uses it first
+    """
+    base_alpha = estimation.trend_alpha
+    base_span = estimation.trend_span
+    req_alpha = request.trend_alpha
+    req_span = request.trend_span
+
+    if req_alpha is None and req_span is None:
+        return None, None
+
+    alpha_changed = req_alpha is not None and req_alpha != base_alpha
+    span_changed = req_span is not None and req_span != base_span
+
+    if span_changed and not alpha_changed:
+        return alpha_from_span(req_span), req_span
+    if alpha_changed and not span_changed:
+        return req_alpha, effective_span_from_alpha(req_alpha)
+    if alpha_changed and span_changed:
+        return req_alpha, effective_span_from_alpha(req_alpha)
+    return req_alpha, req_span
+
+
 def run_allocation(request: AllocationRequest) -> AllocationResult:
     universe, estimation, backtest, allocation, _, _, output = load_config(request.config_path)
     universe, backtest = _apply_common_overrides(
@@ -160,6 +231,7 @@ def run_allocation(request: AllocationRequest) -> AllocationResult:
     estimation = _apply_estimation_overrides(
         estimation,
         override_cleaning_method=request.cleaning_method,
+        override_linear_shrinkage=request.linear_shrinkage,
         override_covariance_window=request.covariance_window,
     )
     allocation = AllocationConfig(
@@ -227,6 +299,7 @@ def run_evaluation(request: StandardEvaluationRequest) -> StandardEvaluationResu
     estimation = _apply_estimation_overrides(
         estimation,
         override_cleaning_method=request.cleaning_method,
+        override_linear_shrinkage=request.linear_shrinkage,
         override_covariance_window=request.covariance_window,
     )
     strategy = request.strategy or evaluation.strategy
@@ -297,6 +370,118 @@ def run_evaluation(request: StandardEvaluationRequest) -> StandardEvaluationResu
     )
 
 
+def run_strategy_testbed(request: StrategyTestbedRequest) -> StrategyTestbedResult:
+    _validate_testbed_request(request)
+    universe, estimation, backtest, allocation, evaluation, _, output = load_config(request.config_path)
+    del allocation
+    universe, backtest = _apply_common_overrides(
+        universe,
+        backtest,
+        override_universe=request.universe,
+        override_start=request.start,
+        override_long_only=request.long_only,
+    )
+    trend_alpha_override, trend_span_override = _resolve_testbed_trend_overrides(estimation, request)
+    estimation = _apply_estimation_overrides(
+        estimation,
+        override_cleaning_method=request.cleaning_method,
+        override_linear_shrinkage=request.linear_shrinkage,
+        override_covariance_window=request.covariance_window,
+        override_trend_alpha=trend_alpha_override,
+        override_trend_span=trend_span_override,
+    )
+    if request.weight_smoothing_alpha is not None:
+        backtest = replace(backtest, weight_smoothing_alpha=float(request.weight_smoothing_alpha))
+    evaluation = EvaluationConfig(
+        strategy=_format_testbed_strategy_label(request),
+        rebalance_frequency=request.rebalance_frequency or evaluation.rebalance_frequency,
+        evaluation_start=request.evaluation_start if request.evaluation_start is not None else evaluation.evaluation_start,
+        evaluation_end=request.evaluation_end if request.evaluation_end is not None else evaluation.evaluation_end,
+    )
+    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+
+    def _compute_testbed_panel(prices_frame, est_cfg, _strategy, *, long_only=False, target_dates=None, covariance_cache=None):
+        return compute_agnostic_panel(
+            prices_frame,
+            est_cfg,
+            signal_model=request.signal_model,  # type: ignore[arg-type]
+            q_model=request.q_model,  # type: ignore[arg-type]
+            phi=float(request.phi),
+            omega=float(request.omega),
+            normalization=request.normalization,  # type: ignore[arg-type]
+            long_only=long_only,
+            target_dates=target_dates,
+            covariance_cache=covariance_cache,
+        )
+
+    result = _engine_evaluate_portfolio(
+        prices,
+        estimation,
+        backtest,
+        evaluation,
+        compute_strategy_panel_fn=_compute_testbed_panel,
+        estimate_clean_covariance_panel_fn=estimate_clean_covariance_panel,
+    )
+    benchmark_returns, benchmark_label, benchmark_metadata = _load_primary_benchmark_returns(
+        universe.name,
+        prices,
+        start=universe.start,
+        max_abs_return=estimation.max_abs_return,
+    )
+    benchmark_returns = benchmark_returns.reindex(result.daily_returns_net.index).ffill().fillna(0.0)
+    buy_hold_returns = equal_weight_buy_and_hold_benchmark(prices, max_abs_return=estimation.max_abs_return).reindex(
+        result.daily_returns_net.index
+    ).ffill().fillna(0.0)
+    buy_hold_label = "equal-weight buy and hold"
+
+    outdir = ensure_output_dir(request.output_dir or output.evaluation_dir)
+    files: dict[str, Path] = {}
+    if outdir is not None:
+        write_evaluation_outputs(result, str(outdir))
+        files["summary"] = outdir / "summary.json"
+        files["weights_by_rebalance"] = outdir / "weights_by_rebalance.csv"
+        files["daily_returns_net"] = outdir / "daily_returns_net.csv"
+        benchmark_returns.rename("return").to_frame().to_csv(outdir / "benchmark_returns.csv")
+        files["benchmark_returns"] = outdir / "benchmark_returns.csv"
+        buy_hold_returns.rename("return").to_frame().to_csv(outdir / "buy_hold_returns.csv")
+        files["buy_hold_returns"] = outdir / "buy_hold_returns.csv"
+        if request.output_plot and (request.output_dir is not None or output.evaluation_plot):
+            plot_path = render_evaluation_plot(
+                result.daily_returns_net,
+                benchmark_returns,
+                buy_hold_returns,
+                outdir / "performance.png",
+                title=f"{evaluation.strategy} vs benchmark ({universe.name})",
+                benchmark_label=benchmark_label,
+                buy_hold_label=buy_hold_label,
+            )
+            files["plot"] = plot_path
+        req_path = write_request_json(outdir, request)
+        if req_path is not None:
+            files["request"] = req_path
+
+    return StrategyTestbedResult(
+        request=request,
+        universe=universe.name,
+        strategy_label=evaluation.strategy,
+        cleaning_method=estimation.cleaning_method,
+        covariance_window=estimation.covariance_window,
+        rebalance_frequency=evaluation.rebalance_frequency,
+        signal_model=request.signal_model,
+        q_model=request.q_model,
+        phi=float(request.phi),
+        omega=float(request.omega),
+        normalization=request.normalization,
+        evaluation_result=result,
+        benchmark_returns=benchmark_returns,
+        benchmark_label=benchmark_label,
+        benchmark_metadata=benchmark_metadata,
+        buy_hold_returns=buy_hold_returns,
+        buy_hold_label=buy_hold_label,
+        artifacts=RunArtifacts(root_dir=outdir, files=files),
+    )
+
+
 def run_compare(request: CompareRequest) -> CompareResult:
     universe, estimation, backtest, allocation, evaluation, compare, output = load_config(request.config_path)
     universe, backtest = _apply_common_overrides(
@@ -309,6 +494,7 @@ def run_compare(request: CompareRequest) -> CompareResult:
     estimation = _apply_estimation_overrides(
         estimation,
         override_cleaning_method=request.cleaning_method,
+        override_linear_shrinkage=request.linear_shrinkage,
         override_covariance_window=request.covariance_window,
     )
     frequency = request.rebalance_frequency or evaluation.rebalance_frequency
