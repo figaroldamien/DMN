@@ -54,6 +54,7 @@ class StandardEvaluationRequest:
     linear_shrinkage: float | None = None
     covariance_window: int | None = None
     rebalance_frequency: str | None = None
+    weight_smoothing_alpha: float | None = None
     evaluation_start: str | None = None
     evaluation_end: str | None = None
     long_only: bool | None = None
@@ -84,6 +85,7 @@ class StrategyTestbedRequest:
     config_path: str = "configs/optimal_tf.example.toml"
     universe: str | None = None
     start: str | None = None
+    strategy: str | None = None
     cleaning_method: str | None = None
     linear_shrinkage: float | None = None
     covariance_window: int | None = None
@@ -136,6 +138,7 @@ class CompareRequest:
     linear_shrinkage: float | None = None
     covariance_window: int | None = None
     rebalance_frequency: str | None = None
+    weight_smoothing_alpha: float | None = None
     evaluation_start: str | None = None
     evaluation_end: str | None = None
     long_only: bool | None = None
@@ -200,6 +203,7 @@ class VaryCleaningRequest:
     methods: list[str] = field(default_factory=list)
     linear_shrinkage: float | None = None
     window: int | None = None
+    weight_smoothing_alpha: float | None = None
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
     output_dir: str | None = None
@@ -218,6 +222,7 @@ class VaryWindowRequest:
     method: str | None = None
     linear_shrinkage: float | None = None
     windows: list[int] = field(default_factory=list)
+    weight_smoothing_alpha: float | None = None
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
     output_dir: str | None = None
@@ -237,6 +242,7 @@ class VaryStrategyRequest:
     method: str | None = None
     linear_shrinkage: float | None = None
     window: int | None = None
+    weight_smoothing_alpha: float | None = None
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
     output_dir: str | None = None
@@ -255,6 +261,7 @@ class VaryFrequencyRequest:
     linear_shrinkage: float | None = None
     window: int | None = None
     frequencies: list[str] = field(default_factory=list)
+    weight_smoothing_alpha: float | None = None
     matrix_date: str | None = None
     refresh_policy: str = 'auto'
     output_dir: str | None = None
@@ -368,6 +375,7 @@ class HyperparameterTuningRequest:
     methods: list[str] = field(default_factory=list)
     linear_shrinkage: float | None = None
     windows: list[int] = field(default_factory=list)
+    weight_smoothing_alpha: float | None = None
     refresh_policy: str = 'auto'
     output_dir: str | None = None
     min_periods_mode: str = "clamp"
@@ -435,6 +443,7 @@ class InspectionSnapshotRequest:
     cleaning_method: str | None = None
     linear_shrinkage: float | None = None
     covariance_window: int | None = None
+    weight_smoothing_alpha: float | None = None
     long_only: bool | None = None
     refresh_policy: str = 'auto'
     output_dir: str | None = None

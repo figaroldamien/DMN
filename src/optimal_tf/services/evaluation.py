@@ -9,7 +9,7 @@ import pandas as pd
 from optimal_tf.allocation import supported_strategies
 from optimal_tf.rebalance import supported_rebalance_frequencies
 from optimal_tf.config_io import load_config
-from optimal_tf.data import load_prices_for_universe
+from optimal_tf.data import load_prices_for_universe, load_prices_yf
 from optimal_tf.evaluation import evaluate_portfolio
 from optimal_tf.scripts.common import (
     build_scenario_highlights,
@@ -29,7 +29,14 @@ from optimal_tf.scripts.common import (
     write_matrix_pivots,
 )
 from trading_core.backtest.comparison import build_drawdown_comparison
-from trading_core.reporting import cumulative_nav, render_series_comparison_plot
+from trading_core.market import get_universe_benchmark
+from trading_core.reporting import (
+    cumulative_nav,
+    equal_weight_rebalanced_benchmark,
+    evaluation_metrics,
+    render_series_comparison_plot,
+    single_asset_buy_and_hold_benchmark,
+)
 from trading_core.risk import supported_cleaning_methods
 
 from .io import ensure_output_dir, write_json, write_request_json
@@ -62,6 +69,54 @@ class _HyperparameterGridContext:
 
 
 DEFAULT_HYPERPARAMETER_WINDOWS = [40, 60, 80, 120, 252, 504]
+
+
+def _with_cleaning_overrides(estimation, *, method: str | None = None, linear_shrinkage: float | None = None):
+    updates = {}
+    if method is not None:
+        updates["cleaning_method"] = method
+    if linear_shrinkage is not None:
+        updates["linear_shrinkage"] = float(linear_shrinkage)
+    if not updates:
+        return estimation
+    return replace(estimation, **updates)
+
+
+def _build_primary_benchmark_bundle(
+    *,
+    universe_name: str,
+    prices: pd.DataFrame,
+    start: str,
+    target_index: pd.Index,
+    max_abs_return: float | None,
+) -> tuple[str | None, dict[str, float | int] | None, pd.Series, pd.Series]:
+    if len(target_index) == 0:
+        empty = pd.Series(dtype=float)
+        return None, None, empty, empty
+    benchmark = get_universe_benchmark(universe_name)
+    if benchmark and benchmark.get("ticker"):
+        try:
+            benchmark_prices = load_prices_yf([str(benchmark["ticker"])], start=start)
+            benchmark_returns = single_asset_buy_and_hold_benchmark(
+                benchmark_prices,
+                max_abs_return=max_abs_return,
+            )
+            benchmark_label = str(benchmark.get("name") or benchmark.get("ticker"))
+        except Exception:
+            benchmark_returns = equal_weight_rebalanced_benchmark(prices, max_abs_return=max_abs_return)
+            benchmark_label = "universe equal-weight index"
+    else:
+        benchmark_returns = equal_weight_rebalanced_benchmark(prices, max_abs_return=max_abs_return)
+        benchmark_label = "universe equal-weight index"
+    aligned_returns = benchmark_returns.reindex(pd.Index(target_index)).ffill().fillna(0.0)
+    zero_turnover = pd.Series(0.0, index=aligned_returns.index, dtype=float)
+    zero_costs = pd.Series(0.0, index=aligned_returns.index, dtype=float)
+    benchmark_summary = evaluation_metrics(aligned_returns, zero_turnover, zero_costs, num_rebalances=0)
+    benchmark_nav = cumulative_nav(aligned_returns).reindex(pd.Index(target_index)).ffill()
+    benchmark_drawdown = benchmark_nav.divide(benchmark_nav.cummax()).subtract(1.0)
+    benchmark_payload = dict(benchmark_summary.__dict__)
+    benchmark_payload["final_nav"] = float(benchmark_nav.iloc[-1]) if len(benchmark_nav) else 1.0
+    return benchmark_label, benchmark_payload, benchmark_nav, benchmark_drawdown
 
 
 def _write_scenario_outputs(
@@ -123,6 +178,10 @@ def _resolve_hyperparameter_context(request: HyperparameterTuningRequest) -> _Hy
             'evaluation_end': request.evaluation_end,
         })(),
     )
+    if request.linear_shrinkage is not None:
+        estimation = replace(estimation, linear_shrinkage=float(request.linear_shrinkage))
+    if request.weight_smoothing_alpha is not None:
+        backtest = replace(backtest, weight_smoothing_alpha=float(request.weight_smoothing_alpha))
     strategies = request.strategies or supported_strategies()
     validate_strategies(strategies)
     methods = request.methods or list(supported_cleaning_methods())
@@ -166,7 +225,11 @@ def _run_hyperparameter_grid(request: HyperparameterTuningRequest) -> tuple[_Hyp
             })
             continue
         window_estimation = resolve_window_estimation_cfg(
-            replace(context.estimation, cleaning_method=method),
+            _with_cleaning_overrides(
+                context.estimation,
+                method=method,
+                linear_shrinkage=request.linear_shrinkage,
+            ),
             window,
             min_periods_mode=request.min_periods_mode,
         )
@@ -268,7 +331,9 @@ def run_vary_cleaning(request: VaryCleaningRequest) -> VaryCleaningResult:
         rebalance_frequency=request.rebalance_frequency,
         strategies=[request.strategy] if request.strategy is not None else [],
         methods=request.methods,
+        linear_shrinkage=request.linear_shrinkage,
         windows=[request.window] if request.window is not None else [],
+        weight_smoothing_alpha=request.weight_smoothing_alpha,
         output_dir=request.output_dir,
         refresh_policy=request.refresh_policy,
     )
@@ -289,7 +354,10 @@ def run_vary_cleaning(request: VaryCleaningRequest) -> VaryCleaningResult:
         matrix_date = target_dates[-1]
 
     cleaning_estimation = resolve_window_estimation_cfg(
-        context.estimation,
+        _with_cleaning_overrides(
+            context.estimation,
+            linear_shrinkage=request.linear_shrinkage,
+        ),
         context.windows[0],
         min_periods_mode='clamp',
     )
@@ -317,7 +385,11 @@ def run_vary_cleaning(request: VaryCleaningRequest) -> VaryCleaningResult:
     method_results = {
         method: evaluate_portfolio(
             context.prices,
-            replace(cleaning_estimation, cleaning_method=method),
+            _with_cleaning_overrides(
+                cleaning_estimation,
+                method=method,
+                linear_shrinkage=request.linear_shrinkage,
+            ),
             context.backtest,
             replace(context.evaluation, strategy=strategy),
         )
@@ -331,6 +403,13 @@ def run_vary_cleaning(request: VaryCleaningRequest) -> VaryCleaningResult:
         axis=1,
     ).sort_index().ffill()
     drawdown_frame = build_drawdown_comparison(nav_frame)
+    benchmark_label, benchmark_summary, benchmark_nav, benchmark_drawdown = _build_primary_benchmark_bundle(
+        universe_name=context.universe_name,
+        prices=context.prices,
+        start=request.start or context.prices.index.min().date().isoformat(),
+        target_index=nav_frame.index,
+        max_abs_return=getattr(context.estimation, "max_abs_return", None),
+    )
     scenario_summary = build_scenario_summary(strategy_frame, 'method')
     scenario_highlights = build_scenario_highlights(strategy_frame, 'method')
     if not skipped_configs.empty:
@@ -376,6 +455,10 @@ def run_vary_cleaning(request: VaryCleaningRequest) -> VaryCleaningResult:
         matrix_benchmark=matrix_frame,
         nav_comparison=nav_frame,
         drawdown_comparison=drawdown_frame,
+        benchmark_label=benchmark_label,
+        benchmark_summary=benchmark_summary,
+        benchmark_nav=benchmark_nav,
+        benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
         artifacts=artifacts,
         scree_frame=scree_frame,
@@ -392,7 +475,9 @@ def run_vary_window(request: VaryWindowRequest) -> VaryWindowResult:
         rebalance_frequency=request.rebalance_frequency,
         strategies=[request.strategy] if request.strategy is not None else [],
         methods=[request.method] if request.method is not None else [],
+        linear_shrinkage=request.linear_shrinkage,
         windows=request.windows,
+        weight_smoothing_alpha=request.weight_smoothing_alpha,
         output_dir=request.output_dir,
         min_periods_mode=request.min_periods_mode,
         refresh_policy=request.refresh_policy,
@@ -424,7 +509,11 @@ def run_vary_window(request: VaryWindowRequest) -> VaryWindowResult:
 
     for window in context.windows:
         window_estimation = resolve_window_estimation_cfg(
-            replace(context.estimation, cleaning_method=method),
+            _with_cleaning_overrides(
+                context.estimation,
+                method=method,
+                linear_shrinkage=request.linear_shrinkage,
+            ),
             window,
             min_periods_mode=request.min_periods_mode,
         )
@@ -441,6 +530,13 @@ def run_vary_window(request: VaryWindowRequest) -> VaryWindowResult:
     scree_frame = pd.DataFrame(scree_rows).sort_values(['covariance_window', 'method', 'rank']).reset_index(drop=True)
     nav_frame = pd.concat(nav_series, axis=1).sort_index().ffill()
     drawdown_frame = build_drawdown_comparison(nav_frame)
+    benchmark_label, benchmark_summary, benchmark_nav, benchmark_drawdown = _build_primary_benchmark_bundle(
+        universe_name=context.universe_name,
+        prices=context.prices,
+        start=request.start or context.prices.index.min().date().isoformat(),
+        target_index=nav_frame.index,
+        max_abs_return=getattr(context.estimation, "max_abs_return", None),
+    )
     scenario_summary = build_scenario_summary(strategy_frame, 'covariance_window')
     scenario_highlights = build_scenario_highlights(strategy_frame, 'covariance_window')
     if not skipped_configs.empty:
@@ -487,6 +583,10 @@ def run_vary_window(request: VaryWindowRequest) -> VaryWindowResult:
         matrix_benchmark=matrix_frame,
         nav_comparison=nav_frame,
         drawdown_comparison=drawdown_frame,
+        benchmark_label=benchmark_label,
+        benchmark_summary=benchmark_summary,
+        benchmark_nav=benchmark_nav,
+        benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
         artifacts=artifacts,
         scree_frame=scree_frame,
@@ -503,7 +603,9 @@ def run_vary_frequency(request: VaryFrequencyRequest) -> VaryFrequencyResult:
         frequencies=request.frequencies,
         strategies=[request.strategy] if request.strategy is not None else [],
         methods=[request.method] if request.method is not None else [],
+        linear_shrinkage=request.linear_shrinkage,
         windows=[request.window] if request.window is not None else [],
+        weight_smoothing_alpha=request.weight_smoothing_alpha,
         output_dir=request.output_dir,
         min_periods_mode=request.min_periods_mode,
         refresh_policy=request.refresh_policy,
@@ -522,10 +624,13 @@ def run_vary_frequency(request: VaryFrequencyRequest) -> VaryFrequencyResult:
     method = context.methods[0]
     window = context.windows[0]
     estimation = resolve_window_estimation_cfg(
-        replace(context.estimation, cleaning_method=method),
+        _with_cleaning_overrides(
+            context.estimation,
+            method=method,
+            linear_shrinkage=request.linear_shrinkage,
+        ),
         window,
         min_periods_mode=request.min_periods_mode,
-        refresh_policy=request.refresh_policy,
     )
 
     target_dates = resolve_target_dates(context.prices, replace(context.evaluation, strategy=strategy, rebalance_frequency=context.frequencies[0]))
@@ -561,6 +666,13 @@ def run_vary_frequency(request: VaryFrequencyRequest) -> VaryFrequencyResult:
     matrix_frame = pd.DataFrame(matrix_rows).sort_values(['rebalance_frequency', 'method']).reset_index(drop=True)
     nav_frame = pd.concat(nav_series, axis=1).sort_index().ffill()
     drawdown_frame = build_drawdown_comparison(nav_frame)
+    benchmark_label, benchmark_summary, benchmark_nav, benchmark_drawdown = _build_primary_benchmark_bundle(
+        universe_name=context.universe_name,
+        prices=context.prices,
+        start=request.start or context.prices.index.min().date().isoformat(),
+        target_index=nav_frame.index,
+        max_abs_return=getattr(context.estimation, "max_abs_return", None),
+    )
     scenario_summary = build_scenario_summary(strategy_frame, 'rebalance_frequency')
     scenario_highlights = build_scenario_highlights(strategy_frame, 'rebalance_frequency')
     if not skipped_configs.empty:
@@ -615,6 +727,10 @@ def run_vary_frequency(request: VaryFrequencyRequest) -> VaryFrequencyResult:
         matrix_benchmark=matrix_frame,
         nav_comparison=nav_frame,
         drawdown_comparison=drawdown_frame,
+        benchmark_label=benchmark_label,
+        benchmark_summary=benchmark_summary,
+        benchmark_nav=benchmark_nav,
+        benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
         artifacts=artifacts,
     )
@@ -630,7 +746,9 @@ def run_vary_strategy(request: VaryStrategyRequest) -> VaryStrategyResult:
         rebalance_frequency=request.rebalance_frequency,
         strategies=request.strategies,
         methods=[request.method] if request.method is not None else [],
+        linear_shrinkage=request.linear_shrinkage,
         windows=[request.window] if request.window is not None else [],
+        weight_smoothing_alpha=request.weight_smoothing_alpha,
         output_dir=request.output_dir,
         min_periods_mode=request.min_periods_mode,
         refresh_policy=request.refresh_policy,
@@ -644,10 +762,13 @@ def run_vary_strategy(request: VaryStrategyRequest) -> VaryStrategyResult:
         raise ValueError('run_vary_strategy expects exactly one covariance window in the backend grid.')
     method = context.methods[0]
     estimation = resolve_window_estimation_cfg(
-        replace(context.estimation, cleaning_method=method),
+        _with_cleaning_overrides(
+            context.estimation,
+            method=method,
+            linear_shrinkage=request.linear_shrinkage,
+        ),
         context.windows[0],
         min_periods_mode=request.min_periods_mode,
-        refresh_policy=request.refresh_policy,
     )
 
     target_dates = resolve_target_dates(context.prices, context.evaluation)
@@ -671,6 +792,13 @@ def run_vary_strategy(request: VaryStrategyRequest) -> VaryStrategyResult:
         nav_series.append(cumulative_nav(result.daily_returns_net).rename(strategy))
     nav_frame = pd.concat(nav_series, axis=1).sort_index().ffill()
     drawdown_frame = build_drawdown_comparison(nav_frame)
+    benchmark_label, benchmark_summary, benchmark_nav, benchmark_drawdown = _build_primary_benchmark_bundle(
+        universe_name=context.universe_name,
+        prices=context.prices,
+        start=request.start or context.prices.index.min().date().isoformat(),
+        target_index=nav_frame.index,
+        max_abs_return=getattr(context.estimation, "max_abs_return", None),
+    )
     scenario_summary = build_scenario_summary(strategy_frame, 'strategy')
     scenario_highlights = build_scenario_highlights(strategy_frame, 'strategy')
     if not skipped_configs.empty:
@@ -714,6 +842,10 @@ def run_vary_strategy(request: VaryStrategyRequest) -> VaryStrategyResult:
         matrix_benchmark=matrix_frame,
         nav_comparison=nav_frame,
         drawdown_comparison=drawdown_frame,
+        benchmark_label=benchmark_label,
+        benchmark_summary=benchmark_summary,
+        benchmark_nav=benchmark_nav,
+        benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
         artifacts=artifacts,
     )

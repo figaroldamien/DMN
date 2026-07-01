@@ -41,7 +41,7 @@ from .models import (
     StandardEvaluationRequest,
     StandardEvaluationResult,
 )
-from ..allocation import compute_portfolio_strategy_state_at_date, supported_strategies
+from ..allocation import compute_portfolio_strategy_state_at_date, compute_strategy_panel, supported_strategies
 
 
 def _apply_common_overrides(
@@ -164,6 +164,8 @@ def _render_compare_plots(outdir: Path, comparison) -> tuple[Path, Path]:
 
 
 def _validate_testbed_request(request: StrategyTestbedRequest) -> None:
+    if request.strategy is not None and request.strategy not in supported_strategies():
+        raise ValueError(f"Unknown strategy '{request.strategy}'. Allowed values: {supported_strategies()}")
     if request.q_model not in supported_q_models():
         raise ValueError(f"Unknown q_model '{request.q_model}'. Allowed values: {supported_q_models()}")
     if request.signal_model not in supported_signal_models():
@@ -179,6 +181,8 @@ def _validate_testbed_request(request: StrategyTestbedRequest) -> None:
 
 
 def _format_testbed_strategy_label(request: StrategyTestbedRequest) -> str:
+    if request.strategy is not None:
+        return str(request.strategy)
     return (
         "TESTBED"
         f"[signal={request.signal_model},q={request.q_model},phi={float(request.phi):.2f},"
@@ -302,6 +306,8 @@ def run_evaluation(request: StandardEvaluationRequest) -> StandardEvaluationResu
         override_linear_shrinkage=request.linear_shrinkage,
         override_covariance_window=request.covariance_window,
     )
+    if request.weight_smoothing_alpha is not None:
+        backtest = replace(backtest, weight_smoothing_alpha=float(request.weight_smoothing_alpha))
     strategy = request.strategy or evaluation.strategy
     frequency = request.rebalance_frequency or evaluation.rebalance_frequency
     if request.rebalance_frequency is not None and request.rebalance_frequency not in supported_rebalance_frequencies():
@@ -400,26 +406,30 @@ def run_strategy_testbed(request: StrategyTestbedRequest) -> StrategyTestbedResu
     )
     prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
 
-    def _compute_testbed_panel(prices_frame, est_cfg, _strategy, *, long_only=False, target_dates=None, covariance_cache=None):
-        return compute_agnostic_panel(
-            prices_frame,
-            est_cfg,
-            signal_model=request.signal_model,  # type: ignore[arg-type]
-            q_model=request.q_model,  # type: ignore[arg-type]
-            phi=float(request.phi),
-            omega=float(request.omega),
-            normalization=request.normalization,  # type: ignore[arg-type]
-            long_only=long_only,
-            target_dates=target_dates,
-            covariance_cache=covariance_cache,
-        )
+    if request.strategy is not None:
+        compute_strategy_panel_fn = compute_strategy_panel
+    else:
+        def _compute_testbed_panel(prices_frame, est_cfg, _strategy, *, long_only=False, target_dates=None, covariance_cache=None):
+            return compute_agnostic_panel(
+                prices_frame,
+                est_cfg,
+                signal_model=request.signal_model,  # type: ignore[arg-type]
+                q_model=request.q_model,  # type: ignore[arg-type]
+                phi=float(request.phi),
+                omega=float(request.omega),
+                normalization=request.normalization,  # type: ignore[arg-type]
+                long_only=long_only,
+                target_dates=target_dates,
+                covariance_cache=covariance_cache,
+            )
+        compute_strategy_panel_fn = _compute_testbed_panel
 
     result = _engine_evaluate_portfolio(
         prices,
         estimation,
         backtest,
         evaluation,
-        compute_strategy_panel_fn=_compute_testbed_panel,
+        compute_strategy_panel_fn=compute_strategy_panel_fn,
         estimate_clean_covariance_panel_fn=estimate_clean_covariance_panel,
     )
     benchmark_returns, benchmark_label, benchmark_metadata = _load_primary_benchmark_returns(
@@ -497,6 +507,8 @@ def run_compare(request: CompareRequest) -> CompareResult:
         override_linear_shrinkage=request.linear_shrinkage,
         override_covariance_window=request.covariance_window,
     )
+    if request.weight_smoothing_alpha is not None:
+        backtest = replace(backtest, weight_smoothing_alpha=float(request.weight_smoothing_alpha))
     frequency = request.rebalance_frequency or evaluation.rebalance_frequency
     if request.rebalance_frequency is not None and request.rebalance_frequency not in supported_rebalance_frequencies():
         raise ValueError(f"Unknown rebalance frequency '{request.rebalance_frequency}'.")

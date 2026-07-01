@@ -277,6 +277,65 @@ class AgnosticStrategyApiTests(unittest.TestCase):
 
 
 class StrategyTestbedServiceTests(unittest.TestCase):
+    def test_run_strategy_testbed_uses_named_strategy_panel_when_strategy_is_provided(self) -> None:
+        prices = pd.DataFrame(
+            {
+                "A": [100.0, 101.0, 102.0, 103.0],
+                "B": [100.0, 99.5, 100.5, 101.0],
+            },
+            index=pd.date_range("2026-01-01", periods=4, freq="B"),
+        )
+        config_tuple = (
+            UniverseConfig(name="test", start="2026-01-01"),
+            EstimationConfig(vol_span=2, trend_span=2, covariance_min_periods=2, cleaning_method="empirical"),
+            BacktestConfig(portfolio_vol_target=False, long_only=False),
+            AllocationConfig(strategy="RP"),
+            EvaluationConfig(strategy="RP", rebalance_frequency="monthly"),
+            SimpleNamespace(),
+            OutputConfig(evaluation_dir=None, evaluation_plot=False),
+        )
+        benchmark = pd.Series([0.0, 0.01], index=prices.index[-2:], dtype=float)
+        captured: dict[str, object] = {}
+
+        def fake_engine(prices_frame, est_cfg, bt_cfg, eval_cfg, *, compute_strategy_panel_fn, estimate_clean_covariance_panel_fn):
+            del estimate_clean_covariance_panel_fn
+            captured["strategy_label"] = eval_cfg.strategy
+            compute_strategy_panel_fn(
+                prices_frame,
+                est_cfg,
+                eval_cfg.strategy,
+                long_only=bt_cfg.long_only,
+                target_dates=prices_frame.index[-2:],
+                covariance_cache={prices_frame.index[-1]: pd.DataFrame(np.eye(2), index=["A", "B"], columns=["A", "B"])},
+            )
+            return SimpleNamespace(daily_returns_net=pd.Series([0.01, -0.005], index=prices_frame.index[-2:], dtype=float))
+
+        with patch("optimal_tf.services.standard.load_config", return_value=config_tuple):
+            with patch("optimal_tf.services.standard.load_prices_for_universe", return_value=prices):
+                with patch("optimal_tf.services.standard.compute_strategy_panel") as mocked_panel:
+                    mocked_panel.return_value = SimpleNamespace(
+                        base_weights=pd.DataFrame(0.0, index=prices.index[-2:], columns=prices.columns),
+                        effective_weights=pd.DataFrame(0.0, index=prices.index[-2:], columns=prices.columns),
+                        signal_scale=pd.Series(1.0, index=prices.index[-2:], dtype=float),
+                    )
+                    with patch("optimal_tf.services.standard._engine_evaluate_portfolio", side_effect=fake_engine):
+                        with patch("optimal_tf.services.standard._load_primary_benchmark_returns", return_value=(benchmark, "bench", None)):
+                            with patch("optimal_tf.services.standard.equal_weight_buy_and_hold_benchmark", return_value=benchmark):
+                                result = run_strategy_testbed(
+                                    StrategyTestbedRequest(
+                                        config_path="configs/optimal_tf.example.toml",
+                                        universe="test",
+                                        strategy="RP",
+                                        output_dir=None,
+                                        output_plot=False,
+                                    )
+                                )
+
+        mocked_panel.assert_called_once()
+        self.assertEqual(mocked_panel.call_args.args[2], "RP")
+        self.assertEqual(str(captured["strategy_label"]), "RP")
+        self.assertEqual(result.strategy_label, "RP")
+
     def test_run_strategy_testbed_injects_custom_agnostic_panel(self) -> None:
         prices = pd.DataFrame(
             {
