@@ -1,0 +1,8 @@
+{
+  "ticker": "EXE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:18.240242+00:00",
+  "data_start": "2021-02-10",
+  "data_end": "2026-07-01",
+  "rows": 1353
+}

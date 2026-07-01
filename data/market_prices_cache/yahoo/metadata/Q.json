@@ -1,0 +1,8 @@
+{
+  "ticker": "Q",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:26.029579+00:00",
+  "data_start": "2025-10-27",
+  "data_end": "2026-07-01",
+  "rows": 170
+}

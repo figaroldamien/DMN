@@ -1,0 +1,8 @@
+{
+  "ticker": "HBAN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:36.163077+00:00",
+  "data_start": "1996-08-05",
+  "data_end": "2026-07-01",
+  "rows": 7613
+}

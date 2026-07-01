@@ -1,0 +1,8 @@
+{
+  "ticker": "INPST.AS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:46.220340+00:00",
+  "data_start": "2021-01-27",
+  "data_end": "2026-07-01",
+  "rows": 1390
+}

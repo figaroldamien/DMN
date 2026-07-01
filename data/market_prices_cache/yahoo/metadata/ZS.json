@@ -1,0 +1,8 @@
+{
+  "ticker": "ZS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:40.183361+00:00",
+  "data_start": "2018-03-16",
+  "data_end": "2026-07-01",
+  "rows": 2084
+}

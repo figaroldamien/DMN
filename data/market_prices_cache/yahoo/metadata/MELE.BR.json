@@ -1,0 +1,8 @@
+{
+  "ticker": "MELE.BR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:01.366998+00:00",
+  "data_start": "2002-05-17",
+  "data_end": "2026-07-01",
+  "rows": 6190
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "SBAC",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:31.723623+00:00",
+  "data_start": "1999-06-16",
+  "data_end": "2026-07-01",
+  "rows": 6802
+}

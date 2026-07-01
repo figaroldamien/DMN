@@ -21,6 +21,7 @@ from optimal_tf.estimators.pipeline import estimate_clean_covariance_panel  # no
 from optimal_tf.config import EstimationConfig  # noqa: E402
 from optimal_tf.estimators.rie import clean_correlation_matrix  # noqa: E402
 from optimal_tf.features import alpha_from_span, ewma_cov_frame  # noqa: E402
+from trading_core.risk import estimate_clean_correlation_panel  # noqa: E402
 
 
 class CovarianceEstimatorTests(unittest.TestCase):
@@ -153,6 +154,30 @@ class CovarianceEstimatorTests(unittest.TestCase):
         self.assertEqual(list(cov.index), list(cov.columns))
         self.assertIn("A", cov.index)
         self.assertIn("B", cov.index)
+
+    def test_estimate_clean_correlation_panel_returns_valid_correlation(self) -> None:
+        prices = pd.DataFrame(
+            {
+                "A": [100, 101, 102, 103, 104, 105],
+                "B": [100, 99, 101, 100, 102, 103],
+                "C": [100, 100.5, 100.0, 99.8, 100.2, 100.9],
+            },
+            index=pd.date_range("2026-01-01", periods=6, freq="B"),
+        )
+        cfg = EstimationConfig(
+            vol_span=2,
+            covariance_window=5,
+            covariance_min_periods=3,
+            cleaning_method="linear_shrinkage",
+            linear_shrinkage=0.1,
+        )
+
+        panel = estimate_clean_correlation_panel(prices, cfg, target_dates=pd.DatetimeIndex([prices.index[-1]]))
+
+        self.assertIn(prices.index[-1], panel)
+        corr = panel[prices.index[-1]]
+        np.testing.assert_allclose(np.diag(corr), np.ones(len(corr)))
+        self.assertTrue(np.allclose(corr.to_numpy(), corr.to_numpy().T))
 
 
 if __name__ == "__main__":

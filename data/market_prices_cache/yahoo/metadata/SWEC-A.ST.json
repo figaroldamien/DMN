@@ -1,0 +1,8 @@
+{
+  "ticker": "SWEC-A.ST",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:46.648979+00:00",
+  "data_start": "2000-01-04",
+  "data_end": "2026-07-01",
+  "rows": 6720
+}

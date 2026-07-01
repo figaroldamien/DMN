@@ -1,0 +1,8 @@
+{
+  "ticker": "DDOG",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:17.227860+00:00",
+  "data_start": "2019-09-19",
+  "data_end": "2026-07-01",
+  "rows": 1704
+}

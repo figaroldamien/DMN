@@ -1,0 +1,8 @@
+{
+  "ticker": "VEEV",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:53.285693+00:00",
+  "data_start": "2013-10-16",
+  "data_end": "2026-07-01",
+  "rows": 3195
+}

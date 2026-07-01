@@ -1,0 +1,8 @@
+{
+  "ticker": "BVI.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:14:44.520122+00:00",
+  "data_start": "2007-10-24",
+  "data_end": "2026-07-01",
+  "rows": 4779
+}

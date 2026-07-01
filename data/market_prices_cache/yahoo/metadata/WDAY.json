@@ -1,0 +1,8 @@
+{
+  "ticker": "WDAY",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:39.014699+00:00",
+  "data_start": "2012-10-12",
+  "data_end": "2026-07-01",
+  "rows": 3447
+}

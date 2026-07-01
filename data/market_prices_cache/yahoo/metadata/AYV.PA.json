@@ -1,0 +1,8 @@
+{
+  "ticker": "AYV.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:41:53.483156+00:00",
+  "data_start": "2017-06-16",
+  "data_end": "2026-07-01",
+  "rows": 2314
+}

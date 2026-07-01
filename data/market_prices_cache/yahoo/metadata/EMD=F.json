@@ -1,0 +1,8 @@
+{
+  "ticker": "EMD=F",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-18T16:40:44.111519+00:00",
+  "data_start": "2026-06-18",
+  "data_end": "2026-06-18",
+  "rows": 1
+}

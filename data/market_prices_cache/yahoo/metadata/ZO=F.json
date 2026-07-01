@@ -1,0 +1,8 @@
+{
+  "ticker": "ZO=F",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:41.379910+00:00",
+  "data_start": "1999-09-14",
+  "data_end": "2026-07-01",
+  "rows": 6573
+}

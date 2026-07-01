@@ -1,0 +1,8 @@
+{
+  "ticker": "FDXF",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:21.859667+00:00",
+  "data_start": "2026-05-27",
+  "data_end": "2026-07-01",
+  "rows": 25
+}

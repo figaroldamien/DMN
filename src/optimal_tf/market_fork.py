@@ -90,6 +90,15 @@ def write_market_fork_snapshot(snapshot: MarketForkSnapshot, output_dir: str | P
     return path
 
 
+def list_market_fork_snapshots(snapshot_dir: str | Path, *, limit: int = 50) -> list[Path]:
+    directory = Path(snapshot_dir)
+    if not directory.exists() or not directory.is_dir():
+        return []
+    paths = [path for path in directory.glob("*.json") if path.is_file()]
+    paths.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    return paths[:limit]
+
+
 def load_market_fork_snapshot(path: str | Path) -> MarketForkSnapshot:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     return MarketForkSnapshot(**payload)

@@ -1,6 +1,6 @@
 [universe]
 name = "cac40"
-start = "2000-01-01"
+start = "1995-01-01"
 
 [estimation]
 vol_span = 60
@@ -18,8 +18,8 @@ sigma_target_annual = 0.15
 portfolio_vol_target = true
 portfolio_vol_span = 60
 cost_bps = 15.0
-weight_smoothing_alpha = 1.0
-long_only = true
+weight_smoothing_alpha = 0.05
+long_only = false
 
 [allocation]
 strategy = "ARP"
@@ -28,21 +28,15 @@ strategy = "ARP"
 strategy = "ARP"
 rebalance_frequency = "monthly"
 evaluation_start = "2010-01-01"
-# evaluation_end = "2026-05-11"
 
 [compare]
-strategies = ["RP", "ARP", "EW", "NM"]
+strategies = ["ARP", "EW", "NM", "RP"]
 
 [output]
-# Optional exports for `optimal-tf`
 allocation_csv = "output/optimal_tf/weights.csv"
 allocation_json = "output/optimal_tf/weights.json"
-
-# Optional exports for `optimal-tf-evaluate`
 evaluation_dir = "output/optimal_tf/evaluation_run"
 evaluation_plot = true
-
-# Optional exports for `optimal-tf-compare`
 compare_dir = "output/optimal_tf/compare_run"
 compare_clean_dir = true
 compare_plot = true

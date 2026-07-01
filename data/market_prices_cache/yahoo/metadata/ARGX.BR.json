@@ -1,0 +1,8 @@
+{
+  "ticker": "ARGX.BR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:29:52.790593+00:00",
+  "data_start": "2014-07-10",
+  "data_end": "2026-07-01",
+  "rows": 3064
+}

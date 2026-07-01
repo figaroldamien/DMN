@@ -1,0 +1,8 @@
+{
+  "ticker": "WAB",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:56.854769+00:00",
+  "data_start": "1995-06-16",
+  "data_end": "2026-07-01",
+  "rows": 7811
+}

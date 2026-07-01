@@ -1,0 +1,8 @@
+{
+  "ticker": "BLDR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:34.453393+00:00",
+  "data_start": "2005-06-28",
+  "data_end": "2026-07-01",
+  "rows": 5285
+}

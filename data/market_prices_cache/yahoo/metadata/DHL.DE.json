@@ -1,0 +1,8 @@
+{
+  "ticker": "DHL.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:29:56.652371+00:00",
+  "data_start": "2000-11-20",
+  "data_end": "2026-07-01",
+  "rows": 6540
+}

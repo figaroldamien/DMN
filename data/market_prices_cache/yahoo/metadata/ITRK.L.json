@@ -1,0 +1,8 @@
+{
+  "ticker": "ITRK.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:47.634309+00:00",
+  "data_start": "2002-05-24",
+  "data_end": "2026-07-01",
+  "rows": 6119
+}

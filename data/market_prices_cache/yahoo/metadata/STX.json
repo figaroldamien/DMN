@@ -1,0 +1,8 @@
+{
+  "ticker": "STX",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:35.945815+00:00",
+  "data_start": "2002-12-11",
+  "data_end": "2026-07-01",
+  "rows": 5925
+}

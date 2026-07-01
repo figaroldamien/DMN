@@ -1,0 +1,8 @@
+{
+  "ticker": "CBRE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:42.617006+00:00",
+  "data_start": "2004-06-10",
+  "data_end": "2026-07-01",
+  "rows": 5549
+}

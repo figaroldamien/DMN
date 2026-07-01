@@ -1,0 +1,8 @@
+{
+  "ticker": "WPP.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:42:08.581908+00:00",
+  "data_start": "1995-03-24",
+  "data_end": "2026-07-01",
+  "rows": 7987
+}

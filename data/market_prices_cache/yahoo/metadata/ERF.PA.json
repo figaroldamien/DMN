@@ -1,0 +1,8 @@
+{
+  "ticker": "ERF.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:14:48.852683+00:00",
+  "data_start": "1997-10-27",
+  "data_end": "2026-07-01",
+  "rows": 7377
+}

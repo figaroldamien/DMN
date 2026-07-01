@@ -1,0 +1,8 @@
+{
+  "ticker": "AMP",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:19.286470+00:00",
+  "data_start": "2005-09-15",
+  "data_end": "2026-07-01",
+  "rows": 5230
+}

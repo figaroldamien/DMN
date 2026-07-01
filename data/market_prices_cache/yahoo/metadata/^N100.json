@@ -1,0 +1,8 @@
+{
+  "ticker": "^N100",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-25T14:01:26.437954+00:00",
+  "data_start": "2000-01-03",
+  "data_end": "2026-06-25",
+  "rows": 6770
+}

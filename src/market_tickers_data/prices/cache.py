@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .models import TickerCacheMetadata
@@ -36,11 +37,25 @@ def read_cached_ticker_prices(ticker: str) -> pd.Series | None:
     path = ticker_cache_path(ticker)
     if not path.exists():
         return None
-    frame = pd.read_parquet(path)
+    try:
+        frame = pd.read_parquet(path)
+    except Exception:
+        path.unlink(missing_ok=True)
+        return None
     if frame.shape[1] == 0:
+        path.unlink(missing_ok=True)
         return None
     data = frame.iloc[:, 0].copy()
-    data.index = pd.to_datetime(data.index)
+    try:
+        data.index = pd.to_datetime(data.index)
+    except Exception:
+        path.unlink(missing_ok=True)
+        return None
+    data = pd.to_numeric(data, errors="coerce")
+    data = data.replace([np.inf, -np.inf], np.nan).dropna()
+    if data.empty or not data.index.is_monotonic_increasing or data.index.has_duplicates:
+        path.unlink(missing_ok=True)
+        return None
     data.name = ticker
     return data.sort_index()
 

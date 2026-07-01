@@ -1,0 +1,8 @@
+{
+  "ticker": "FDS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:21.180141+00:00",
+  "data_start": "1996-06-28",
+  "data_end": "2026-07-01",
+  "rows": 7549
+}

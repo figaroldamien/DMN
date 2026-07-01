@@ -23,6 +23,16 @@ def _resolve_covariance_window(cfg) -> int:
     raise ValueError("One of covariance_window, corr_span, or covariance_alpha must be provided.")
 
 
+def _build_risk_inputs(
+    prices: pd.DataFrame,
+    cfg,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    returns = sanitize_returns(compute_returns(prices), max_abs_return=cfg.max_abs_return)
+    vol = ewma_vol(returns, span=cfg.vol_span)
+    z_returns = normalize_returns_by_vol(returns, vol)
+    return returns, vol, z_returns
+
+
 def rolling_corr_frame(
     frame: pd.DataFrame,
     window: int,
@@ -30,12 +40,15 @@ def rolling_corr_frame(
     target_dates: pd.Index | None = None,
 ) -> dict[pd.Timestamp, tuple[pd.DataFrame, int, pd.DataFrame]]:
     min_periods = window if min_periods is None else min_periods
-    target_set = None if target_dates is None else set(pd.DatetimeIndex(target_dates))
     out: dict[pd.Timestamp, tuple[pd.DataFrame, int, pd.DataFrame]] = {}
-    for idx in range(len(frame)):
+    if target_dates is None:
+        positions = range(len(frame))
+    else:
+        target_index = pd.DatetimeIndex(target_dates)
+        resolved_positions = frame.index.get_indexer(target_index)
+        positions = sorted({int(idx) for idx in resolved_positions if idx >= 0})
+    for idx in positions:
         end = frame.index[idx]
-        if target_set is not None and end not in target_set:
-            continue
         sample = frame.iloc[max(0, idx - window + 1) : idx + 1]
         valid_cols = sample.columns[sample.notna().sum(axis=0) >= min_periods]
         if len(valid_cols) < 2:
@@ -69,14 +82,38 @@ def estimate_clean_covariance_at_date(
     return panel[max(eligible)]
 
 
-def estimate_clean_covariance_panel(
+def estimate_clean_correlation_at_date(
+    prices: pd.DataFrame,
+    cfg,
+    date: pd.Timestamp | str,
+) -> pd.DataFrame:
+    ts = pd.Timestamp(date)
+    history = prices.loc[prices.index <= ts]
+    if history.empty:
+        raise ValueError(f"No price history available on or before {ts.date()}.")
+    panel = estimate_clean_correlation_panel(history, cfg, target_dates=pd.DatetimeIndex([ts]))
+    if not panel:
+        raise ValueError(f"Not enough history to estimate correlation on {ts.date()}.")
+    eligible = [key for key in panel if key <= ts]
+    if not eligible:
+        raise ValueError(f"No correlation estimate available on or before {ts.date()}.")
+    return panel[max(eligible)]
+
+
+def estimate_clean_correlation_panel(
     prices: pd.DataFrame,
     cfg,
     target_dates: pd.Index | None = None,
 ) -> dict[pd.Timestamp, pd.DataFrame]:
-    returns = sanitize_returns(compute_returns(prices), max_abs_return=cfg.max_abs_return)
-    vol = ewma_vol(returns, span=cfg.vol_span)
-    z_returns = normalize_returns_by_vol(returns, vol)
+    _, _, z_returns = _build_risk_inputs(prices, cfg)
+    return estimate_clean_correlation_panel_from_z_returns(z_returns, cfg, target_dates=target_dates)
+
+
+def estimate_clean_correlation_panel_from_z_returns(
+    z_returns: pd.DataFrame,
+    cfg,
+    target_dates: pd.Index | None = None,
+) -> dict[pd.Timestamp, pd.DataFrame]:
     covariance_window = _resolve_covariance_window(cfg)
     raw_corr = rolling_corr_frame(
         z_returns,
@@ -87,7 +124,7 @@ def estimate_clean_covariance_panel(
 
     out: dict[pd.Timestamp, pd.DataFrame] = {}
     for ts, (corr, sample_size, sample_frame) in raw_corr.items():
-        clean_corr = clean_correlation_matrix(
+        out[ts] = clean_correlation_matrix(
             corr,
             data=sample_frame,
             sample_size=sample_size,
@@ -95,6 +132,23 @@ def estimate_clean_covariance_panel(
             linear_shrinkage=cfg.linear_shrinkage,
             bandwidth=cfg.rie_bandwidth,
         )
+    return out
+
+
+def estimate_clean_covariance_panel(
+    prices: pd.DataFrame,
+    cfg,
+    target_dates: pd.Index | None = None,
+) -> dict[pd.Timestamp, pd.DataFrame]:
+    _, vol, z_returns = _build_risk_inputs(prices, cfg)
+    corr_panel = estimate_clean_correlation_panel_from_z_returns(
+        z_returns,
+        cfg,
+        target_dates=target_dates,
+    )
+
+    out: dict[pd.Timestamp, pd.DataFrame] = {}
+    for ts, clean_corr in corr_panel.items():
         vol_t = vol.loc[ts].dropna()
         tickers = [ticker for ticker in clean_corr.index if ticker in vol_t.index]
         if not tickers:

@@ -1,0 +1,8 @@
+{
+  "ticker": "GOOGL",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:21.061602+00:00",
+  "data_start": "2004-08-19",
+  "data_end": "2026-07-01",
+  "rows": 5501
+}

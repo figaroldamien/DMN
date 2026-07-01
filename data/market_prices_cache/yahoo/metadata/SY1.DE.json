@@ -1,0 +1,8 @@
+{
+  "ticker": "SY1.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:47.502008+00:00",
+  "data_start": "2006-12-11",
+  "data_end": "2026-07-01",
+  "rows": 4963
+}

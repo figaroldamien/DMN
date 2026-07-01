@@ -1,0 +1,8 @@
+{
+  "ticker": "MPC",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:03.196673+00:00",
+  "data_start": "2011-06-24",
+  "data_end": "2026-07-01",
+  "rows": 3776
+}

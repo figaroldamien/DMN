@@ -1,0 +1,8 @@
+{
+  "ticker": "IFX.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:29:59.626588+00:00",
+  "data_start": "2000-03-13",
+  "data_end": "2026-07-01",
+  "rows": 6720
+}

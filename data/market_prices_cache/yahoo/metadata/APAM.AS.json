@@ -1,0 +1,8 @@
+{
+  "ticker": "APAM.AS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:41:52.091529+00:00",
+  "data_start": "2011-01-26",
+  "data_end": "2026-07-01",
+  "rows": 3947
+}

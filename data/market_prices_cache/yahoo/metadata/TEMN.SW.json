@@ -1,0 +1,8 @@
+{
+  "ticker": "TEMN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:50.072672+00:00",
+  "data_start": "2001-06-26",
+  "data_end": "2026-07-01",
+  "rows": 6337
+}

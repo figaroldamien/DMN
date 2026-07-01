@@ -2,29 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from trading_core.features import compute_returns, ema, ewma_vol as _core_ewma_vol, macd, rolling_return
 
 
 def ewma_vol(returns: pd.DataFrame, span: int = 60, min_periods: int = 60) -> pd.DataFrame:
-    return returns.ewm(span=span, adjust=False, min_periods=min_periods).std()
-
-
-def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
-    return prices.pct_change()
-
-
-def rolling_return(prices: pd.DataFrame, window: int) -> pd.DataFrame:
-    return prices.pct_change(window)
-
-
-def ema(series: pd.Series, span: int) -> pd.Series:
-    return series.ewm(span=span, adjust=False).mean()
-
-
-def macd(prices: pd.DataFrame, short_span: int, long_span: int) -> pd.DataFrame:
-    out = pd.DataFrame(index=prices.index, columns=prices.columns, dtype=float)
-    for c in prices.columns:
-        out[c] = ema(prices[c], short_span) - ema(prices[c], long_span)
-    return out
+    return _core_ewma_vol(returns, span=span, min_periods=min_periods)
 
 
 def phi(y: pd.DataFrame) -> pd.DataFrame:

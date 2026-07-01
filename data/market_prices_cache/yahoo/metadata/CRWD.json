@@ -1,0 +1,8 @@
+{
+  "ticker": "CRWD",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:15.443608+00:00",
+  "data_start": "2019-06-12",
+  "data_end": "2026-07-01",
+  "rows": 1771
+}

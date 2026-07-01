@@ -26,8 +26,12 @@ def _empty_summary_columns() -> list[str]:
             EvaluationSummary(
                 total_return=0.0,
                 ann_return=0.0,
+                cagr=0.0,
                 ann_vol=0.0,
                 sharpe=0.0,
+                sortino=0.0,
+                skewness=0.0,
+                mar=0.0,
                 mdd=0.0,
                 avg_turnover=0.0,
                 annualized_turnover=0.0,

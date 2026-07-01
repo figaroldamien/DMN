@@ -1,0 +1,8 @@
+{
+  "ticker": "EDV.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:18.986529+00:00",
+  "data_start": "2018-01-30",
+  "data_end": "2026-07-01",
+  "rows": 2126
+}

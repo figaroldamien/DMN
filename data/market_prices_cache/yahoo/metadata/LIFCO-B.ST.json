@@ -1,0 +1,8 @@
+{
+  "ticker": "LIFCO-B.ST",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:55.348042+00:00",
+  "data_start": "2014-11-21",
+  "data_end": "2026-07-01",
+  "rows": 2913
+}

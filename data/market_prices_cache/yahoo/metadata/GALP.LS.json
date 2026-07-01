@@ -1,0 +1,8 @@
+{
+  "ticker": "GALP.LS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:30.045869+00:00",
+  "data_start": "2006-10-24",
+  "data_end": "2026-07-01",
+  "rows": 5038
+}

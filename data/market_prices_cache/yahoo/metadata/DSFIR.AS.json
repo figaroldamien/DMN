@@ -1,0 +1,8 @@
+{
+  "ticker": "DSFIR.AS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:16.600722+00:00",
+  "data_start": "2023-04-18",
+  "data_end": "2026-07-01",
+  "rows": 818
+}

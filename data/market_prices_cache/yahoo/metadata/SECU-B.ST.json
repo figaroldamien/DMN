@@ -1,0 +1,8 @@
+{
+  "ticker": "SECU-B.ST",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:31.907201+00:00",
+  "data_start": "2000-01-03",
+  "data_end": "2026-07-01",
+  "rows": 6721
+}

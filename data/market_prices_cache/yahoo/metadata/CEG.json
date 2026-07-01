@@ -1,0 +1,8 @@
+{
+  "ticker": "CEG",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:13.652319+00:00",
+  "data_start": "2022-01-19",
+  "data_end": "2026-07-01",
+  "rows": 1116
+}

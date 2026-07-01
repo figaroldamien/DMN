@@ -1,0 +1,8 @@
+{
+  "ticker": "DGX",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:00.736525+00:00",
+  "data_start": "1996-12-17",
+  "data_end": "2026-07-01",
+  "rows": 7430
+}

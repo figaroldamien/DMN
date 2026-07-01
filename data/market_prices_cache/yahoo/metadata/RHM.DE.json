@@ -1,0 +1,8 @@
+{
+  "ticker": "RHM.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:30:02.684648+00:00",
+  "data_start": "1998-08-05",
+  "data_end": "2026-07-01",
+  "rows": 7138
+}

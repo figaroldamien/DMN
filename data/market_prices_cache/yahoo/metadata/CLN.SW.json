@@ -1,0 +1,8 @@
+{
+  "ticker": "CLN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:08.782765+00:00",
+  "data_start": "1996-03-21",
+  "data_end": "2026-07-01",
+  "rows": 7710
+}

@@ -1,0 +1,437 @@
+{
+  "universe": "futures",
+  "components": [
+    {
+      "ticker": "ZF=F",
+      "category": "bond",
+      "description": "US 5-Year Treasury Note Futures"
+    },
+    {
+      "ticker": "ZN=F",
+      "category": "bond",
+      "description": "US 10-Year Treasury Note Futures"
+    },
+    {
+      "ticker": "ZT=F",
+      "category": "bond",
+      "description": "US 2-Year Treasury Note Futures"
+    },
+    {
+      "ticker": "UB=F",
+      "category": "bond",
+      "description": "Ultra US Treasury Bond Futures"
+    },
+    {
+      "ticker": "ZB=F",
+      "category": "bond",
+      "description": "US 30-Year Treasury Bond Futures"
+    },
+    {
+      "ticker": "ZFL.TO",
+      "category": "bond",
+      "description": "Canada 10-Year Bond Proxy"
+    },
+    {
+      "ticker": "IS0L.DE",
+      "category": "bond",
+      "description": "Euro-Bobl Futures Proxy"
+    },
+    {
+      "ticker": "SDEU.L",
+      "category": "bond",
+      "description": "Euro-Schatz Futures Proxy"
+    },
+    {
+      "ticker": "IITB.MI",
+      "category": "bond",
+      "description": "Long-Term Euro-BTP Futures Proxy"
+    },
+    {
+      "ticker": "EXX6.DE",
+      "category": "bond",
+      "description": "Euro-Buxl Futures Proxy"
+    },
+    {
+      "ticker": "GLUH.AS",
+      "category": "bond",
+      "description": "Long Gilt Futures Proxy"
+    },
+    {
+      "ticker": "IFRD.AS",
+      "category": "bond",
+      "description": "10-Year French Government Bond Futures Proxy"
+    },
+    {
+      "ticker": "XJSE.MI",
+      "category": "bond",
+      "description": "JGB 10-Year Futures Proxy"
+    },
+    {
+      "ticker": "EXHD.DE",
+      "category": "bond",
+      "description": "Euro-Bund 10-Year Futures Proxy"
+    },
+    {
+      "ticker": "CC=F",
+      "category": "comdty",
+      "sub_category": "soft",
+      "description": "Cocoa Futures"
+    },
+    {
+      "ticker": "KC=F",
+      "category": "comdty",
+      "sub_category": "soft",
+      "description": "Coffee Futures"
+    },
+    {
+      "ticker": "CT=F",
+      "category": "comdty",
+      "sub_category": "soft",
+      "description": "Cotton No. 2 Futures"
+    },
+    {
+      "ticker": "LBR=F",
+      "category": "comdty",
+      "sub_category": "soft",
+      "description": "Lumber Futures"
+    },
+    {
+      "ticker": "OJ=F",
+      "category": "comdty",
+      "sub_category": "soft",
+      "description": "Orange Juice Futures"
+    },
+    {
+      "ticker": "SB=F",
+      "category": "comdty",
+      "sub_category": "soft",
+      "description": "Sugar No. 11 Futures"
+    },
+    {
+      "ticker": "SUGA.MI",
+      "category": "comdty",
+      "sub_category": "soft",
+      "description": "London Sugar Futures Proxy"
+    },
+    {
+      "ticker": "BZ=F",
+      "category": "comdty",
+      "sub_category": "energy",
+      "description": "Brent Crude Futures"
+    },
+    {
+      "ticker": "CL=F",
+      "category": "comdty",
+      "sub_category": "energy",
+      "description": "Crude Oil WTI Futures"
+    },
+    {
+      "ticker": "HO=F",
+      "category": "comdty",
+      "sub_category": "energy",
+      "description": "Heating Oil Futures"
+    },
+    {
+      "ticker": "KRBN",
+      "category": "comdty",
+      "sub_category": "energy",
+      "description": "ECX EUA Futures Proxy"
+    },
+    {
+      "ticker": "NG=F",
+      "category": "comdty",
+      "sub_category": "energy",
+      "description": "Natural Gas Futures"
+    },
+    {
+      "ticker": "QH=F",
+      "category": "comdty",
+      "sub_category": "energy",
+      "description": "NY Harbor ULSD Futures"
+    },
+    {
+      "ticker": "RB=F",
+      "category": "comdty",
+      "sub_category": "energy",
+      "description": "Gasoline Futures"
+    },
+    {
+      "ticker": "ZC=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Corn Futures"
+    },
+    {
+      "ticker": "WEAT",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Milling Wheat Futures Proxy"
+    },
+    {
+      "ticker": "KE=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Hard Red Winter Wheat Futures"
+    },
+    {
+      "ticker": "ZO=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Oats Futures"
+    },
+    {
+      "ticker": "ZR=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Rough Rice Futures"
+    },
+    {
+      "ticker": "ZL=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Soybean Oil Futures"
+    },
+    {
+      "ticker": "ZM=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Soybean Meal Futures"
+    },
+    {
+      "ticker": "ZS=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Soybean Futures"
+    },
+    {
+      "ticker": "ZW=F",
+      "category": "comdty",
+      "sub_category": "grain",
+      "description": "Chicago Wheat Futures"
+    },
+    {
+      "ticker": "GF=F",
+      "category": "comdty",
+      "sub_category": "meat",
+      "description": "Feeder Cattle Futures"
+    },
+    {
+      "ticker": "HE=F",
+      "category": "comdty",
+      "sub_category": "meat",
+      "description": "Lean Hogs Futures"
+    },
+    {
+      "ticker": "LE=F",
+      "category": "comdty",
+      "sub_category": "meat",
+      "description": "Live Cattle Futures"
+    },
+    {
+      "ticker": "DC=F",
+      "category": "comdty",
+      "sub_category": "meat",
+      "description": "Class III Milk Futures"
+    },
+    {
+      "ticker": "GC=F",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Gold Futures"
+    },
+    {
+      "ticker": "HG=F",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "High Grade Copper Futures"
+    },
+    {
+      "ticker": "PA=F",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Palladium Futures"
+    },
+    {
+      "ticker": "PL=F",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Platinum Futures"
+    },
+    {
+      "ticker": "SI=F",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Silver Futures"
+    },
+    {
+      "ticker": "TIO=F",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Iron Ore 62% Fe CFR China Futures"
+    },
+    {
+      "ticker": "LEAD.MI",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Lead Futures Proxy"
+    },
+    {
+      "ticker": "NICK.L",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Nickel Futures Proxy"
+    },
+    {
+      "ticker": "ZINC.L",
+      "category": "comdty",
+      "sub_category": "metal",
+      "description": "Zinc Futures Proxy"
+    },
+    {
+      "ticker": "6A=F",
+      "category": "fx",
+      "description": "AUD/USD Futures"
+    },
+    {
+      "ticker": "6B=F",
+      "category": "fx",
+      "description": "GBP/USD Futures"
+    },
+    {
+      "ticker": "6C=F",
+      "category": "fx",
+      "description": "CAD/USD Futures"
+    },
+    {
+      "ticker": "6E=F",
+      "category": "fx",
+      "description": "EUR/USD Futures"
+    },
+    {
+      "ticker": "6J=F",
+      "category": "fx",
+      "description": "JPY/USD Futures"
+    },
+    {
+      "ticker": "6L=F",
+      "category": "fx",
+      "description": "BRL/USD Futures"
+    },
+    {
+      "ticker": "6M=F",
+      "category": "fx",
+      "description": "MXN/USD Futures"
+    },
+    {
+      "ticker": "6N=F",
+      "category": "fx",
+      "description": "NZD/USD Futures"
+    },
+    {
+      "ticker": "6S=F",
+      "category": "fx",
+      "description": "CHF/USD Futures"
+    },
+    {
+      "ticker": "^AEX",
+      "category": "index",
+      "description": "Amsterdam EOE Index Futures Monthly Roll"
+    },
+    {
+      "ticker": "^FCHI",
+      "category": "index",
+      "description": "CAC 40 Futures Monthly Roll"
+    },
+    {
+      "ticker": "EEM",
+      "category": "index",
+      "description": "Mini MSCI Emerging Markets Index Proxy"
+    },
+    {
+      "ticker": "IJH",
+      "category": "index",
+      "description": "S&P MidCap 400 Futures Proxy"
+    },
+    {
+      "ticker": "ES=F",
+      "category": "index",
+      "description": "S&P 500 E-mini Futures"
+    },
+    {
+      "ticker": "EXSA.DE",
+      "category": "index",
+      "description": "STOXX Europe 600 Index Proxy"
+    },
+    {
+      "ticker": "FTSEMIB.MI",
+      "category": "index",
+      "description": "FTSE MIB Index Proxy"
+    },
+    {
+      "ticker": "NQ=F",
+      "category": "index",
+      "description": "Nasdaq E-mini Futures"
+    },
+    {
+      "ticker": "NKD=F",
+      "category": "index",
+      "description": "Nikkei 225 Osaka Futures"
+    },
+    {
+      "ticker": "RTY=F",
+      "category": "index",
+      "description": "Russell 2000 E-mini Futures"
+    },
+    {
+      "ticker": "1306.T",
+      "category": "index",
+      "description": "TOPIX Futures"
+    },
+    {
+      "ticker": "XIU.TO",
+      "category": "index",
+      "description": "S&P/TSX 60 Index Proxy"
+    },
+    {
+      "ticker": "YM=F",
+      "category": "index",
+      "description": "Mini Dow Futures"
+    },
+    {
+      "ticker": "^AXJO",
+      "category": "index",
+      "description": "SPI 200 Index Proxy"
+    },
+    {
+      "ticker": "^GDAXI",
+      "category": "index",
+      "description": "DAX Futures Proxy"
+    },
+    {
+      "ticker": "^FTSE",
+      "category": "index",
+      "description": "FTSE 100 Index Proxy"
+    },
+    {
+      "ticker": "^HSI",
+      "category": "index",
+      "description": "Hang Seng Index Proxy"
+    },
+    {
+      "ticker": "^IBEX",
+      "category": "index",
+      "description": "IBEX 35 Index Proxy"
+    },
+    {
+      "ticker": "^KS200",
+      "category": "index",
+      "description": "KOSPI 200 Index Proxy"
+    },
+    {
+      "ticker": "^STOXX50E",
+      "category": "index",
+      "description": "DJ Euro Stoxx Futures Proxy"
+    }
+  ],
+  "benchmark": null
+}

@@ -56,8 +56,12 @@ evaluation_start = "2026-01-01"
         summary = EvaluationSummary(
             total_return=0.1 * scale,
             ann_return=0.12 * scale,
+            cagr=0.11 * scale,
             ann_vol=0.15,
             sharpe=0.8 * scale,
+            sortino=1.0 * scale,
+            skewness=0.1,
+            mar=2.2 * scale,
             mdd=-0.05,
             avg_turnover=0.2,
             annualized_turnover=10.0,
@@ -66,6 +70,10 @@ evaluation_start = "2026-01-01"
             pct_positive_days=0.55,
             num_days=3,
             num_rebalances=1,
+            avg_turnover_per_rebalance=1.0,
+            avg_cost_per_rebalance=0.001,
+            total_return_gross=0.101 * scale,
+            total_return_cost_drag=0.001,
         )
         idx = [pd.Timestamp("2026-01-30")]
         daily_idx = prices.index
@@ -104,8 +112,8 @@ evaluation_start = "2026-01-01"
                             "strategy_results": {"RP": self._build_result(prices, 1.0), "ARP": self._build_result(prices, 1.1)},
                             "summary_table": pd.DataFrame(
                                 [
-                                    {"strategy": "ARP", "total_return": 0.11, "ann_return": 0.132, "ann_vol": 0.15, "sharpe": 0.88, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
-                                    {"strategy": "RP", "total_return": 0.10, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
+                                    {"strategy": "ARP", "total_return": 0.11, "total_return_gross": 0.111, "total_return_cost_drag": 0.001, "ann_return": 0.132, "ann_vol": 0.15, "sharpe": 0.88, "mdd": -0.05, "avg_turnover": 0.2, "avg_turnover_per_rebalance": 1.0, "annualized_turnover": 10.0, "total_cost": 0.001, "avg_cost_per_rebalance": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
+                                    {"strategy": "RP", "total_return": 0.10, "total_return_gross": 0.101, "total_return_cost_drag": 0.001, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "avg_turnover_per_rebalance": 1.0, "annualized_turnover": 10.0, "total_cost": 0.001, "avg_cost_per_rebalance": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
                                 ]
                             ),
                             "nav_comparison": pd.DataFrame({"RP": [1.0, 1.01], "ARP": [1.0, 1.02]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
@@ -163,7 +171,7 @@ evaluation_start = "2026-01-01"
                         {
                             "strategy_results": {"RP": self._build_result(prices, 1.0)},
                             "summary_table": pd.DataFrame(
-                                [{"strategy": "RP", "total_return": 0.10, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1}]
+                                [{"strategy": "RP", "total_return": 0.10, "total_return_gross": 0.101, "total_return_cost_drag": 0.001, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "avg_turnover_per_rebalance": 1.0, "annualized_turnover": 10.0, "total_cost": 0.001, "avg_cost_per_rebalance": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1}]
                             ),
                             "nav_comparison": pd.DataFrame({"RP": [1.0, 1.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
                             "drawdown_comparison": pd.DataFrame({"RP": [0.0, -0.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
@@ -206,7 +214,7 @@ evaluation_start = "2026-01-01"
                         {
                             "strategy_results": {"RP": self._build_result(prices, 1.0)},
                             "summary_table": pd.DataFrame(
-                                [{"strategy": "RP", "total_return": 0.10, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1}]
+                                [{"strategy": "RP", "total_return": 0.10, "total_return_gross": 0.101, "total_return_cost_drag": 0.001, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "avg_turnover_per_rebalance": 1.0, "annualized_turnover": 10.0, "total_cost": 0.001, "avg_cost_per_rebalance": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1}]
                             ),
                             "nav_comparison": pd.DataFrame({"RP": [1.0, 1.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
                             "drawdown_comparison": pd.DataFrame({"RP": [0.0, -0.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
@@ -254,7 +262,7 @@ compare_plot = false
                         {
                             "strategy_results": {"RP": self._build_result(prices, 1.0)},
                             "summary_table": pd.DataFrame(
-                                [{"strategy": "RP", "total_return": 0.10, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1}]
+                                [{"strategy": "RP", "total_return": 0.10, "total_return_gross": 0.101, "total_return_cost_drag": 0.001, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "avg_turnover_per_rebalance": 1.0, "annualized_turnover": 10.0, "total_cost": 0.001, "avg_cost_per_rebalance": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1}]
                             ),
                             "nav_comparison": pd.DataFrame({"RP": [1.0, 1.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
                             "drawdown_comparison": pd.DataFrame({"RP": [0.0, -0.01]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),
@@ -305,8 +313,8 @@ compare_plot = false
                         "strategy_results": {"RP": self._build_result(prices, 1.0), "ARP": self._build_result(prices, 1.1)},
                         "summary_table": pd.DataFrame(
                             [
-                                {"strategy": "ARP", "total_return": 0.11, "ann_return": 0.132, "ann_vol": 0.15, "sharpe": 0.88, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
-                                {"strategy": "RP", "total_return": 0.10, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "annualized_turnover": 10.0, "total_cost": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
+                                {"strategy": "ARP", "total_return": 0.11, "total_return_gross": 0.111, "total_return_cost_drag": 0.001, "ann_return": 0.132, "ann_vol": 0.15, "sharpe": 0.88, "mdd": -0.05, "avg_turnover": 0.2, "avg_turnover_per_rebalance": 1.0, "annualized_turnover": 10.0, "total_cost": 0.001, "avg_cost_per_rebalance": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
+                                {"strategy": "RP", "total_return": 0.10, "total_return_gross": 0.101, "total_return_cost_drag": 0.001, "ann_return": 0.120, "ann_vol": 0.15, "sharpe": 0.80, "mdd": -0.05, "avg_turnover": 0.2, "avg_turnover_per_rebalance": 1.0, "annualized_turnover": 10.0, "total_cost": 0.001, "avg_cost_per_rebalance": 0.001, "annualized_cost": 0.01, "pct_positive_days": 0.55, "num_days": 3, "num_rebalances": 1},
                             ]
                         ),
                         "nav_comparison": pd.DataFrame({"RP": [1.0, 1.01], "ARP": [1.0, 1.02]}, index=pd.date_range("2026-01-30", periods=2, freq="B")),

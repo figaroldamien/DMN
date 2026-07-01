@@ -1,0 +1,8 @@
+{
+  "ticker": "VK.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:42:20.741134+00:00",
+  "data_start": "2000-01-03",
+  "data_end": "2026-07-01",
+  "rows": 6807
+}

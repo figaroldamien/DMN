@@ -1,0 +1,8 @@
+{
+  "ticker": "ISP.MI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:30:00.582456+00:00",
+  "data_start": "1995-03-24",
+  "data_end": "2026-07-01",
+  "rows": 8013
+}

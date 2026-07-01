@@ -1,0 +1,8 @@
+{
+  "ticker": "P911.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:13.331095+00:00",
+  "data_start": "2022-09-30",
+  "data_end": "2026-07-01",
+  "rows": 953
+}

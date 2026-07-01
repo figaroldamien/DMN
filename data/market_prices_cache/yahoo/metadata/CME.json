@@ -1,0 +1,8 @@
+{
+  "ticker": "CME",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:48.674750+00:00",
+  "data_start": "2002-12-06",
+  "data_end": "2026-07-01",
+  "rows": 5928
+}

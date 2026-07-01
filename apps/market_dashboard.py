@@ -12,7 +12,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from market_tickers_data import MARKET_TICKERS
 from optimal_tf.config_io import load_config
-from optimal_tf.market_fork import MarketForkSnapshot, load_market_fork_snapshot
+from optimal_tf.market_fork import MarketForkSnapshot, list_market_fork_snapshots, load_market_fork_snapshot
 from optimal_tf.data import load_prices_yf
 from optimal_tf.services import MarketSynthesisRequest, MarketSynthesisResult, run_market_synthesis
 
@@ -771,15 +771,6 @@ def _service_result_view(options: list[str], *, key: str) -> str:
     )
 
 
-def _list_recent_fork_snapshots(snapshot_dir: str | Path, *, limit: int = 50) -> list[Path]:
-    directory = Path(snapshot_dir)
-    if not directory.exists() or not directory.is_dir():
-        return []
-    paths = [path for path in directory.glob("*.json") if path.is_file()]
-    paths.sort(key=lambda path: path.stat().st_mtime, reverse=True)
-    return paths[:limit]
-
-
 def _snapshot_choice_label(path: Path) -> str:
     return path.name
 
@@ -809,7 +800,7 @@ def _render_snapshot_block(snapshot: MarketForkSnapshot) -> None:
 snapshot_path_from_query = str(st.query_params.get("fork", ""))
 default_snapshot_dir = str(Path(snapshot_path_from_query).parent) if snapshot_path_from_query else DEFAULT_FORK_DIR
 snapshot_dir = st.sidebar.text_input("Fork snapshot dir", value=default_snapshot_dir)
-recent_snapshot_paths = _list_recent_fork_snapshots(snapshot_dir)
+recent_snapshot_paths = list_market_fork_snapshots(snapshot_dir)
 recent_snapshot_options = [""] + [str(path) for path in recent_snapshot_paths]
 default_recent_snapshot = snapshot_path_from_query if snapshot_path_from_query in recent_snapshot_options else (recent_snapshot_options[1] if len(recent_snapshot_options) > 1 else "")
 selected_recent_snapshot = st.sidebar.selectbox(

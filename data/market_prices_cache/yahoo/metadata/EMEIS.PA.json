@@ -1,0 +1,8 @@
+{
+  "ticker": "EMEIS.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:41:58.795141+00:00",
+  "data_start": "2002-04-17",
+  "data_end": "2026-07-01",
+  "rows": 6210
+}

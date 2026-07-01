@@ -1,0 +1,8 @@
+{
+  "ticker": "RBI.VI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:20.462644+00:00",
+  "data_start": "2005-04-25",
+  "data_end": "2026-07-01",
+  "rows": 5314
+}

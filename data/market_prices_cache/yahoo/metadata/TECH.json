@@ -1,0 +1,8 @@
+{
+  "ticker": "TECH",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:42.070081+00:00",
+  "data_start": "1995-01-03",
+  "data_end": "2026-07-01",
+  "rows": 7926
+}

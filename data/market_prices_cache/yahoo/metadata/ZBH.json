@@ -1,0 +1,8 @@
+{
+  "ticker": "ZBH",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:49:04.047078+00:00",
+  "data_start": "2001-07-25",
+  "data_end": "2026-07-01",
+  "rows": 6270
+}

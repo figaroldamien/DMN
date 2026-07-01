@@ -1,0 +1,8 @@
+{
+  "ticker": "RMV.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:23.989265+00:00",
+  "data_start": "2006-03-10",
+  "data_end": "2026-07-01",
+  "rows": 5130
+}

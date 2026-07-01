@@ -1,0 +1,8 @@
+{
+  "ticker": "TRYG.CO",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:55.480282+00:00",
+  "data_start": "2005-10-14",
+  "data_end": "2026-07-01",
+  "rows": 5180
+}

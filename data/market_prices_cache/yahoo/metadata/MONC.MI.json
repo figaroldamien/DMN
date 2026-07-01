@@ -1,0 +1,8 @@
+{
+  "ticker": "MONC.MI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:03.144911+00:00",
+  "data_start": "2013-12-16",
+  "data_end": "2026-07-01",
+  "rows": 3181
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "NDA-FI.HE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:30:01.925095+00:00",
+  "data_start": "2000-01-25",
+  "data_end": "2026-07-01",
+  "rows": 6707
+}

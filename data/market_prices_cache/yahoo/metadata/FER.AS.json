@@ -1,0 +1,8 @@
+{
+  "ticker": "FER.AS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:25.682620+00:00",
+  "data_start": "2023-06-16",
+  "data_end": "2026-07-01",
+  "rows": 776
+}

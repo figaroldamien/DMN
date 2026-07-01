@@ -1,0 +1,8 @@
+{
+  "ticker": "NEX.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:42:10.404971+00:00",
+  "data_start": "2001-06-13",
+  "data_end": "2026-07-01",
+  "rows": 6430
+}

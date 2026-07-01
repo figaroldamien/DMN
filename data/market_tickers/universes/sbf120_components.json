@@ -1,0 +1,853 @@
+{
+  "universe": "sbf120",
+  "benchmark": {
+    "ticker": "^SBF120",
+    "name": "SBF 120",
+    "category": "index"
+  },
+  "source": "CAC 40 local file + live Wikipedia CAC Next 20 and CAC Mid 60 component tables",
+  "source_date": "2026-06-12",
+  "source_note": "Built from local CAC 40 components plus live CAC Next 20 and CAC Mid 60 company lists. Ticker resolution used existing local universes, manual Yahoo-compatible overrides, and yfinance search metadata for hierarchy completion.",
+  "components": [
+    {
+      "ticker": "AC.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Lodging",
+      "description": "Accor"
+    },
+    {
+      "ticker": "ACA.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Banks",
+      "description": "Crédit Agricole"
+    },
+    {
+      "ticker": "ADP.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Airports and Air Services",
+      "description": "Groupe ADP"
+    },
+    {
+      "ticker": "AF.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Airlines",
+      "description": "Air France-KLM"
+    },
+    {
+      "ticker": "AI.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Air Liquide"
+    },
+    {
+      "ticker": "AIR.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Aerospace and Defense",
+      "description": "Airbus"
+    },
+    {
+      "ticker": "AKE.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Arkema"
+    },
+    {
+      "ticker": "ALO.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Railroads",
+      "description": "Alstom"
+    },
+    {
+      "ticker": "AM.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Aerospace and Defense",
+      "description": "Dassault Aviation"
+    },
+    {
+      "ticker": "AMUN.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Asset Management",
+      "description": "Amundi"
+    },
+    {
+      "ticker": "APAM.AS",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Steel",
+      "description": "Aperam"
+    },
+    {
+      "ticker": "ARG.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Industrial REITs",
+      "description": "Argan"
+    },
+    {
+      "ticker": "ATE.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "IT Services",
+      "description": "ALTEN"
+    },
+    {
+      "ticker": "ATO.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "IT Services",
+      "description": "Atos"
+    },
+    {
+      "ticker": "AYV.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Rental & Leasing Services",
+      "description": "Ayvens"
+    },
+    {
+      "ticker": "BB.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Leisure",
+      "description": "Bic"
+    },
+    {
+      "ticker": "BEN.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Recreational Vehicles",
+      "description": "Bénéteau"
+    },
+    {
+      "ticker": "BIM.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Diagnostics and Research",
+      "description": "bioMérieux"
+    },
+    {
+      "ticker": "BN.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Packaged Foods",
+      "description": "Danone"
+    },
+    {
+      "ticker": "BNP.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Banks",
+      "description": "BNP Paribas"
+    },
+    {
+      "ticker": "BOL.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Entertainment",
+      "description": "Bolloré"
+    },
+    {
+      "ticker": "BVI.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Professional Services",
+      "description": "Bureau Veritas"
+    },
+    {
+      "ticker": "CA.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Food Retail",
+      "description": "Carrefour"
+    },
+    {
+      "ticker": "CAP.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "IT Services",
+      "description": "Capgemini"
+    },
+    {
+      "ticker": "CARM.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Retail REITs",
+      "description": "Carmila"
+    },
+    {
+      "ticker": "CLARI.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Medical Care Facilities",
+      "description": "Clariane"
+    },
+    {
+      "ticker": "COFA.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Insurance and Reinsurance",
+      "description": "Coface"
+    },
+    {
+      "ticker": "COV.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Hotel and Resort REITs",
+      "description": "Covivio"
+    },
+    {
+      "ticker": "CS.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Insurance",
+      "description": "Axa"
+    },
+    {
+      "ticker": "DBG.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Waste Management",
+      "description": "Derichebourg"
+    },
+    {
+      "ticker": "DEC.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Advertising",
+      "description": "JCDecaux"
+    },
+    {
+      "ticker": "DG.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Engineering and Construction",
+      "description": "Vinci"
+    },
+    {
+      "ticker": "DIM.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Medical Devices",
+      "description": "Sartorius Stedim Biotech"
+    },
+    {
+      "ticker": "DSY.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software",
+      "description": "Dassault Systèmes"
+    },
+    {
+      "ticker": "EDEN.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Transaction and Payment Processing Services",
+      "description": "Edenred"
+    },
+    {
+      "ticker": "EL.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Medical Devices",
+      "description": "EssilorLuxottica"
+    },
+    {
+      "ticker": "ELIOR.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Restaurants",
+      "description": "Elior Group"
+    },
+    {
+      "ticker": "ELIS.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Specialty Business Services",
+      "description": "Elis"
+    },
+    {
+      "ticker": "EMEIS.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Medical Care Facilities",
+      "description": "Emeis"
+    },
+    {
+      "ticker": "EN.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Engineering and Construction",
+      "description": "Bouygues"
+    },
+    {
+      "ticker": "ENGI.PA",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Multi-Utilities",
+      "description": "Engie"
+    },
+    {
+      "ticker": "ENX.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Financial Data and Stock Exchanges",
+      "description": "Euronext"
+    },
+    {
+      "ticker": "ERA.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Other Industrial Metals & Mining",
+      "description": "Eramet"
+    },
+    {
+      "ticker": "ERF.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Diagnostics and Research",
+      "description": "Eurofins Scientific"
+    },
+    {
+      "ticker": "ES.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil and Gas Refining and Marketing",
+      "description": "Esso S.A.F."
+    },
+    {
+      "ticker": "EXHO.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Specialty Business Services",
+      "description": "Sodexo"
+    },
+    {
+      "ticker": "FDJU.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gambling",
+      "description": "FDJ United"
+    },
+    {
+      "ticker": "FGR.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Engineering and Construction",
+      "description": "Eiffage"
+    },
+    {
+      "ticker": "FR.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Parts",
+      "description": "Valeo"
+    },
+    {
+      "ticker": "FRVIA.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Parts",
+      "description": "Forvia"
+    },
+    {
+      "ticker": "GET.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Railroads",
+      "description": "Getlink"
+    },
+    {
+      "ticker": "GFC.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Office REITs",
+      "description": "Gecina"
+    },
+    {
+      "ticker": "GLE.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Banks",
+      "description": "Société Générale"
+    },
+    {
+      "ticker": "GTT.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil and Gas Equipment and Services",
+      "description": "Gaztransport & Technigaz"
+    },
+    {
+      "ticker": "HO.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Aerospace and Defense",
+      "description": "Thales"
+    },
+    {
+      "ticker": "ICAD.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Diversified REITs",
+      "description": "Icade"
+    },
+    {
+      "ticker": "IDL.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Integrated Freight & Logistics",
+      "description": "ID Logistics"
+    },
+    {
+      "ticker": "IPN.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Drug Manufacturers",
+      "description": "Ipsen"
+    },
+    {
+      "ticker": "IPS.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Consulting Services",
+      "description": "Ipsos"
+    },
+    {
+      "ticker": "ITP.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Personal Products",
+      "description": "Interparfums"
+    },
+    {
+      "ticker": "KER.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Luxury Goods",
+      "description": "Kering"
+    },
+    {
+      "ticker": "LI.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Retail REITs",
+      "description": "Klépierre"
+    },
+    {
+      "ticker": "LR.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Electrical Equipment",
+      "description": "Legrand"
+    },
+    {
+      "ticker": "MAU.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil and Gas E&P",
+      "description": "Maurel et Prom"
+    },
+    {
+      "ticker": "MC.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Luxury Goods",
+      "description": "LVMH"
+    },
+    {
+      "ticker": "MEDCL.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Biotechnology",
+      "description": "Medincell"
+    },
+    {
+      "ticker": "MERY.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Retail REITs",
+      "description": "Mercialys"
+    },
+    {
+      "ticker": "MF.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Asset Management",
+      "description": "Wendel"
+    },
+    {
+      "ticker": "ML.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Parts",
+      "description": "Michelin"
+    },
+    {
+      "ticker": "MMT.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Broadcasting",
+      "description": "Métropole TV"
+    },
+    {
+      "ticker": "MRN.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Electrical Equipment",
+      "description": "Mersen"
+    },
+    {
+      "ticker": "MT.AS",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Steel",
+      "description": "ArcelorMittal"
+    },
+    {
+      "ticker": "NEOEN.PA",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Electric Utilities",
+      "description": "Neoen"
+    },
+    {
+      "ticker": "NEX.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Electrical Equipment",
+      "description": "Nexans"
+    },
+    {
+      "ticker": "NK.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Imerys"
+    },
+    {
+      "ticker": "NXI.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Diversified Real Estate",
+      "description": "Nexity"
+    },
+    {
+      "ticker": "OPM.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Parts",
+      "description": "OPmobility"
+    },
+    {
+      "ticker": "OR.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Personal Products",
+      "description": "L'Oréal"
+    },
+    {
+      "ticker": "ORA.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Telecom Services",
+      "description": "Orange"
+    },
+    {
+      "ticker": "PLNW.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software",
+      "description": "Planisware"
+    },
+    {
+      "ticker": "PLX.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Specialty Business Services",
+      "description": "Pluxee"
+    },
+    {
+      "ticker": "PUB.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Advertising",
+      "description": "Publicis"
+    },
+    {
+      "ticker": "RBT.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Chemicals",
+      "description": "Robertet"
+    },
+    {
+      "ticker": "RCO.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Beverages",
+      "description": "Rémy Cointreau"
+    },
+    {
+      "ticker": "RF.PA",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Asset Management",
+      "description": "Eurazeo"
+    },
+    {
+      "ticker": "RI.PA",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Beverages",
+      "description": "Pernod Ricard"
+    },
+    {
+      "ticker": "RMS.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Luxury Goods",
+      "description": "Hermès"
+    },
+    {
+      "ticker": "RNO.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Renault"
+    },
+    {
+      "ticker": "RUI.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil and Gas Refining and Marketing",
+      "description": "Rubis"
+    },
+    {
+      "ticker": "RXL.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Electronics and Computer Distribution",
+      "description": "Rexel"
+    },
+    {
+      "ticker": "S6P.F",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Leisure",
+      "description": "SPIE"
+    },
+    {
+      "ticker": "SAF.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Aerospace and Defense",
+      "description": "Safran"
+    },
+    {
+      "ticker": "SAN.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Drug Manufacturers",
+      "description": "Sanofi"
+    },
+    {
+      "ticker": "SCR.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software",
+      "description": "SCOR"
+    },
+    {
+      "ticker": "SESG.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Broadcasting",
+      "description": "SES"
+    },
+    {
+      "ticker": "SGO.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Building Products",
+      "description": "Saint-Gobain"
+    },
+    {
+      "ticker": "SK.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Furnishings, Fixtures and Appliances",
+      "description": "SEB"
+    },
+    {
+      "ticker": "SOI.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductor Equipment & Materials",
+      "description": "Soitec"
+    },
+    {
+      "ticker": "SOLB.BR",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Chemicals",
+      "description": "Solvay"
+    },
+    {
+      "ticker": "SOP.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "IT Services",
+      "description": "Sopra Steria"
+    },
+    {
+      "ticker": "STLAP.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Stellantis"
+    },
+    {
+      "ticker": "STMPA.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductors",
+      "description": "STMicroelectronics"
+    },
+    {
+      "ticker": "SU.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Electrical Equipment",
+      "description": "Schneider Electric"
+    },
+    {
+      "ticker": "TE.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil and Gas Equipment and Services",
+      "description": "Technip Energies"
+    },
+    {
+      "ticker": "TEP.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Business Services",
+      "description": "Teleperformance"
+    },
+    {
+      "ticker": "TFI.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Broadcasting",
+      "description": "TF1"
+    },
+    {
+      "ticker": "TRI.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Recreational Vehicles",
+      "description": "Trigano"
+    },
+    {
+      "ticker": "TTE.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Integrated Oil and Gas",
+      "description": "TotalEnergies"
+    },
+    {
+      "ticker": "UBI.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Electronic Gaming and Multimedia",
+      "description": "Ubisoft"
+    },
+    {
+      "ticker": "URW.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Retail REITs",
+      "description": "Unibail-Rodamco-Westfield"
+    },
+    {
+      "ticker": "VCT.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Building Materials",
+      "description": "Vicat"
+    },
+    {
+      "ticker": "VIE.PA",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Water Utilities",
+      "description": "Veolia"
+    },
+    {
+      "ticker": "VIRI.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil and Gas Equipment and Services",
+      "description": "Viridien"
+    },
+    {
+      "ticker": "VIRP.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Drug Manufacturers",
+      "description": "Virbac"
+    },
+    {
+      "ticker": "VIV.PA",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Electronic Gaming and Multimedia",
+      "description": "Vivendi"
+    },
+    {
+      "ticker": "VK.PA",
+      "category": "equity",
+      "sector": "Materials",
+      "sub_sector": "Steel",
+      "description": "Vallourec"
+    },
+    {
+      "ticker": "VLA.PA",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Biotechnology",
+      "description": "Valneva"
+    },
+    {
+      "ticker": "VRLA.PA",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Packaging and Containers",
+      "description": "Verallia"
+    },
+    {
+      "ticker": "VU.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software",
+      "description": "VusionGroup"
+    },
+    {
+      "ticker": "WLN.PA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Software",
+      "description": "Worldline"
+    }
+  ]
+}

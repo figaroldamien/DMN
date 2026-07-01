@@ -1,0 +1,8 @@
+{
+  "ticker": "OJ=F",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:37.397133+00:00",
+  "data_start": "2001-09-17",
+  "data_end": "2026-07-01",
+  "rows": 6220
+}

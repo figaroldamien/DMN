@@ -1,0 +1,8 @@
+{
+  "ticker": "6A=F",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:47.084320+00:00",
+  "data_start": "2000-11-08",
+  "data_end": "2026-07-01",
+  "rows": 6415
+}

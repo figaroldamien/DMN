@@ -1,0 +1,8 @@
+{
+  "ticker": "MONY.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:03.524206+00:00",
+  "data_start": "2007-07-26",
+  "data_end": "2026-07-01",
+  "rows": 4783
+}

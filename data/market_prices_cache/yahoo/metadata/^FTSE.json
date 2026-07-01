@@ -1,0 +1,8 @@
+{
+  "ticker": "^FTSE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:54.895848+00:00",
+  "data_start": "1995-01-03",
+  "data_end": "2026-07-01",
+  "rows": 7955
+}

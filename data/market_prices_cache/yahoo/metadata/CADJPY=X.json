@@ -1,0 +1,8 @@
+{
+  "ticker": "CADJPY=X",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-23T15:11:21.851837+00:00",
+  "data_start": "2004-08-20",
+  "data_end": "2026-06-22",
+  "rows": 5681
+}

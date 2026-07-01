@@ -13,9 +13,17 @@ small recurring problems:
 import pandas as pd
 
 from ..config import EstimationConfig
-from trading_core.risk import estimate_clean_covariance_at_date, estimate_clean_covariance_panel
+from trading_core.risk import (
+    covariance_to_correlation,
+    estimate_clean_correlation_at_date,
+    estimate_clean_correlation_panel,
+    estimate_clean_covariance_at_date,
+    estimate_clean_covariance_panel,
+)
 from ..features import compute_returns, ewma_vol, normalize_returns_by_vol, sanitize_returns
 from .types import StrategyState
+
+_MAX_CACHE_STALENESS_DAYS = 7
 
 
 def resolve_allocation_date(index: pd.Index, as_of_date: str | pd.Timestamp | None = None) -> pd.Timestamp:
@@ -79,14 +87,54 @@ def resolve_covariance_at_date(
 ) -> pd.DataFrame:
     """Return the cleaned covariance snapshot to use on one allocation date.
 
-    If a cache is provided, we reuse the latest available snapshot on or before
-    the requested date. Otherwise we estimate it directly from prices.
+    If a cache is provided, we only reuse snapshots that are still fresh around
+    the requested date. This prevents month- or year-long freezes when a
+    cleaner fails to produce matrices for a stretch of rebalance dates.
     """
     if covariance_cache:
+        if date in covariance_cache:
+            return covariance_cache[date]
         eligible = [ts for ts in covariance_cache if ts <= date]
         if eligible:
-            return covariance_cache[max(eligible)]
+            latest = max(eligible)
+            if (date - latest).days <= _MAX_CACHE_STALENESS_DAYS:
+                return covariance_cache[latest]
     return estimate_clean_covariance_at_date(prices, est_cfg, date)
+
+
+def resolve_clean_correlation_at_date(
+    prices: pd.DataFrame,
+    est_cfg: EstimationConfig,
+    date: pd.Timestamp,
+    correlation_cache: dict[pd.Timestamp, pd.DataFrame] | None = None,
+    covariance_cache: dict[pd.Timestamp, pd.DataFrame] | None = None,
+) -> pd.DataFrame:
+    """Return the cleaned correlation snapshot to use on one allocation date."""
+    if correlation_cache:
+        if date in correlation_cache:
+            return correlation_cache[date]
+        eligible = [ts for ts in correlation_cache if ts <= date]
+        if eligible:
+            latest = max(eligible)
+            if (date - latest).days <= _MAX_CACHE_STALENESS_DAYS:
+                return correlation_cache[latest]
+    if covariance_cache:
+        if date in covariance_cache:
+            cached = covariance_cache[date]
+            diag = cached.to_numpy(dtype=float).diagonal()
+            if len(diag) > 0 and (abs(diag - 1.0) < 1e-6).all():
+                return cached.astype(float)
+            return covariance_to_correlation(cached)
+        eligible = [ts for ts in covariance_cache if ts <= date]
+        if eligible:
+            latest = max(eligible)
+            if (date - latest).days <= _MAX_CACHE_STALENESS_DAYS:
+                cached = covariance_cache[latest]
+                diag = cached.to_numpy(dtype=float).diagonal()
+                if len(diag) > 0 and (abs(diag - 1.0) < 1e-6).all():
+                    return cached.astype(float)
+                return covariance_to_correlation(cached)
+    return estimate_clean_correlation_at_date(prices, est_cfg, date)
 
 
 def resolve_covariance_cache_until_date(
@@ -106,3 +154,23 @@ def resolve_covariance_cache_until_date(
             return subset
     history = prices.loc[prices.index <= date]
     return estimate_clean_covariance_panel(history, est_cfg)
+
+
+def resolve_clean_correlation_cache_until_date(
+    prices: pd.DataFrame,
+    est_cfg: EstimationConfig,
+    date: pd.Timestamp,
+    correlation_cache: dict[pd.Timestamp, pd.DataFrame] | None = None,
+    covariance_cache: dict[pd.Timestamp, pd.DataFrame] | None = None,
+) -> dict[pd.Timestamp, pd.DataFrame]:
+    """Return a cleaned-correlation cache truncated to the requested history."""
+    if correlation_cache:
+        subset = {ts: corr for ts, corr in correlation_cache.items() if ts <= date}
+        if subset:
+            return subset
+    if covariance_cache:
+        subset = {ts: covariance_to_correlation(cov) for ts, cov in covariance_cache.items() if ts <= date}
+        if subset:
+            return subset
+    history = prices.loc[prices.index <= date]
+    return estimate_clean_correlation_panel(history, est_cfg)

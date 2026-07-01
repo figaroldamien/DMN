@@ -1,0 +1,8 @@
+{
+  "ticker": "AMS2.VI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:39:48.800417+00:00",
+  "data_start": "2018-06-11",
+  "data_end": "2026-07-01",
+  "rows": 2037
+}

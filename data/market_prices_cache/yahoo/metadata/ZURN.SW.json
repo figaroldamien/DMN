@@ -1,0 +1,8 @@
+{
+  "ticker": "ZURN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:42:10.081887+00:00",
+  "data_start": "1998-10-06",
+  "data_end": "2026-07-01",
+  "rows": 7047
+}

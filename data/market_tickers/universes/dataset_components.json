@@ -177,6 +177,11 @@
       "description": "Silver Futures"
     },
     {
+      "ticker": "USDEUR=X",
+      "category": "fx",
+      "description": "US Dollar / Euro"
+    },
+    {
       "ticker": "USDNOK=X",
       "category": "fx",
       "description": "US Dollar / Norwegian Krone"

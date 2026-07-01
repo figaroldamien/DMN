@@ -1,0 +1,8 @@
+{
+  "ticker": "ADP.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:41:49.844907+00:00",
+  "data_start": "2006-06-19",
+  "data_end": "2026-07-01",
+  "rows": 5125
+}

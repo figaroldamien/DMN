@@ -1,0 +1,8 @@
+{
+  "ticker": "AES",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:07.850091+00:00",
+  "data_start": "1995-01-03",
+  "data_end": "2026-07-01",
+  "rows": 7926
+}

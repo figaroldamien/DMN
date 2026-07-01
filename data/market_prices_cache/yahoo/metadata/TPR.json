@@ -1,0 +1,8 @@
+{
+  "ticker": "TPR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:45.910411+00:00",
+  "data_start": "2000-10-06",
+  "data_end": "2026-07-01",
+  "rows": 6470
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "^SPEUBDP",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-18T16:40:33.779154+00:00",
+  "data_start": "2026-06-18",
+  "data_end": "2026-06-18",
+  "rows": 1
+}

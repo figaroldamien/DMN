@@ -1,0 +1,8 @@
+{
+  "ticker": "ADEN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:39:43.372284+00:00",
+  "data_start": "1999-05-10",
+  "data_end": "2026-07-01",
+  "rows": 6893
+}

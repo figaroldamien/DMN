@@ -1,0 +1,8 @@
+{
+  "ticker": "1306.T",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:53.134726+00:00",
+  "data_start": "2009-01-05",
+  "data_end": "2026-07-01",
+  "rows": 4295
+}

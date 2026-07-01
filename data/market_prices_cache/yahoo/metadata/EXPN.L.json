@@ -1,0 +1,8 @@
+{
+  "ticker": "EXPN.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:24.652100+00:00",
+  "data_start": "2006-10-09",
+  "data_end": "2026-07-01",
+  "rows": 4984
+}

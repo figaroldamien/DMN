@@ -1,0 +1,8 @@
+{
+  "ticker": "HPE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:37.433513+00:00",
+  "data_start": "2015-10-19",
+  "data_end": "2026-07-01",
+  "rows": 2690
+}

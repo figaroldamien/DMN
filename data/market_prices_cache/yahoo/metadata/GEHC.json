@@ -1,0 +1,8 @@
+{
+  "ticker": "GEHC",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:19.912617+00:00",
+  "data_start": "2022-12-15",
+  "data_end": "2026-07-01",
+  "rows": 887
+}

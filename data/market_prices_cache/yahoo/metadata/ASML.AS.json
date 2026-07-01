@@ -1,0 +1,8 @@
+{
+  "ticker": "ASML.AS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:29:53.204826+00:00",
+  "data_start": "1998-07-20",
+  "data_end": "2026-07-01",
+  "rows": 7192
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "GS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:23:10.973881+00:00",
+  "data_start": "1999-05-04",
+  "data_end": "2026-07-01",
+  "rows": 6832
+}

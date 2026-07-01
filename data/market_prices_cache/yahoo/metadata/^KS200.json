@@ -1,0 +1,8 @@
+{
+  "ticker": "^KS200",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:55.896039+00:00",
+  "data_start": "1996-03-20",
+  "data_end": "2026-06-26",
+  "rows": 7406
+}

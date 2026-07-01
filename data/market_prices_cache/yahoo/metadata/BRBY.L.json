@@ -1,0 +1,8 @@
+{
+  "ticker": "BRBY.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:03.753659+00:00",
+  "data_start": "2002-07-12",
+  "data_end": "2026-07-01",
+  "rows": 6084
+}

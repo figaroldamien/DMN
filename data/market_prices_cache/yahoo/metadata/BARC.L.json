@@ -1,0 +1,8 @@
+{
+  "ticker": "BARC.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:39:55.645916+00:00",
+  "data_start": "1995-01-02",
+  "data_end": "2026-07-01",
+  "rows": 8047
+}

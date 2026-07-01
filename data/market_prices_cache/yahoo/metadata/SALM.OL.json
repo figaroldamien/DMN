@@ -1,0 +1,8 @@
+{
+  "ticker": "SALM.OL",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:26.886732+00:00",
+  "data_start": "2007-05-08",
+  "data_end": "2026-07-01",
+  "rows": 4807
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "CMG",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:49.076511+00:00",
+  "data_start": "2006-01-26",
+  "data_end": "2026-07-01",
+  "rows": 5139
+}

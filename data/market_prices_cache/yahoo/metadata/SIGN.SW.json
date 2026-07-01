@@ -1,0 +1,8 @@
+{
+  "ticker": "SIGN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:34.683744+00:00",
+  "data_start": "2018-09-28",
+  "data_end": "2026-07-01",
+  "rows": 1945
+}

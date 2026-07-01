@@ -1,0 +1,8 @@
+{
+  "ticker": "SIX2.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:35.585101+00:00",
+  "data_start": "1998-11-09",
+  "data_end": "2026-07-01",
+  "rows": 7070
+}

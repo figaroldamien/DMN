@@ -1,0 +1,8 @@
+{
+  "ticker": "MERY.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:42:07.769706+00:00",
+  "data_start": "2005-10-12",
+  "data_end": "2026-07-01",
+  "rows": 5300
+}

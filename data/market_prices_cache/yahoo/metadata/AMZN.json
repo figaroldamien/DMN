@@ -1,0 +1,8 @@
+{
+  "ticker": "AMZN",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:23:07.320123+00:00",
+  "data_start": "1997-05-15",
+  "data_end": "2026-07-01",
+  "rows": 7327
+}

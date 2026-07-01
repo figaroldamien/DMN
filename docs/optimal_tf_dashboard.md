@@ -49,12 +49,27 @@ cd /Users/damien.figarol/trading_app_lab
 
 ## App Structure
 
-The dashboard is organized around 3 usage modes:
+The dashboard is organized around 4 usage modes:
+- `Guide`
 - `Standard`
 - `Tuning`
 - `Inspection`
 
 Each mode exposes one or more services.
+
+### Guide
+
+Purpose:
+- provide a quick in-app orientation page,
+- describe the currently exposed strategies in a few words,
+- reduce the need to leave the dashboard to remember what each strategy means.
+
+Available services:
+- `Strategy guide`
+
+Note:
+- market synthesis has been moved out of `optimal_tf_dashboard`,
+- use `apps/market_dashboard.py` for market-specific views.
 
 ### Standard
 
@@ -116,7 +131,10 @@ Current output in the UI:
 - `strategy`
 - `method`
 - `covariance_window`
-- main performance metrics such as `sharpe`, `total_return`, `ann_return`, `ann_vol`, `mdd`, `avg_turnover`, `total_cost`, `final_nav`
+- main performance metrics such as `sharpe`, `total_return`, `total_return_gross`,
+  `total_return_cost_drag`, `ann_return`, `ann_vol`, `mdd`, `avg_turnover`,
+  `avg_turnover_per_rebalance`, `total_cost`, `avg_cost_per_rebalance`,
+  `final_nav`
 
 `Skipped` shows combinations that were intentionally ignored.
 
@@ -182,9 +200,26 @@ Current examples:
 - `Strategy` uses the list from `supported_strategies()`
 - `Cleaning method` uses the list from `supported_cleaning_methods()`
 - `Rebalance frequency` uses the list from `supported_rebalance_frequencies()`
-- multi-strategy and multi-method scenarios use multiselect widgets
+- multi-strategy scenarios now use main-page checkbox selectors grouped by family
 
 This reduces invalid input and keeps the UI aligned with the Python API.
+
+Current strategy selector behavior:
+
+- single-strategy services use the same grouped selector layout as the
+  multi-strategy services, but with exclusive checkboxes,
+- the selector is split into two blocks:
+  - `Baselines + Legacy`
+  - `Agnostic Eq. 8`
+- the agnostic block is intentionally wider because the recipe names are longer,
+- examples of exposed agnostic recipes include `ARP_AGNOSTIC`,
+  `MARKOWITZ_AGNOSTIC`, `ATF_AGNOSTIC`, `PHI_25`, and `PHI_50`,
+- redundant endpoint aliases such as `PHI_0` and `PHI_100` are kept in code for
+  research scripts but hidden from the dashboard to reduce UI clutter,
+- the dashboard still treats them as experimental research strategies rather
+  than as a replacement for the legacy packaged defaults.
+- the strategy help now lives in its own `Guide` mode instead of being shown on
+  every service page.
 
 ## Relationship With The Service Layer
 

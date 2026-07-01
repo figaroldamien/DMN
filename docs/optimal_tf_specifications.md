@@ -323,13 +323,17 @@ Planned improvements:
 
 The periodic evaluation engine must report:
 - total return,
+- gross total return before transaction costs,
+- total return drag from transaction costs,
 - annualized return,
 - annualized volatility,
 - Sharpe ratio,
 - maximum drawdown,
 - average turnover,
+- average turnover per effective rebalance,
 - annualized turnover,
 - total transaction cost,
+- average transaction cost per effective rebalance,
 - annualized transaction cost,
 - percentage of positive days,
 - number of evaluated days,
@@ -341,6 +345,10 @@ The CLI layer should additionally expose:
 Metric definitions must remain stable unless the specification is revised:
 - `total_return`
   Cumulative compounded return over the evaluated net return series.
+- `gross_total_return`
+  Cumulative compounded return over the evaluated gross return series before transaction costs.
+- `total_return_cost_drag`
+  `gross_total_return - total_return` under the current compounded-return convention.
 - `annualized_return`
   Annualized arithmetic mean of daily returns unless another definition is explicitly adopted later.
 - `annualized_volatility`
@@ -351,10 +359,14 @@ Metric definitions must remain stable unless the specification is revised:
   Minimum drawdown of the compounded net asset value path.
 - `average_turnover`
   Mean of the turnover series on the evaluation index used by the implementation.
+- `average_turnover_per_rebalance`
+  `sum(turnover_by_rebalance) / number_of_effective_rebalances`.
 - `annualized_turnover`
   `average_turnover * 252` under the current daily annualization convention.
 - `total_transaction_cost`
   Sum of rebalance costs.
+- `average_transaction_cost_per_rebalance`
+  `total_transaction_cost / number_of_effective_rebalances`.
 - `annualized_transaction_cost`
   `total_transaction_cost / evaluated_years`.
 - `percentage_of_positive_days`

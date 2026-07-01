@@ -1,0 +1,8 @@
+{
+  "ticker": "HOLN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:39.528137+00:00",
+  "data_start": "2001-05-23",
+  "data_end": "2026-07-01",
+  "rows": 6361
+}

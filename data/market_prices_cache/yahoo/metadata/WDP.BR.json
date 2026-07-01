@@ -1,0 +1,8 @@
+{
+  "ticker": "WDP.BR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:42:06.419298+00:00",
+  "data_start": "2001-10-09",
+  "data_end": "2026-07-01",
+  "rows": 6348
+}

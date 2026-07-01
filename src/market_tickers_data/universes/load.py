@@ -45,9 +45,12 @@ _UNIVERSE_FILENAMES = {
     'cac40': 'cac40_components.json',
     'dji': 'dji_components.json',
     'sp500': 'sp500_components.json',
+    'sbf120': 'sbf120_components.json',
     'eurostoxx50': 'eurostoxx50_components.json',
+    'eurostoxx600': 'eurostoxx600_components.json',
     'index': 'index_components.json',
     'dataset': 'dataset_components.json',
+    'futures': 'futures_components.json',
     'world_index': 'world_index_components.json',
 }
 
@@ -81,17 +84,23 @@ NASDAQ100_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['nasdaq100'
 CAC40_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['cac40'][1]
 DJI_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['dji'][1]
 SP500_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['sp500'][1]
+SBF120_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['sbf120'][1]
 EUROSTOXX50_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['eurostoxx50'][1]
+EUROSTOXX600_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['eurostoxx600'][1]
 INDEX_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['index'][1]
 DATASET_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['dataset'][1]
+FUTURES_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['futures'][1]
 WORLD_INDEX_COMPONENTS: Dict[str, Dict[str, str]] = _UNIVERSE_PAYLOADS['world_index'][1]
 
 NASDAQ100: List[str] = list(NASDAQ100_COMPONENTS.keys())
 CAC40: List[str] = list(CAC40_COMPONENTS.keys())
 DJI: List[str] = list(DJI_COMPONENTS.keys())
 SP500: List[str] = list(SP500_COMPONENTS.keys())
+SBF120: List[str] = list(SBF120_COMPONENTS.keys())
 EUROSTOXX50: List[str] = list(EUROSTOXX50_COMPONENTS.keys())
+EUROSTOXX600: List[str] = list(EUROSTOXX600_COMPONENTS.keys())
 INDEX: List[str] = list(INDEX_COMPONENTS.keys())
+FUTURES: List[str] = list(FUTURES_COMPONENTS.keys())
 WORLD_INDEX: List[str] = list(WORLD_INDEX_COMPONENTS.keys())
 
 _DATASET_ORDER = ('fx', 'bond', 'index', 'comdty', 'energy')

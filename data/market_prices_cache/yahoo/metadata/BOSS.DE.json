@@ -1,0 +1,8 @@
+{
+  "ticker": "BOSS.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:02.219615+00:00",
+  "data_start": "1999-01-28",
+  "data_end": "2026-07-01",
+  "rows": 7012
+}

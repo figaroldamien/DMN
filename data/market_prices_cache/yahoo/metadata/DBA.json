@@ -1,0 +1,8 @@
+{
+  "ticker": "DBA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-23T15:11:27.571790+00:00",
+  "data_start": "2007-01-05",
+  "data_end": "2026-06-23",
+  "rows": 4896
+}

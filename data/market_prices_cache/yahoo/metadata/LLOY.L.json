@@ -1,0 +1,8 @@
+{
+  "ticker": "LLOY.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:56.653586+00:00",
+  "data_start": "1995-12-28",
+  "data_end": "2026-07-01",
+  "rows": 7790
+}

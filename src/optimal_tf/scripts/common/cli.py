@@ -34,6 +34,16 @@ def merge_common_overrides(
         universe = UniverseConfig(name=args.universe, start=universe.start)
     if getattr(args, "start", None) is not None:
         universe = UniverseConfig(name=universe.name, start=args.start)
+    covariance_window = getattr(args, "covariance_window", None)
+    covariance_min_periods = getattr(args, "covariance_min_periods", None)
+    if covariance_window is not None:
+        estimation = replace(estimation, covariance_window=int(covariance_window), corr_span=int(covariance_window))
+    if covariance_min_periods is not None:
+        estimation = replace(
+            estimation,
+            covariance_min_periods=int(covariance_min_periods),
+            corr_min_periods=int(covariance_min_periods),
+        )
     evaluation = replace(
         evaluation,
         rebalance_frequency=getattr(args, "rebalance_frequency", None) or evaluation.rebalance_frequency,

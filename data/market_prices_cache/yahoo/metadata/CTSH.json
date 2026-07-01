@@ -1,0 +1,8 @@
+{
+  "ticker": "CTSH",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:16.740497+00:00",
+  "data_start": "1998-06-19",
+  "data_end": "2026-07-01",
+  "rows": 7051
+}

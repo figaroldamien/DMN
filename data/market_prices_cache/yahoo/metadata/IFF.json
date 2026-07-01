@@ -1,0 +1,8 @@
+{
+  "ticker": "IFF",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:42.507015+00:00",
+  "data_start": "1995-01-03",
+  "data_end": "2026-07-01",
+  "rows": 7926
+}

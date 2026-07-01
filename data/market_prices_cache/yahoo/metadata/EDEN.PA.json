@@ -1,0 +1,8 @@
+{
+  "ticker": "EDEN.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:14:47.135806+00:00",
+  "data_start": "2010-07-01",
+  "data_end": "2026-07-01",
+  "rows": 4094
+}

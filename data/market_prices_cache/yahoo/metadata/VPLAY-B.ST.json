@@ -1,0 +1,8 @@
+{
+  "ticker": "VPLAY-B.ST",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:42:05.578997+00:00",
+  "data_start": "2019-03-28",
+  "data_end": "2026-07-01",
+  "rows": 1818
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "HLMA.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:37.951775+00:00",
+  "data_start": "1995-01-02",
+  "data_end": "2026-07-01",
+  "rows": 8048
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "EW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:17.982186+00:00",
+  "data_start": "2000-03-27",
+  "data_end": "2026-07-01",
+  "rows": 6605
+}

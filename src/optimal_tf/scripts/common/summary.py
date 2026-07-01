@@ -4,12 +4,20 @@ import pandas as pd
 
 SUMMARY_COLUMNS = [
     "total_return",
+    "total_return_gross",
+    "total_return_cost_drag",
     "ann_return",
+    "cagr",
     "ann_vol",
     "sharpe",
+    "sortino",
+    "skewness",
+    "mar",
     "mdd",
     "avg_turnover",
+    "avg_turnover_per_rebalance",
     "total_cost",
+    "avg_cost_per_rebalance",
     "final_nav",
 ]
 

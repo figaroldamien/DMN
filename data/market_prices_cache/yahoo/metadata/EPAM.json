@@ -1,0 +1,8 @@
+{
+  "ticker": "EPAM",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-09T18:50:04.426672+00:00",
+  "data_start": "2012-02-08",
+  "data_end": "2026-06-09",
+  "rows": 3604
+}

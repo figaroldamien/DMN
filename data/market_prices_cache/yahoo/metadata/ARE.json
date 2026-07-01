@@ -1,0 +1,8 @@
+{
+  "ticker": "ARE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:25.325455+00:00",
+  "data_start": "1997-05-28",
+  "data_end": "2026-07-01",
+  "rows": 7319
+}

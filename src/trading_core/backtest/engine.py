@@ -174,6 +174,7 @@ def evaluate_portfolio(
         daily_net,
         turnover.reindex(daily_net.index).fillna(0.0),
         costs,
+        gross_pnl=daily_gross,
         num_rebalances=int(len(holding_net.dropna())),
     )
     return EvaluationResult(

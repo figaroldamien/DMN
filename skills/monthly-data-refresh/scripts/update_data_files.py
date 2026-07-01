@@ -49,7 +49,131 @@ METADATA_OVERRIDES: dict[str, dict[str, dict[str, str]]] = {
             "sub_sector": "Retail REITs",
         },
     },
+    "eurostoxx600": {
+        "LIFCO-B.ST": {
+            "sector": "Industrials",
+            "sub_sector": "Conglomerates",
+            "description": "Lifco",
+        },
+    },
 }
+
+TICKER_REPLACEMENTS: dict[str, dict[str, str]] = {
+    "eurostoxx600": {
+        "AHT.L": "SUNB.L",
+        "ALLFG.MC": "ALLFG.AS",
+        "CCH.SW": "CCH.L",
+        "DSM.SW": "DSFIR.AS",
+        "FOR.MC": "FCC.MC",
+        "GFT.IR": "GFTU.L",
+        "GWI.MI": "CPR.MI",
+        "HELN.SW": "HBAN.SW",
+        "HNR.DE": "HNR1.DE",
+        "ICP.L": "ICG.L",
+        "LIF.IR": "LIFCO-B.ST",
+        "LUN.ST": "ORRON.ST",
+        "PHNX.L": "SDLF.L",
+        "SCHA.OL": "VEND.OL",
+        "STMPA.SW": "STMPA.PA",
+        "TEN.AS": "TEN.MI",
+    },
+}
+
+REMOVED_TICKERS: dict[str, set[str]] = {
+    "eurostoxx600": {
+        "ADE.OL",
+        "DLG.L",
+        "EVR.L",
+        "FALK-B.CO",
+        "INDV.L",
+        "MAN.DE",
+        "MOR.DE",
+        "NEOEN.PA",
+        "MRW.L",
+        "RIGN.SW",
+        "ROL.L",
+        "SMDS.L",
+        "SOW.DE",
+        "SWMA.ST",
+        "SXS.L",
+        "TIGO-SDB.ST",
+        "TKWY.AS",
+        "VAR1.DE",
+    },
+}
+
+FORCED_METADATA_OVERRIDES: dict[str, dict[str, dict[str, str]]] = {
+    "eurostoxx600": {
+        "LIFCO-B.ST": {
+            "description": "Lifco",
+            "sector": "Industrials",
+            "sub_sector": "Conglomerates",
+        },
+    },
+}
+
+# Canonical hierarchy vocabulary used to smooth naming differences coming from
+# multiple public sources or metadata providers.
+SECTOR_LABEL_NORMALIZATION: dict[str, str] = {
+    "Basic Materials": "Materials",
+    "Basic Resources": "Materials",
+    "Chemicals": "Materials",
+    "Consumer Cyclical": "Consumer Discretionary",
+    "Consumer Defensive": "Consumer Staples",
+    "Financial Services": "Financials",
+    "Food, Beverage and Tobacco": "Consumer Staples",
+    "Health Care": "Healthcare",
+    "Industrial Goods and Services": "Industrials",
+    "Media": "Communication Services",
+}
+
+SUB_SECTOR_LABEL_NORMALIZATION: dict[str, str] = {
+    "Advertising Agencies": "Advertising",
+    "Aerospace & Defense": "Aerospace and Defense",
+    "Airports & Air Services": "Airports and Air Services",
+    "Beverages-Wineries & Distilleries": "Beverages",
+    "Diagnostics & Research": "Diagnostics and Research",
+    "Drug Manufacturers-General": "Drug Manufacturers",
+    "Drug Manufacturers-Specialty & Generic": "Drug Manufacturers",
+    "Electrical Equipment & Parts": "Electrical Equipment",
+    "Electronics & Computer Distribution": "Electronics and Computer Distribution",
+    "Electronic Gaming & Multimedia": "Electronic Gaming and Multimedia",
+    "Engineering & Construction": "Engineering and Construction",
+    "Financial Data & Stock Exchanges": "Financial Data and Stock Exchanges",
+    "Furnishings, Fixtures & Appliances": "Furnishings, Fixtures and Appliances",
+    "Household & Personal Products": "Personal Products",
+    "Information Technology Services": "IT Services",
+    "Insurance-Reinsurance": "Insurance and Reinsurance",
+    "Medical Instruments & Supplies": "Medical Devices",
+    "Oil & Gas E&P": "Oil and Gas E&P",
+    "Oil & Gas Equipment & Services": "Oil and Gas Equipment and Services",
+    "Oil & Gas Refining & Marketing": "Oil and Gas Refining and Marketing",
+    "Packaging & Containers": "Packaging and Containers",
+    "REIT - Industrial": "Industrial REITs",
+    "REIT - Retail": "Retail REITs",
+    "REIT-Diversified": "Diversified REITs",
+    "REIT-Hotel & Motel": "Hotel and Resort REITs",
+    "REIT-Office": "Office REITs",
+    "REIT-Retail": "Retail REITs",
+    "Real Estate-Diversified": "Diversified Real Estate",
+    "Software-Application": "Software",
+    "Software-Infrastructure": "Software",
+    "Utilities-Regulated Electric": "Electric Utilities",
+}
+
+PAIR_LABEL_NORMALIZATION: dict[tuple[str, str], tuple[str, str]] = {
+    ("Automobiles and Parts", "Auto Parts"): ("Consumer Discretionary", "Auto Parts"),
+    ("Construction and Materials", "Building Materials"): ("Materials", "Building Materials"),
+    ("Construction and Materials", "Engineering & Construction"): ("Industrials", "Engineering and Construction"),
+    ("Consumer Products and Services", "Electronic Gaming & Multimedia"): ("Communication Services", "Electronic Gaming and Multimedia"),
+    ("Travel and Leisure", "Airlines"): ("Industrials", "Airlines"),
+    ("Travel and Leisure", "Specialty Business Services"): ("Industrials", "Specialty Business Services"),
+}
+
+REFERENCE_HIERARCHY_UNIVERSES: dict[str, str] = {
+    "sbf120": "cac40",
+}
+HARMONIZED_HIERARCHY_UNIVERSES = {"sbf120"}
 
 
 @dataclass(frozen=True)
@@ -128,6 +252,76 @@ def apply_metadata_overrides(universe: str, rows: list[dict[str, Any]]) -> list[
                     item[key] = override[key]
         patched.append(item)
     return patched
+
+
+def _load_reference_hierarchy(data_dir: Path, universe: str) -> dict[str, dict[str, str]]:
+    reference_universe = REFERENCE_HIERARCHY_UNIVERSES.get(universe)
+    if not reference_universe:
+        return {}
+    reference_path = data_dir / f"{reference_universe}_components.json"
+    if not reference_path.exists():
+        return {}
+    reference_rows = load_json_rows(reference_path)
+    return {
+        row["ticker"]: {
+            "sector": str(row.get("sector", "") or "").strip(),
+            "sub_sector": str(row.get("sub_sector", "") or "").strip(),
+        }
+        for row in reference_rows
+    }
+
+
+def harmonize_hierarchy_labels(universe: str, rows: list[dict[str, Any]], data_dir: Path) -> list[dict[str, Any]]:
+    if universe not in HARMONIZED_HIERARCHY_UNIVERSES:
+        return rows
+    reference_hierarchy = _load_reference_hierarchy(data_dir, universe)
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        ticker = str(item.get("ticker", "") or "").strip()
+        reference = reference_hierarchy.get(ticker)
+        if reference:
+            if reference.get("sector"):
+                item["sector"] = reference["sector"]
+            if reference.get("sub_sector"):
+                item["sub_sector"] = reference["sub_sector"]
+
+        sector = str(item.get("sector", "") or "").strip()
+        sub_sector = str(item.get("sub_sector", "") or "").strip()
+        pair_override = PAIR_LABEL_NORMALIZATION.get((sector, sub_sector))
+        if pair_override:
+            sector, sub_sector = pair_override
+        sector = SECTOR_LABEL_NORMALIZATION.get(sector, sector)
+        sub_sector = SUB_SECTOR_LABEL_NORMALIZATION.get(sub_sector, sub_sector)
+        if sector:
+            item["sector"] = sector
+        if sub_sector:
+            item["sub_sector"] = sub_sector
+        normalized.append(item)
+    return normalized
+
+
+def normalize_ticker_mappings(universe: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    replacements = TICKER_REPLACEMENTS.get(universe, {})
+    removed = REMOVED_TICKERS.get(universe, set())
+    forced = FORCED_METADATA_OVERRIDES.get(universe, {})
+    if not replacements and not removed and not forced:
+        return rows
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        ticker = str(item.get("ticker", "") or "").strip()
+        if ticker in removed:
+            continue
+        mapped = replacements.get(ticker)
+        if mapped:
+            item["ticker"] = mapped
+            ticker = mapped
+        forced_override = forced.get(ticker)
+        if forced_override:
+            item.update(forced_override)
+        normalized.append(item)
+    return normalized
 
 
 def summarize_completeness(rows: list[dict[str, Any]]) -> CompletenessSummary:
@@ -454,6 +648,8 @@ def main() -> int:
         "nasdaq100_components.json",
         "cac40_components.json",
         "eurostoxx50_components.json",
+        "eurostoxx600_components.json",
+        "sbf120_components.json",
         "sp500_components.json",
         "dji_components.json",
     ]
@@ -479,7 +675,10 @@ def main() -> int:
         elif name == "dji_components.json" and "dji" in args.refresh:
             new_rows = refresh_dji(existing)
 
-        new_rows = canonicalize_rows(apply_metadata_overrides(universe_name, new_rows))
+        new_rows = normalize_ticker_mappings(universe_name, new_rows)
+        new_rows = apply_metadata_overrides(universe_name, new_rows)
+        new_rows = harmonize_hierarchy_labels(universe_name, new_rows, data_dir)
+        new_rows = canonicalize_rows(new_rows)
         changes = update_one_file(path, new_rows, dry_run=args.dry_run)
         print_changes(name, changes)
         print_completeness(name, summarize_completeness(new_rows))

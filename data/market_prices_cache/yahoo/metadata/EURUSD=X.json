@@ -1,0 +1,8 @@
+{
+  "ticker": "EURUSD=X",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-23T15:10:38.275599+00:00",
+  "data_start": "2003-12-01",
+  "data_end": "2026-06-23",
+  "rows": 5853
+}

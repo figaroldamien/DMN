@@ -1,0 +1,8 @@
+{
+  "ticker": "ADYEN.AS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:29:51.183318+00:00",
+  "data_start": "2018-06-13",
+  "data_end": "2026-07-01",
+  "rows": 2061
+}

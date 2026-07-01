@@ -1,0 +1,8 @@
+{
+  "ticker": "YUM",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:49:03.683002+00:00",
+  "data_start": "1997-09-17",
+  "data_end": "2026-07-01",
+  "rows": 7241
+}

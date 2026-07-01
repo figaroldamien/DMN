@@ -1,0 +1,8 @@
+{
+  "ticker": "MT.AS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:14:51.721134+00:00",
+  "data_start": "2005-07-25",
+  "data_end": "2026-07-01",
+  "rows": 5362
+}

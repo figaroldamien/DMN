@@ -116,6 +116,8 @@ def run_spectrum_by_cleaner(request: SpectrumByCleanerRequest) -> SpectrumByClea
         default_backtest=backtest,
         default_evaluation=evaluation,
     )
+    if request.linear_shrinkage is not None:
+        estimation = replace(estimation, linear_shrinkage=float(request.linear_shrinkage))
     methods = request.methods or [estimation.cleaning_method]
     validate_methods(methods)
 
@@ -174,6 +176,8 @@ def run_spectrum_by_window(request: SpectrumByWindowRequest) -> SpectrumByWindow
         default_backtest=backtest,
         default_evaluation=evaluation,
     )
+    if request.linear_shrinkage is not None:
+        estimation = replace(estimation, linear_shrinkage=float(request.linear_shrinkage))
     method = request.method or estimation.cleaning_method
     validate_methods([method])
     windows = request.windows or [estimation.covariance_window or estimation.corr_span]

@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from optimal_tf.metrics import performance_metrics  # noqa: E402
+from trading_core.reporting.metrics import evaluation_metrics  # noqa: E402
 from optimal_tf.validation import compare_cleaners, validate_backtest_config, validate_estimation_config  # noqa: E402
 from optimal_tf.config import BacktestConfig, EstimationConfig  # noqa: E402
 from optimal_tf.config_io import load_config  # noqa: E402
@@ -39,6 +40,22 @@ class MetricsAndValidationTests(unittest.TestCase):
 
         self.assertAlmostEqual(stats["max_abs_diff"], 0.1)
         self.assertAlmostEqual(stats["mean_abs_diff"], 0.0375)
+
+    def test_evaluation_metrics_reports_gross_return_and_per_rebalance_averages(self) -> None:
+        net = pd.Series([0.0, 0.009, -0.006], index=pd.date_range("2026-01-30", periods=3, freq="B"))
+        gross = pd.Series([0.0, 0.010, -0.005], index=net.index)
+        turnover = pd.Series([0.0, 1.0, 0.0], index=net.index)
+        costs = pd.Series([0.001], index=[pd.Timestamp("2026-01-30")])
+
+        summary = evaluation_metrics(net, turnover, costs, gross_pnl=gross, num_rebalances=1)
+
+        self.assertAlmostEqual(summary.avg_turnover_per_rebalance, 1.0)
+        self.assertAlmostEqual(summary.avg_cost_per_rebalance, 0.001)
+        self.assertGreater(summary.total_return_gross, summary.total_return)
+        self.assertAlmostEqual(summary.total_return_cost_drag, summary.total_return_gross - summary.total_return)
+        self.assertGreater(summary.sortino, 0.0)
+        self.assertNotEqual(summary.skewness, 0.0)
+        self.assertGreater(summary.mar, 0.0)
 
     def test_validate_estimation_config_rejects_min_periods_above_window(self) -> None:
         with self.assertRaisesRegex(ValueError, "covariance_min_periods must be less than or equal to covariance_window"):

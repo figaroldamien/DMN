@@ -1,0 +1,8 @@
+{
+  "ticker": "BX",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:38.327300+00:00",
+  "data_start": "2007-06-22",
+  "data_end": "2026-07-01",
+  "rows": 4786
+}

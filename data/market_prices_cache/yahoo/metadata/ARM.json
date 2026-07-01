@@ -1,0 +1,8 @@
+{
+  "ticker": "ARM",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:10.676834+00:00",
+  "data_start": "2023-09-14",
+  "data_end": "2026-07-01",
+  "rows": 701
+}

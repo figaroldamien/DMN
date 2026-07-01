@@ -1,0 +1,8 @@
+{
+  "ticker": "LDO.MI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:53.840567+00:00",
+  "data_start": "2005-07-18",
+  "data_end": "2026-07-01",
+  "rows": 5323
+}

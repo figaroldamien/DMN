@@ -1,0 +1,8 @@
+{
+  "ticker": "ZTS",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:49:04.779681+00:00",
+  "data_start": "2013-02-01",
+  "data_end": "2026-07-01",
+  "rows": 3373
+}

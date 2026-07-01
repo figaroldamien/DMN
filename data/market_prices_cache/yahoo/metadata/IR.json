@@ -1,0 +1,8 @@
+{
+  "ticker": "IR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:44.302855+00:00",
+  "data_start": "2017-05-12",
+  "data_end": "2026-07-01",
+  "rows": 2296
+}

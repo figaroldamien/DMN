@@ -1,0 +1,8 @@
+{
+  "ticker": "CCI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:43.064473+00:00",
+  "data_start": "1998-08-18",
+  "data_end": "2026-07-01",
+  "rows": 7010
+}

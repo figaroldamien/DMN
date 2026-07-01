@@ -1,0 +1,8 @@
+{
+  "ticker": "AEE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:07.298853+00:00",
+  "data_start": "1998-01-02",
+  "data_end": "2026-07-01",
+  "rows": 7167
+}

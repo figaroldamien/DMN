@@ -1,0 +1,8 @@
+{
+  "ticker": "HLT",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:47:36.956350+00:00",
+  "data_start": "2013-12-12",
+  "data_end": "2026-07-01",
+  "rows": 3155
+}

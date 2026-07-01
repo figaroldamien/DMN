@@ -1,0 +1,8 @@
+{
+  "ticker": "TRI.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:42:18.144235+00:00",
+  "data_start": "1998-03-19",
+  "data_end": "2026-07-01",
+  "rows": 7274
+}

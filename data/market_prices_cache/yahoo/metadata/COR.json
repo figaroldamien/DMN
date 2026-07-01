@@ -1,0 +1,8 @@
+{
+  "ticker": "COR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:53.395381+00:00",
+  "data_start": "1995-04-04",
+  "data_end": "2026-07-01",
+  "rows": 7862
+}

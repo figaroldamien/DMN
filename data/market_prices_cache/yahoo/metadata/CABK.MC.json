@@ -1,0 +1,8 @@
+{
+  "ticker": "CABK.MC",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:05.846102+00:00",
+  "data_start": "2007-10-10",
+  "data_end": "2026-07-01",
+  "rows": 4783
+}

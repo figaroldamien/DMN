@@ -1,0 +1,8 @@
+{
+  "ticker": "ADS.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:29:50.958401+00:00",
+  "data_start": "1998-06-24",
+  "data_end": "2026-07-01",
+  "rows": 7168
+}

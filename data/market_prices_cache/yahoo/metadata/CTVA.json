@@ -1,0 +1,8 @@
+{
+  "ticker": "CTVA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:56.294384+00:00",
+  "data_start": "2019-05-24",
+  "data_end": "2026-07-01",
+  "rows": 1785
+}

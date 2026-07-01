@@ -1,0 +1,8 @@
+{
+  "ticker": "BTC-USD",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-23T15:10:37.460705+00:00",
+  "data_start": "2014-09-17",
+  "data_end": "2026-06-23",
+  "rows": 4298
+}

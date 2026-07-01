@@ -1,0 +1,8 @@
+{
+  "ticker": "TMV.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:52.995889+00:00",
+  "data_start": "2019-09-25",
+  "data_end": "2026-07-01",
+  "rows": 1719
+}

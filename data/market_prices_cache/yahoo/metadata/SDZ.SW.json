@@ -1,0 +1,8 @@
+{
+  "ticker": "SDZ.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:30.849461+00:00",
+  "data_start": "2023-10-03",
+  "data_end": "2026-07-01",
+  "rows": 684
+}

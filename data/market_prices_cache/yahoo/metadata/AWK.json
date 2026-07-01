@@ -1,0 +1,8 @@
+{
+  "ticker": "AWK",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:28.376803+00:00",
+  "data_start": "2008-04-23",
+  "data_end": "2026-07-01",
+  "rows": 4576
+}

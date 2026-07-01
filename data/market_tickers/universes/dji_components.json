@@ -1,220 +1,220 @@
 {
   "universe": "dji",
+  "benchmark": {
+    "ticker": "^DJI",
+    "name": "Dow Jones Industrial Average",
+    "category": "index"
+  },
   "components": [
     {
-      "ticker": "MMM",
+      "ticker": "AAPL",
       "category": "equity",
-      "sector": "Industrials",
-      "description": "3M Company",
-      "sub_sector": "Industrial Conglomerates"
-    },
-    {
-      "ticker": "AXP",
-      "category": "equity",
-      "sector": "Financials",
-      "description": "American Express Company",
-      "sub_sector": "Consumer Finance"
+      "sector": "Technology",
+      "sub_sector": "Technology Hardware, Storage & Peripherals",
+      "description": "Apple"
     },
     {
       "ticker": "AMGN",
       "category": "equity",
       "sector": "Healthcare",
-      "description": "Amgen Inc.",
-      "sub_sector": "Biotechnology"
+      "sub_sector": "Biotechnology",
+      "description": "Amgen"
     },
     {
       "ticker": "AMZN",
       "category": "equity",
       "sector": "Consumer Discretionary",
-      "description": "Amazon.com, Inc.",
-      "sub_sector": "Broadline Retail"
+      "sub_sector": "Broadline Retail",
+      "description": "Amazon"
     },
     {
-      "ticker": "AAPL",
+      "ticker": "AXP",
       "category": "equity",
-      "sector": "Technology",
-      "description": "Apple Inc.",
-      "sub_sector": "Technology Hardware, Storage & Peripherals"
+      "sector": "Financials",
+      "sub_sector": "Consumer Finance",
+      "description": "American Express"
     },
     {
       "ticker": "BA",
       "category": "equity",
       "sector": "Industrials",
-      "description": "The Boeing Company",
-      "sub_sector": "Aerospace & Defense"
+      "sub_sector": "Aerospace & Defense",
+      "description": "Boeing"
     },
     {
       "ticker": "CAT",
       "category": "equity",
       "sector": "Industrials",
-      "description": "Caterpillar Inc.",
-      "sub_sector": "Construction Machinery & Heavy Transportation Equipment"
-    },
-    {
-      "ticker": "CVX",
-      "category": "equity",
-      "sector": "Energy",
-      "description": "Chevron Corporation",
-      "sub_sector": "Integrated Oil & Gas"
-    },
-    {
-      "ticker": "CSCO",
-      "category": "equity",
-      "sector": "Technology",
-      "description": "Cisco Systems, Inc.",
-      "sub_sector": "Communications Equipment"
-    },
-    {
-      "ticker": "KO",
-      "category": "equity",
-      "sector": "Consumer Staples",
-      "description": "The Coca-Cola Company",
-      "sub_sector": "Soft Drinks & Non-alcoholic Beverages"
-    },
-    {
-      "ticker": "DIS",
-      "category": "equity",
-      "sector": "Communication Services",
-      "description": "The Walt Disney Company",
-      "sub_sector": "Movies & Entertainment"
-    },
-    {
-      "ticker": "GS",
-      "category": "equity",
-      "sector": "Financials",
-      "description": "The Goldman Sachs Group, Inc.",
-      "sub_sector": "Investment Banking & Brokerage"
-    },
-    {
-      "ticker": "HD",
-      "category": "equity",
-      "sector": "Consumer Discretionary",
-      "description": "The Home Depot, Inc.",
-      "sub_sector": "Home Improvement Retail"
-    },
-    {
-      "ticker": "HON",
-      "category": "equity",
-      "sector": "Industrials",
-      "description": "Honeywell International Inc.",
-      "sub_sector": "Industrial Conglomerates"
-    },
-    {
-      "ticker": "IBM",
-      "category": "equity",
-      "sector": "Technology",
-      "description": "International Business Machines Corporation",
-      "sub_sector": "IT Consulting & Other Services"
-    },
-    {
-      "ticker": "JNJ",
-      "category": "equity",
-      "sector": "Healthcare",
-      "description": "Johnson & Johnson",
-      "sub_sector": "Pharmaceuticals"
-    },
-    {
-      "ticker": "JPM",
-      "category": "equity",
-      "sector": "Financials",
-      "description": "JPMorgan Chase & Co.",
-      "sub_sector": "Diversified Banks"
-    },
-    {
-      "ticker": "MCD",
-      "category": "equity",
-      "sector": "Consumer Discretionary",
-      "description": "McDonald's Corporation",
-      "sub_sector": "Restaurants"
-    },
-    {
-      "ticker": "MRK",
-      "category": "equity",
-      "sector": "Healthcare",
-      "description": "Merck & Co., Inc.",
-      "sub_sector": "Pharmaceuticals"
-    },
-    {
-      "ticker": "MSFT",
-      "category": "equity",
-      "sector": "Technology",
-      "description": "Microsoft Corporation",
-      "sub_sector": "Systems Software"
-    },
-    {
-      "ticker": "NKE",
-      "category": "equity",
-      "sector": "Consumer Discretionary",
-      "description": "NIKE, Inc.",
-      "sub_sector": "Apparel, Accessories & Luxury Goods"
-    },
-    {
-      "ticker": "NVDA",
-      "category": "equity",
-      "sector": "Technology",
-      "description": "NVIDIA Corporation",
-      "sub_sector": "Semiconductors"
-    },
-    {
-      "ticker": "PG",
-      "category": "equity",
-      "sector": "Consumer Staples",
-      "description": "The Procter & Gamble Company",
-      "sub_sector": "Personal Care Products"
+      "sub_sector": "Construction Machinery & Heavy Transportation Equipment",
+      "description": "Caterpillar"
     },
     {
       "ticker": "CRM",
       "category": "equity",
       "sector": "Technology",
-      "description": "Salesforce, Inc.",
-      "sub_sector": "Application Software"
+      "sub_sector": "Application Software",
+      "description": "Salesforce"
+    },
+    {
+      "ticker": "CSCO",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Communications Equipment",
+      "description": "Cisco"
+    },
+    {
+      "ticker": "CVX",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Integrated Oil & Gas",
+      "description": "Chevron"
+    },
+    {
+      "ticker": "DIS",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Movies & Entertainment",
+      "description": "Disney"
+    },
+    {
+      "ticker": "GS",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Investment Banking & Brokerage",
+      "description": "Goldman Sachs"
+    },
+    {
+      "ticker": "HD",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Home Improvement Retail",
+      "description": "Home Depot"
+    },
+    {
+      "ticker": "HON",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Industrial Conglomerates",
+      "description": "Honeywell"
+    },
+    {
+      "ticker": "IBM",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "IT Consulting & Other Services",
+      "description": "IBM"
+    },
+    {
+      "ticker": "JNJ",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals",
+      "description": "Johnson & Johnson"
+    },
+    {
+      "ticker": "JPM",
+      "category": "equity",
+      "sector": "Financials",
+      "sub_sector": "Diversified Banks",
+      "description": "JPMorgan Chase"
+    },
+    {
+      "ticker": "KO",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Soft Drinks & Non-alcoholic Beverages",
+      "description": "Coca-Cola"
+    },
+    {
+      "ticker": "MCD",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Restaurants",
+      "description": "McDonald's"
+    },
+    {
+      "ticker": "MMM",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Industrial Conglomerates",
+      "description": "3M"
+    },
+    {
+      "ticker": "MRK",
+      "category": "equity",
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals",
+      "description": "Merck"
+    },
+    {
+      "ticker": "MSFT",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Systems Software",
+      "description": "Microsoft"
+    },
+    {
+      "ticker": "NKE",
+      "category": "equity",
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Apparel, Accessories & Luxury Goods",
+      "description": "Nike"
+    },
+    {
+      "ticker": "NVDA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductors",
+      "description": "Nvidia"
+    },
+    {
+      "ticker": "PG",
+      "category": "equity",
+      "sector": "Consumer Staples",
+      "sub_sector": "Personal Care Products",
+      "description": "Procter & Gamble"
     },
     {
       "ticker": "SHW",
       "category": "equity",
       "sector": "Materials",
-      "description": "The Sherwin-Williams Company",
-      "sub_sector": "Specialty Chemicals"
+      "sub_sector": "Specialty Chemicals",
+      "description": "Sherwin-Williams"
     },
     {
       "ticker": "TRV",
       "category": "equity",
       "sector": "Financials",
-      "description": "The Travelers Companies, Inc.",
-      "sub_sector": "Property & Casualty Insurance"
+      "sub_sector": "Property & Casualty Insurance",
+      "description": "Travelers Companies, Inc."
     },
     {
       "ticker": "UNH",
       "category": "equity",
       "sector": "Healthcare",
-      "description": "UnitedHealth Group Incorporated",
-      "sub_sector": "Managed Health Care"
-    },
-    {
-      "ticker": "VZ",
-      "category": "equity",
-      "sector": "Communication Services",
-      "description": "Verizon Communications Inc.",
-      "sub_sector": "Integrated Telecommunication Services"
+      "sub_sector": "Managed Health Care",
+      "description": "UnitedHealth Group"
     },
     {
       "ticker": "V",
       "category": "equity",
       "sector": "Financials",
-      "description": "Visa Inc.",
-      "sub_sector": "Transaction & Payment Processing Services"
+      "sub_sector": "Transaction & Payment Processing Services",
+      "description": "Visa"
+    },
+    {
+      "ticker": "VZ",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Integrated Telecommunication Services",
+      "description": "Verizon"
     },
     {
       "ticker": "WMT",
       "category": "equity",
       "sector": "Consumer Staples",
-      "description": "Walmart Inc.",
-      "sub_sector": "Consumer Staples Merchandise Retail"
+      "sub_sector": "Consumer Staples Merchandise Retail",
+      "description": "Walmart"
     }
-  ],
-  "benchmark": {
-    "ticker": "^DJI",
-    "name": "Dow Jones Industrial Average",
-    "category": "index"
-  }
+  ]
 }

@@ -1,0 +1,8 @@
+{
+  "ticker": "VITR.ST",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:42:02.955240+00:00",
+  "data_start": "2001-06-28",
+  "data_end": "2026-07-01",
+  "rows": 6333
+}

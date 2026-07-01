@@ -1,0 +1,8 @@
+{
+  "ticker": "SCT.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:29.857044+00:00",
+  "data_start": "2015-11-13",
+  "data_end": "2026-07-01",
+  "rows": 2684
+}

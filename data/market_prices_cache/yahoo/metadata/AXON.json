@@ -1,0 +1,8 @@
+{
+  "ticker": "AXON",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:11.737848+00:00",
+  "data_start": "2001-06-19",
+  "data_end": "2026-07-01",
+  "rows": 6295
+}

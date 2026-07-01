@@ -1,0 +1,8 @@
+{
+  "ticker": "OCDO.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:10.375330+00:00",
+  "data_start": "2010-07-21",
+  "data_end": "2026-07-01",
+  "rows": 4028
+}

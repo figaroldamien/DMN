@@ -1,0 +1,8 @@
+{
+  "ticker": "^STOXX",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:00:17.381851+00:00",
+  "data_start": "2004-04-26",
+  "data_end": "2026-07-01",
+  "rows": 5576
+}

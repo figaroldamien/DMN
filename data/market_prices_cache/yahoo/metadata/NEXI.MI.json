@@ -1,0 +1,8 @@
+{
+  "ticker": "NEXI.MI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:05.686956+00:00",
+  "data_start": "2019-04-18",
+  "data_end": "2026-07-01",
+  "rows": 1828
+}

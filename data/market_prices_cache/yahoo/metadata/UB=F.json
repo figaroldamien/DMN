@@ -1,0 +1,8 @@
+{
+  "ticker": "UB=F",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:33.125069+00:00",
+  "data_start": "2010-01-11",
+  "data_end": "2026-07-01",
+  "rows": 4142
+}

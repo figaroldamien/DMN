@@ -1,0 +1,8 @@
+{
+  "ticker": "PDD",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:31.611802+00:00",
+  "data_start": "2018-07-26",
+  "data_end": "2026-07-01",
+  "rows": 1993
+}

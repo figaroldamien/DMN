@@ -1,0 +1,8 @@
+{
+  "ticker": "IGG.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:42.572639+00:00",
+  "data_start": "2005-04-28",
+  "data_end": "2026-07-01",
+  "rows": 5355
+}

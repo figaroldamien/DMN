@@ -1,0 +1,8 @@
+{
+  "ticker": "BARN.SW",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:39:56.113883+00:00",
+  "data_start": "1998-07-17",
+  "data_end": "2026-07-01",
+  "rows": 7104
+}

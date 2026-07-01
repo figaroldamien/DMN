@@ -1,0 +1,8 @@
+{
+  "ticker": "AUTO.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:39:52.355040+00:00",
+  "data_start": "2015-03-19",
+  "data_end": "2026-07-01",
+  "rows": 2850
+}

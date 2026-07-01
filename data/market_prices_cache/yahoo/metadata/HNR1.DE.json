@@ -1,0 +1,8 @@
+{
+  "ticker": "HNR1.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:39.047589+00:00",
+  "data_start": "2000-10-23",
+  "data_end": "2026-07-01",
+  "rows": 6560
+}

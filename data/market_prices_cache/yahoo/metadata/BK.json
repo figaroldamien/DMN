@@ -1,0 +1,8 @@
+{
+  "ticker": "BK",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-06-09T18:49:26.096863+00:00",
+  "data_start": "2000-01-03",
+  "data_end": "2026-06-08",
+  "rows": 6647
+}

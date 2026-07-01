@@ -238,7 +238,7 @@ Current evaluation export files:
 ```bash
 .venv/bin/optimal-tf-compare \
   --config configs/optimal_tf.example.toml \
-  --strategies RP,ARP,ToRP0,ToRP1,ToRP2,ToRP3 \
+  --strategies RP,ARP,LLTF,ARP_AGNOSTIC,PHI_50 \
   --output-dir output/optimal_tf/compare_run
 ```
 
@@ -248,7 +248,7 @@ You can also set the default strategy list in the config:
 
 ```toml
 [compare]
-strategies = ["RP", "ARP", "ToRP0", "ToRP1", "ToRP2", "ToRP3"]
+strategies = ["RP", "ARP", "LLTF", "ARP_AGNOSTIC", "PHI_50"]
 ```
 
 If `--strategies` is omitted, `optimal-tf-compare` now falls back to `[compare].strategies`.
@@ -289,7 +289,7 @@ The TOML config can also define the default strategy set for `optimal-tf-compare
 
 ```toml
 [compare]
-strategies = ["RP", "ARP", "LLTF", "ToRP0", "ToRP1", "ToRP2", "ToRP3"]
+strategies = ["RP", "ARP", "LLTF", "ARP_AGNOSTIC", "PHI_50"]
 ```
 
 ## Output Format
@@ -324,7 +324,12 @@ Evaluation export notes:
 - `weights_by_rebalance.csv` remains the effective rebalance exposure used in the backtest,
 - `base_weights_by_rebalance.csv` stores the structural portfolio before signal amplitude,
 - `effective_weights_by_rebalance.csv` stores the exposure after `signal_scale`,
-- `portfolio_vol_scale.csv` stores the separate portfolio-level volatility-targeting overlay.
+- `portfolio_vol_scale.csv` stores the separate portfolio-level volatility-targeting overlay,
+- `turnover.csv` stores one turnover value per rebalance date, computed as the
+  `L1` distance between implemented portfolio weights before and after the
+  rebalance,
+- `costs.csv` stores one rebalance cost per rebalance date, computed as
+  `cost_bps / 1e4 * turnover`.
 
 Comparison export notes:
 - `manifest.json` describes the compared strategies and available views,
@@ -334,6 +339,20 @@ Comparison export notes:
 - `comparison/nav_comparison.csv` stores cumulative NAV series side by side,
 - `comparison/drawdown_comparison.csv` stores drawdown series side by side,
 - `comparison/plots/` stores the first comparison PNG charts.
+
+Summary-table notes:
+- `total_return` is the compounded net return after transaction costs,
+- `total_return_gross` is the compounded return before transaction costs,
+- `total_return_cost_drag` is `total_return_gross - total_return`,
+- `avg_turnover` is the mean of the daily turnover series after rebalance dates
+  are expanded onto the daily evaluation index with zeros on non-rebalance days,
+- `avg_turnover_per_rebalance` is the mean turnover per effective rebalance,
+- `total_cost` is the sum of all rebalance costs,
+- `avg_cost_per_rebalance` is the mean rebalance cost across effective
+  rebalances,
+- `annualized_turnover` is `avg_turnover * 252` under the current daily
+  convention,
+- `annualized_cost` is `total_cost / evaluated_years`.
 
 CLI note:
 - both `optimal-tf` and `optimal-tf-evaluate` now print `execution_time_seconds` in their text output.

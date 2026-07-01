@@ -1,0 +1,8 @@
+{
+  "ticker": "CARR",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:40.875904+00:00",
+  "data_start": "2020-03-19",
+  "data_end": "2026-07-01",
+  "rows": 1579
+}

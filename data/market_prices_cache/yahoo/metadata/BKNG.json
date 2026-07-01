@@ -1,0 +1,8 @@
+{
+  "ticker": "BKNG",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:37:12.108457+00:00",
+  "data_start": "1999-03-31",
+  "data_end": "2026-07-01",
+  "rows": 6855
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "MRNA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:03.476448+00:00",
+  "data_start": "2018-12-07",
+  "data_end": "2026-07-01",
+  "rows": 1900
+}

@@ -1,0 +1,8 @@
+{
+  "ticker": "ORRON.ST",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:12.838694+00:00",
+  "data_start": "2001-09-06",
+  "data_end": "2026-07-01",
+  "rows": 6283
+}

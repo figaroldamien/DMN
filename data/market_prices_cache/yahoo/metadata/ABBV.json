@@ -1,0 +1,8 @@
+{
+  "ticker": "ABBV",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:46:04.594204+00:00",
+  "data_start": "2013-01-02",
+  "data_end": "2026-07-01",
+  "rows": 3394
+}

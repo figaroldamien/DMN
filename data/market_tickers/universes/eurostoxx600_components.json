@@ -1,0 +1,3101 @@
+{
+  "universe": "eurostoxx600",
+  "benchmark": {
+    "ticker": "^STOXX",
+    "name": "STOXX Europe 600",
+    "category": "index"
+  },
+  "source": "Wikipedia STOXX Europe 600 constituent table",
+  "source_date": "2026-06-12",
+  "source_component_rows": 467,
+  "source_note": "Publicly parsable source exposed 467 rows on 2026-06-12; universe is a best-effort seed and may be incomplete versus the full 600 constituents. Yahoo symbol remapping was refined on 2026-06-12 via yfinance.Search(company_name) for invalid symbols. sub_sector was rebuilt on 2026-06-12 from existing local universes plus yfinance.Search industry metadata; unresolved names were manually classified when obvious.",
+  "components": [
+    {
+      "ticker": "1COV.DE",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Covestro"
+    },
+    {
+      "ticker": "8TRA.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Farm & Heavy Construction Machinery",
+      "description": "Traton"
+    },
+    {
+      "ticker": "AAL.L",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Other Industrial Metals & Mining",
+      "description": "Anglo American plc"
+    },
+    {
+      "ticker": "ABBN.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Electrical Equipment & Parts",
+      "description": "ABB Ltd"
+    },
+    {
+      "ticker": "ABF.L",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Packaged Foods",
+      "description": "Associated British Foods"
+    },
+    {
+      "ticker": "ABI.BR",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Beverages - Brewers",
+      "description": "Anheuser-Busch InBev"
+    },
+    {
+      "ticker": "ABN.AS",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Diversified",
+      "description": "ABN AMRO"
+    },
+    {
+      "ticker": "AC.PA",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Lodging",
+      "description": "Accor"
+    },
+    {
+      "ticker": "ACA.PA",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks",
+      "description": "Crédit Agricole"
+    },
+    {
+      "ticker": "ACS.MC",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering & Construction",
+      "description": "ACS Group"
+    },
+    {
+      "ticker": "ACX.MC",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Steel",
+      "description": "Acerinox"
+    },
+    {
+      "ticker": "ADEN.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Staffing & Employment Services",
+      "description": "Adecco"
+    },
+    {
+      "ticker": "ADM.L",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Property & Casualty",
+      "description": "Admiral Group"
+    },
+    {
+      "ticker": "ADS.DE",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Footwear & Accessories",
+      "description": "Adidas"
+    },
+    {
+      "ticker": "ADYEN.AS",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Software - Infrastructure",
+      "description": "Adyen"
+    },
+    {
+      "ticker": "AENA.MC",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Airports & Air Services",
+      "description": "Aena"
+    },
+    {
+      "ticker": "AF.PA",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Airlines",
+      "description": "Air France-KLM"
+    },
+    {
+      "ticker": "AFX.DE",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Instruments & Supplies",
+      "description": "Carl Zeiss Meditec"
+    },
+    {
+      "ticker": "AGS.BR",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Ageas"
+    },
+    {
+      "ticker": "AI.PA",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Air Liquide"
+    },
+    {
+      "ticker": "AIR.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace and Defense",
+      "description": "Airbus"
+    },
+    {
+      "ticker": "AIXA.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductor Equipment & Materials",
+      "description": "AIXTRON"
+    },
+    {
+      "ticker": "AKE.PA",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Arkema"
+    },
+    {
+      "ticker": "AKRBP.OL",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas E&P",
+      "description": "Aker BP"
+    },
+    {
+      "ticker": "AKZA.AS",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "AkzoNobel"
+    },
+    {
+      "ticker": "ALC.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Instruments & Supplies",
+      "description": "Alcon"
+    },
+    {
+      "ticker": "ALFA.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Alfa Laval"
+    },
+    {
+      "ticker": "ALLFG.AS",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "Allfunds Group"
+    },
+    {
+      "ticker": "ALO.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Railroads",
+      "description": "Alstom"
+    },
+    {
+      "ticker": "ALV.DE",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance - Diversified",
+      "description": "Allianz"
+    },
+    {
+      "ticker": "AMBU-B.CO",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Devices",
+      "description": "Ambu"
+    },
+    {
+      "ticker": "AML.L",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Aston Martin"
+    },
+    {
+      "ticker": "AMS2.VI",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductors",
+      "description": "ams OSRAM"
+    },
+    {
+      "ticker": "ANA.MC",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering & Construction",
+      "description": "Acciona"
+    },
+    {
+      "ticker": "ANE.MC",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Renewable",
+      "description": "Acciona Energía"
+    },
+    {
+      "ticker": "ANTO.L",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Copper",
+      "description": "Antofagasta plc"
+    },
+    {
+      "ticker": "ARGX.BR",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Biotechnology",
+      "description": "Argenx"
+    },
+    {
+      "ticker": "ASM.AS",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductor Equipment & Materials",
+      "description": "ASM International"
+    },
+    {
+      "ticker": "ASML.AS",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductor Equipment & Materials",
+      "description": "ASML Holding"
+    },
+    {
+      "ticker": "ASSA-B.ST",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Security & Protection Services",
+      "description": "Assa Abloy"
+    },
+    {
+      "ticker": "AT1.DE",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Real Estate Services",
+      "description": "Aroundtown"
+    },
+    {
+      "ticker": "ATCO-A.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Atlas Copco"
+    },
+    {
+      "ticker": "ATO.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Information Technology Services",
+      "description": "Atos"
+    },
+    {
+      "ticker": "AUTO.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Internet Content & Information",
+      "description": "Auto Trader Group"
+    },
+    {
+      "ticker": "AV.L",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Aviva"
+    },
+    {
+      "ticker": "AZE.BR",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Azelis Group"
+    },
+    {
+      "ticker": "AZN.L",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-General",
+      "description": "AstraZeneca"
+    },
+    {
+      "ticker": "BA.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace & Defense",
+      "description": "BAE Systems"
+    },
+    {
+      "ticker": "BAER.SW",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Asset Management",
+      "description": "Julius Baer"
+    },
+    {
+      "ticker": "BALD-B.ST",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Real Estate-Diversified",
+      "description": "Balder"
+    },
+    {
+      "ticker": "BARC.L",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Diversified",
+      "description": "Barclays"
+    },
+    {
+      "ticker": "BARN.SW",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Confectioners",
+      "description": "Barry Callebaut"
+    },
+    {
+      "ticker": "BAS.DE",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Chemicals",
+      "description": "BASF"
+    },
+    {
+      "ticker": "BATS.L",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Tobacco",
+      "description": "British American Tobacco"
+    },
+    {
+      "ticker": "BAYN.DE",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers - General",
+      "description": "Bayer"
+    },
+    {
+      "ticker": "BBVA.MC",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks - Diversified",
+      "description": "Banco Bilbao Vizcaya Argentaria"
+    },
+    {
+      "ticker": "BBY.L",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering & Construction",
+      "description": "Balfour Beatty"
+    },
+    {
+      "ticker": "BC.MI",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Brunello Cucinelli"
+    },
+    {
+      "ticker": "BEAN.SW",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Products & Equipment",
+      "description": "Belimo"
+    },
+    {
+      "ticker": "BEI.DE",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Household & Personal Products",
+      "description": "Beiersdorf"
+    },
+    {
+      "ticker": "BEZ.L",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Specialty",
+      "description": "Beazley"
+    },
+    {
+      "ticker": "BKG.L",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Residential Construction",
+      "description": "Berkeley Group Holdings"
+    },
+    {
+      "ticker": "BKT.MC",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "Bankinter"
+    },
+    {
+      "ticker": "BME.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Discount Stores",
+      "description": "B&M European Value Retail"
+    },
+    {
+      "ticker": "BMW.DE",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "BMW"
+    },
+    {
+      "ticker": "BN.PA",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Packaged Foods",
+      "description": "Danone"
+    },
+    {
+      "ticker": "BNP.PA",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks",
+      "description": "BNP Paribas"
+    },
+    {
+      "ticker": "BNR.DE",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Brenntag"
+    },
+    {
+      "ticker": "BNZL.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Food Distribution",
+      "description": "Bunzl"
+    },
+    {
+      "ticker": "BOL.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Entertainment",
+      "description": "Bolloré"
+    },
+    {
+      "ticker": "BOL.ST",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Other Industrial Metals & Mining",
+      "description": "Boliden AB"
+    },
+    {
+      "ticker": "BOSS.DE",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Apparel Manufacturing",
+      "description": "Hugo Boss"
+    },
+    {
+      "ticker": "BP.L",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Integrated",
+      "description": "BP"
+    },
+    {
+      "ticker": "BPOST.BR",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Integrated Freight & Logistics",
+      "description": "Bpost"
+    },
+    {
+      "ticker": "BRBY.L",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Burberry"
+    },
+    {
+      "ticker": "BT-A.L",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "BT Group"
+    },
+    {
+      "ticker": "BTRW.L",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Residential Construction",
+      "description": "Barratt Developments"
+    },
+    {
+      "ticker": "BVI.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Professional Services",
+      "description": "Bureau Veritas"
+    },
+    {
+      "ticker": "BYG.L",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Industrial",
+      "description": "Big Yellow Group"
+    },
+    {
+      "ticker": "CA.PA",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Food Retail",
+      "description": "Carrefour"
+    },
+    {
+      "ticker": "CABK.MC",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "CaixaBank"
+    },
+    {
+      "ticker": "CAP.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "IT Services",
+      "description": "Capgemini"
+    },
+    {
+      "ticker": "CAST.ST",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Real Estate-Development",
+      "description": "Castellum"
+    },
+    {
+      "ticker": "CBK.DE",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "Commerzbank"
+    },
+    {
+      "ticker": "CCH.L",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Beverages-Non-Alcoholic",
+      "description": "Coca-Cola HBC"
+    },
+    {
+      "ticker": "CDR.WA",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Electronic Gaming & Multimedia",
+      "description": "CD Projekt"
+    },
+    {
+      "ticker": "CFR.SW",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Richemont"
+    },
+    {
+      "ticker": "CLN.SW",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Clariant"
+    },
+    {
+      "ticker": "CNA.L",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Independent Power Producers",
+      "description": "Centrica"
+    },
+    {
+      "ticker": "COLR.BR",
+      "category": "equity",
+      "sector": "Personal Care, Drug and Grocery Stores",
+      "sub_sector": "Grocery Stores",
+      "description": "Colruyt"
+    },
+    {
+      "ticker": "CON.DE",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Parts",
+      "description": "Continental"
+    },
+    {
+      "ticker": "CPG.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Restaurants",
+      "description": "Compass Group"
+    },
+    {
+      "ticker": "CPR.MI",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Beverages - Wineries & Distilleries",
+      "description": "Gruppo Campari"
+    },
+    {
+      "ticker": "CRDA.L",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Croda International"
+    },
+    {
+      "ticker": "CS.PA",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance",
+      "description": "AXA"
+    },
+    {
+      "ticker": "CTEC.L",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Instruments & Supplies",
+      "description": "ConvaTec"
+    },
+    {
+      "ticker": "CTG.L",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Specialty Business Services",
+      "description": "Computer Center"
+    },
+    {
+      "ticker": "DB1.DE",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Financial Data & Stock Exchanges",
+      "description": "Deutsche Börse"
+    },
+    {
+      "ticker": "DEMANT.CO",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Devices",
+      "description": "Demant"
+    },
+    {
+      "ticker": "DG.PA",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering and Construction",
+      "description": "Vinci"
+    },
+    {
+      "ticker": "DGE.L",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Beverages-Wineries & Distilleries",
+      "description": "Diageo"
+    },
+    {
+      "ticker": "DHER.DE",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Internet Retail",
+      "description": "Delivery Hero"
+    },
+    {
+      "ticker": "DHL.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Integrated Freight & Logistics",
+      "description": "DHL Group"
+    },
+    {
+      "ticker": "DIA.MC",
+      "category": "equity",
+      "sector": "Personal Care, Drug and Grocery Stores",
+      "sub_sector": "Discount Stores",
+      "description": "Dia"
+    },
+    {
+      "ticker": "DIE.BR",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto & Truck Dealerships",
+      "description": "DIETEREN Group"
+    },
+    {
+      "ticker": "DLN.L",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Office",
+      "description": "Derwent London"
+    },
+    {
+      "ticker": "DOCM.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Pharmaceutical Retailers",
+      "description": "DocMorris"
+    },
+    {
+      "ticker": "DPLM.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Industrial Distribution",
+      "description": "Diploma"
+    },
+    {
+      "ticker": "DSFIR.AS",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "DSM-Firmenich"
+    },
+    {
+      "ticker": "DTE.DE",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Deutsche Telekom"
+    },
+    {
+      "ticker": "DTG.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Farm & Heavy Construction Machinery",
+      "description": "Daimler Truck"
+    },
+    {
+      "ticker": "EBS.VI",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "Erste Group"
+    },
+    {
+      "ticker": "EDEN.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Transaction and Payment Processing Services",
+      "description": "Edenred"
+    },
+    {
+      "ticker": "EDP.LS",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Diversified",
+      "description": "EDP - Energias de Portugal"
+    },
+    {
+      "ticker": "EDPR.LS",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Renewable",
+      "description": "EDP Renováveis"
+    },
+    {
+      "ticker": "EDV.L",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Gold",
+      "description": "Endeavour Mining"
+    },
+    {
+      "ticker": "EL.PA",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Devices",
+      "description": "EssilorLuxottica"
+    },
+    {
+      "ticker": "ELISA.HE",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Elisa"
+    },
+    {
+      "ticker": "ELUX-B.ST",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Furnishings, Fixtures & Appliances",
+      "description": "Electrolux"
+    },
+    {
+      "ticker": "EMSN.SW",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Ems-Chemie"
+    },
+    {
+      "ticker": "EN.PA",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering and Construction",
+      "description": "Bouygues"
+    },
+    {
+      "ticker": "ENEL.MI",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities - Diversified",
+      "description": "Enel"
+    },
+    {
+      "ticker": "ENG.MC",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Gas",
+      "description": "Enagás"
+    },
+    {
+      "ticker": "ENGI.PA",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Multi-Utilities",
+      "description": "Engie"
+    },
+    {
+      "ticker": "ENI.MI",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Integrated",
+      "description": "Eni"
+    },
+    {
+      "ticker": "ENT.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Gambling",
+      "description": "Entain"
+    },
+    {
+      "ticker": "ENX.PA",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Financial Data & Stock Exchanges",
+      "description": "Euronext"
+    },
+    {
+      "ticker": "EOAN.DE",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Diversified",
+      "description": "E.ON"
+    },
+    {
+      "ticker": "EPI-A.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Farm & Heavy Construction Machinery",
+      "description": "Epiroc"
+    },
+    {
+      "ticker": "ERIC-B.ST",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Communication Equipment",
+      "description": "Ericsson"
+    },
+    {
+      "ticker": "ETE.AT",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "National Bank of Greece"
+    },
+    {
+      "ticker": "EVD.DE",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Entertainment",
+      "description": "CTS Eventim"
+    },
+    {
+      "ticker": "EVK.DE",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Evonik Industries"
+    },
+    {
+      "ticker": "EVT.DE",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-Specialty & Generic",
+      "description": "Evotec"
+    },
+    {
+      "ticker": "EXO.AS",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Farm & Heavy Construction Machinery",
+      "description": "Exor"
+    },
+    {
+      "ticker": "EXPN.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Consulting Services",
+      "description": "Experian"
+    },
+    {
+      "ticker": "EZJ.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Airlines",
+      "description": "EasyJet"
+    },
+    {
+      "ticker": "FCC.MC",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering & Construction",
+      "description": "FCC"
+    },
+    {
+      "ticker": "FER.AS",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering and Construction",
+      "description": "Ferrovial"
+    },
+    {
+      "ticker": "FGR.PA",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering & Construction",
+      "description": "Eiffage"
+    },
+    {
+      "ticker": "FLOW.AS",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Capital Markets",
+      "description": "Flow Traders"
+    },
+    {
+      "ticker": "FLTR.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Gambling",
+      "description": "Flutter Entertainment"
+    },
+    {
+      "ticker": "FME.DE",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Care Facilities",
+      "description": "Fresenius Medical Care"
+    },
+    {
+      "ticker": "FNTN.DE",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Freenet"
+    },
+    {
+      "ticker": "FORTUM.HE",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Renewable",
+      "description": "Fortum"
+    },
+    {
+      "ticker": "FR.PA",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Parts",
+      "description": "Valeo"
+    },
+    {
+      "ticker": "FRA.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Airports & Air Services",
+      "description": "Rational"
+    },
+    {
+      "ticker": "FRVIA.PA",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Parts",
+      "description": "Forvia"
+    },
+    {
+      "ticker": "FTI",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Equipment & Services",
+      "description": "TechnipFMC"
+    },
+    {
+      "ticker": "G1A.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "GEA Group"
+    },
+    {
+      "ticker": "G24.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Internet Content & Information",
+      "description": "Scout24"
+    },
+    {
+      "ticker": "GALE.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Distribution",
+      "description": "Galenica"
+    },
+    {
+      "ticker": "GALP.LS",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Integrated",
+      "description": "Galp Energia"
+    },
+    {
+      "ticker": "GAW.L",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Leisure",
+      "description": "Games Workshop"
+    },
+    {
+      "ticker": "GEBN.SW",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Products & Equipment",
+      "description": "Geberit"
+    },
+    {
+      "ticker": "GET.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Railroads",
+      "description": "Getlink"
+    },
+    {
+      "ticker": "GF.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Georg Fischer"
+    },
+    {
+      "ticker": "GFC.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Office",
+      "description": "Gecina"
+    },
+    {
+      "ticker": "GFTU.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Industrial Distribution",
+      "description": "Grafton Group"
+    },
+    {
+      "ticker": "GIVN.SW",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Givaudan"
+    },
+    {
+      "ticker": "GL9.IR",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Packaged Foods",
+      "description": "Glanbia"
+    },
+    {
+      "ticker": "GLE.PA",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks",
+      "description": "Société Générale"
+    },
+    {
+      "ticker": "GLEN.L",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Other Industrial Metals & Mining",
+      "description": "Glencore"
+    },
+    {
+      "ticker": "GN.CO",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Devices",
+      "description": "GN Store Nord"
+    },
+    {
+      "ticker": "GRF.MC",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-General",
+      "description": "Grifols"
+    },
+    {
+      "ticker": "GRG.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Restaurants",
+      "description": "Greggs"
+    },
+    {
+      "ticker": "GSK.L",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-General",
+      "description": "GSK plc"
+    },
+    {
+      "ticker": "HAS.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Staffing & Employment Services",
+      "description": "Hays"
+    },
+    {
+      "ticker": "HBAN.SW",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance - Diversified",
+      "description": "Helvetia Insurance"
+    },
+    {
+      "ticker": "HEI.DE",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Materials",
+      "description": "Heidelberg Materials"
+    },
+    {
+      "ticker": "HEN3.DE",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Household & Personal Products",
+      "description": "Henkel"
+    },
+    {
+      "ticker": "HIK.L",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-Specialty & Generic",
+      "description": "Hikma Pharmaceuticals"
+    },
+    {
+      "ticker": "HLMA.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Conglomerates",
+      "description": "Halma plc"
+    },
+    {
+      "ticker": "HLN.L",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Drug Manufacturers-Specialty & Generic",
+      "description": "Haleon"
+    },
+    {
+      "ticker": "HM-B.ST",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Apparel Manufacturing",
+      "description": "H&M"
+    },
+    {
+      "ticker": "HNR1.DE",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Reinsurance",
+      "description": "Hannover Re"
+    },
+    {
+      "ticker": "HO.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace and Defense",
+      "description": "Thales"
+    },
+    {
+      "ticker": "HOLN.SW",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Materials",
+      "description": "Holcim"
+    },
+    {
+      "ticker": "HSBA.L",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Diversified",
+      "description": "HSBC"
+    },
+    {
+      "ticker": "HSX.L",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Property & Casualty",
+      "description": "Hiscox"
+    },
+    {
+      "ticker": "HUSQ-B.ST",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Tools & Accessories",
+      "description": "Husqvarna"
+    },
+    {
+      "ticker": "HWDN.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Furnishings, Fixtures & Appliances",
+      "description": "Howden Joinery"
+    },
+    {
+      "ticker": "IAG.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Airlines",
+      "description": "International Airlines Group"
+    },
+    {
+      "ticker": "IBE.MC",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities - Diversified",
+      "description": "Iberdrola"
+    },
+    {
+      "ticker": "ICG.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "Intermediate Capital Group"
+    },
+    {
+      "ticker": "IFX.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductors",
+      "description": "Infineon Technologies"
+    },
+    {
+      "ticker": "IGG.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Capital Markets",
+      "description": "IG Group"
+    },
+    {
+      "ticker": "IHG.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Lodging",
+      "description": "InterContinental Hotels Group"
+    },
+    {
+      "ticker": "III.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "3i"
+    },
+    {
+      "ticker": "IMB.L",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Tobacco",
+      "description": "Imperial Brands"
+    },
+    {
+      "ticker": "IMI.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "IMI"
+    },
+    {
+      "ticker": "INCH.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Auto & Truck Dealerships",
+      "description": "Inchcape"
+    },
+    {
+      "ticker": "INDT.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Industrial Distribution",
+      "description": "Indutrade"
+    },
+    {
+      "ticker": "INF.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Publishing",
+      "description": "Informa"
+    },
+    {
+      "ticker": "INGA.AS",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks - Diversified",
+      "description": "ING Group"
+    },
+    {
+      "ticker": "INPST.AS",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Integrated Freight & Logistics",
+      "description": "InPost"
+    },
+    {
+      "ticker": "INVR.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Capital Markets",
+      "description": "Investec"
+    },
+    {
+      "ticker": "IP.MI",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Interpump Group"
+    },
+    {
+      "ticker": "IPN.PA",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-Specialty & Generic",
+      "description": "Ipsen"
+    },
+    {
+      "ticker": "IPS.PA",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Consulting Services",
+      "description": "Ipsos"
+    },
+    {
+      "ticker": "ISP.MI",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks - Regional",
+      "description": "Intesa Sanpaolo"
+    },
+    {
+      "ticker": "ITRK.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Business Services",
+      "description": "Intertek"
+    },
+    {
+      "ticker": "ITV.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Broadcasting",
+      "description": "ITV"
+    },
+    {
+      "ticker": "ITX.MC",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Apparel Retail",
+      "description": "Inditex"
+    },
+    {
+      "ticker": "JD.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Apparel Retail",
+      "description": "JD Sports"
+    },
+    {
+      "ticker": "JMAT.L",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Johnson Matthey"
+    },
+    {
+      "ticker": "JMT.LS",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Food Distribution",
+      "description": "Jerónimo Martins"
+    },
+    {
+      "ticker": "KBC.BR",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "KBC Group"
+    },
+    {
+      "ticker": "KER.PA",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Kering"
+    },
+    {
+      "ticker": "KGF.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Home Improvement Retail",
+      "description": "Kingfisher plc"
+    },
+    {
+      "ticker": "KNEBV.HE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Kone"
+    },
+    {
+      "ticker": "KNIN.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Integrated Freight & Logistics",
+      "description": "Kuehne + Nagel"
+    },
+    {
+      "ticker": "KPN.AS",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "KPN"
+    },
+    {
+      "ticker": "LAND.L",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Diversified",
+      "description": "Land Securities"
+    },
+    {
+      "ticker": "LANV",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Lanvin Group"
+    },
+    {
+      "ticker": "LBIRD.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Diagnostics & Research",
+      "description": "Lumibird"
+    },
+    {
+      "ticker": "LBTYA",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Liberty Global"
+    },
+    {
+      "ticker": "LDO.MI",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace & Defense",
+      "description": "Leonardo"
+    },
+    {
+      "ticker": "LEG.DE",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Real Estate Services",
+      "description": "LEG Immobilien"
+    },
+    {
+      "ticker": "LGEN.L",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Asset Management",
+      "description": "Legal & General"
+    },
+    {
+      "ticker": "LHA.DE",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Airlines",
+      "description": "Lufthansa"
+    },
+    {
+      "ticker": "LIFCO-B.ST",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Conglomerates",
+      "description": "Lifco"
+    },
+    {
+      "ticker": "LIGHT.AS",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Electrical Equipment & Parts",
+      "description": "Signify"
+    },
+    {
+      "ticker": "LIN",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Linde plc"
+    },
+    {
+      "ticker": "LISN.SW",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Confectioners",
+      "description": "Lindt & Sprüngli"
+    },
+    {
+      "ticker": "LLOY.L",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "Lloyds Banking Group"
+    },
+    {
+      "ticker": "LOGN.SW",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Computer Hardware",
+      "description": "Logitech"
+    },
+    {
+      "ticker": "LONN.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Diagnostics & Research",
+      "description": "Lonza Group"
+    },
+    {
+      "ticker": "LPP.WA",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Apparel Manufacturing",
+      "description": "LPP"
+    },
+    {
+      "ticker": "LSEG.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Financial Data & Stock Exchanges",
+      "description": "London Stock Exchange Group"
+    },
+    {
+      "ticker": "LSG.OL",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Packaged Foods",
+      "description": "Lerøy Seafood"
+    },
+    {
+      "ticker": "LXS.DE",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Lanxess"
+    },
+    {
+      "ticker": "MAERSK-B.CO",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Marine Shipping",
+      "description": "Maersk"
+    },
+    {
+      "ticker": "MB.MI",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Banks-Regional",
+      "description": "Mediobanca"
+    },
+    {
+      "ticker": "MBG.DE",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Mercedes-Benz Group"
+    },
+    {
+      "ticker": "MC.PA",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "LVMH"
+    },
+    {
+      "ticker": "MCG.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Railroads",
+      "description": "Mobico Group"
+    },
+    {
+      "ticker": "MEL.MC",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Lodging",
+      "description": "Meliá Hotels"
+    },
+    {
+      "ticker": "MELE.BR",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductors",
+      "description": "Melexis"
+    },
+    {
+      "ticker": "METSO.HE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Farm & Heavy Construction Machinery",
+      "description": "Metso"
+    },
+    {
+      "ticker": "MF.PA",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "Wendel"
+    },
+    {
+      "ticker": "MKS.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Department Stores",
+      "description": "Marks & Spencer"
+    },
+    {
+      "ticker": "ML.PA",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Parts",
+      "description": "Michelin"
+    },
+    {
+      "ticker": "MNDI.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Paper & Paper Products",
+      "description": "Mondi"
+    },
+    {
+      "ticker": "MNG.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "M&G"
+    },
+    {
+      "ticker": "MONC.MI",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Apparel Manufacturing",
+      "description": "Moncler"
+    },
+    {
+      "ticker": "MONY.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Internet Content & Information",
+      "description": "Moneysupermarket.com"
+    },
+    {
+      "ticker": "MRL.MC",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Office",
+      "description": "Merlin Properties"
+    },
+    {
+      "ticker": "MT.AS",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Steel",
+      "description": "ArcelorMittal"
+    },
+    {
+      "ticker": "MTX.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace & Defense",
+      "description": "MTU Aero Engines"
+    },
+    {
+      "ticker": "MUV2.DE",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance - Reinsurance",
+      "description": "Munich Re"
+    },
+    {
+      "ticker": "NDA-FI.HE",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks - Regional",
+      "description": "Nordea"
+    },
+    {
+      "ticker": "NEM.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software-Application",
+      "description": "Nemetschek"
+    },
+    {
+      "ticker": "NESN.SW",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Packaged Foods",
+      "description": "Nestlé"
+    },
+    {
+      "ticker": "NESTE.HE",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Refining & Marketing",
+      "description": "Neste"
+    },
+    {
+      "ticker": "NEX.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Electrical Equipment & Parts",
+      "description": "Nexans"
+    },
+    {
+      "ticker": "NEXI.MI",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Software-Infrastructure",
+      "description": "Nexi"
+    },
+    {
+      "ticker": "NG.L",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Electric",
+      "description": "National Grid"
+    },
+    {
+      "ticker": "NHY.OL",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Aluminum",
+      "description": "Norsk Hydro"
+    },
+    {
+      "ticker": "NIBE-B.ST",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Products & Equipment",
+      "description": "Nibe Industrier"
+    },
+    {
+      "ticker": "NN.AS",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "NN Group"
+    },
+    {
+      "ticker": "NOKIA.HE",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Communication Equipment",
+      "description": "Nokia"
+    },
+    {
+      "ticker": "NOVN.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-General",
+      "description": "Novartis"
+    },
+    {
+      "ticker": "NOVO-B.CO",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-General",
+      "description": "Novo Nordisk"
+    },
+    {
+      "ticker": "NTGY.MC",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Gas",
+      "description": "Naturgy"
+    },
+    {
+      "ticker": "NWG.L",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "NatWest Group"
+    },
+    {
+      "ticker": "NXT.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Apparel Retail",
+      "description": "Next plc"
+    },
+    {
+      "ticker": "OCDO.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Grocery Stores",
+      "description": "Ocado"
+    },
+    {
+      "ticker": "OCI.AS",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "OCI"
+    },
+    {
+      "ticker": "OERL.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Oerlikon"
+    },
+    {
+      "ticker": "OMV.VI",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Integrated",
+      "description": "OMV"
+    },
+    {
+      "ticker": "ONTEX.BR",
+      "category": "equity",
+      "sector": "Personal Care, Drug and Grocery Stores",
+      "sub_sector": "Household & Personal Products",
+      "description": "Ontex"
+    },
+    {
+      "ticker": "OR.PA",
+      "category": "equity",
+      "sector": "Personal Care, Drug and Grocery Stores",
+      "sub_sector": "Personal Products",
+      "description": "L'Oréal"
+    },
+    {
+      "ticker": "ORA.PA",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Orange S.A."
+    },
+    {
+      "ticker": "ORK.OL",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Packaged Foods",
+      "description": "Orkla ASA"
+    },
+    {
+      "ticker": "ORRON.ST",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas E&P",
+      "description": "Lundin Energy"
+    },
+    {
+      "ticker": "ORSTED.CO",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Renewable",
+      "description": "Ørsted"
+    },
+    {
+      "ticker": "P911.DE",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Porsche"
+    },
+    {
+      "ticker": "PAH3.DE",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Porsche SE"
+    },
+    {
+      "ticker": "PBB.DE",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Mortgage Finance",
+      "description": "Deutsche Pfandbriefbank"
+    },
+    {
+      "ticker": "PGHN.SW",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "Partners Group"
+    },
+    {
+      "ticker": "PIRC.MI",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Parts",
+      "description": "Pirelli"
+    },
+    {
+      "ticker": "PNDORA.CO",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Pandora"
+    },
+    {
+      "ticker": "PNL.AS",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Integrated Freight & Logistics",
+      "description": "PostNL"
+    },
+    {
+      "ticker": "PNN.L",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Water",
+      "description": "Pennon Group"
+    },
+    {
+      "ticker": "PPGN.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-Specialty & Generic",
+      "description": "PolyPeptide"
+    },
+    {
+      "ticker": "PROX.BR",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Proximus"
+    },
+    {
+      "ticker": "PRU.L",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Life",
+      "description": "Prudential plc"
+    },
+    {
+      "ticker": "PRY.MI",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Electrical Equipment & Parts",
+      "description": "Prysmian"
+    },
+    {
+      "ticker": "PSN.L",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Residential Construction",
+      "description": "Persimmon plc"
+    },
+    {
+      "ticker": "PSON.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Publishing",
+      "description": "Pearson"
+    },
+    {
+      "ticker": "PST.MI",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Conglomerates",
+      "description": "Poste Italiane"
+    },
+    {
+      "ticker": "PUB.PA",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Advertising",
+      "description": "Publicis"
+    },
+    {
+      "ticker": "PUM.DE",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Footwear & Accessories",
+      "description": "Puma"
+    },
+    {
+      "ticker": "QGEN",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Diagnostics & Research",
+      "description": "Qiagen"
+    },
+    {
+      "ticker": "QLT.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "Quilter"
+    },
+    {
+      "ticker": "RACE.MI",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Ferrari"
+    },
+    {
+      "ticker": "RBI.VI",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "Raiffeisen Bank International"
+    },
+    {
+      "ticker": "RCO.PA",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Beverages-Wineries & Distilleries",
+      "description": "Rémy Cointreau"
+    },
+    {
+      "ticker": "REC.MI",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-General",
+      "description": "Recordati"
+    },
+    {
+      "ticker": "RED.MC",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Electric",
+      "description": "Redeia"
+    },
+    {
+      "ticker": "REL.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Specialty Business Services",
+      "description": "RELX"
+    },
+    {
+      "ticker": "REP.MC",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Integrated",
+      "description": "Repsol"
+    },
+    {
+      "ticker": "RHM.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace & Defense",
+      "description": "Rheinmetall"
+    },
+    {
+      "ticker": "RI.PA",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Beverages",
+      "description": "Pernod Ricard"
+    },
+    {
+      "ticker": "RIO.L",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Other Industrial Metals & Mining",
+      "description": "Rio Tinto Group"
+    },
+    {
+      "ticker": "RKT.L",
+      "category": "equity",
+      "sector": "Personal Care, Drug and Grocery Stores",
+      "sub_sector": "Household & Personal Products",
+      "description": "Reckitt"
+    },
+    {
+      "ticker": "RMS.PA",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Hermès"
+    },
+    {
+      "ticker": "RMV.L",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Internet Content & Information",
+      "description": "Rightmove"
+    },
+    {
+      "ticker": "RNO.PA",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Renault"
+    },
+    {
+      "ticker": "RO.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-General",
+      "description": "Roche Holding"
+    },
+    {
+      "ticker": "RR.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace & Defense",
+      "description": "Rolls-Royce Holdings"
+    },
+    {
+      "ticker": "RTO.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Business Services",
+      "description": "Rentokil Initial"
+    },
+    {
+      "ticker": "RWE.DE",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Diversified",
+      "description": "RWE"
+    },
+    {
+      "ticker": "RXL.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Electronics & Computer Distribution",
+      "description": "Rexel"
+    },
+    {
+      "ticker": "SAB.MC",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Diversified",
+      "description": "Banco Sabadell"
+    },
+    {
+      "ticker": "SAF.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Aerospace and Defense",
+      "description": "Safran"
+    },
+    {
+      "ticker": "SALM.OL",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Farm Products",
+      "description": "SalMar"
+    },
+    {
+      "ticker": "SAMPO.HE",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Sampo Group"
+    },
+    {
+      "ticker": "SAN.MC",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks - Diversified",
+      "description": "Banco Santander"
+    },
+    {
+      "ticker": "SAN.PA",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers",
+      "description": "Sanofi"
+    },
+    {
+      "ticker": "SAND.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Sandvik AB"
+    },
+    {
+      "ticker": "SANOMA.HE",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Education & Training Services",
+      "description": "Sanoma"
+    },
+    {
+      "ticker": "SAP.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software - Application",
+      "description": "SAP"
+    },
+    {
+      "ticker": "SBRY.L",
+      "category": "equity",
+      "sector": "Personal Care, Drug and Grocery Stores",
+      "sub_sector": "Grocery Stores",
+      "description": "Sainsbury's"
+    },
+    {
+      "ticker": "SCHP.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Schindler Group"
+    },
+    {
+      "ticker": "SCMN.SW",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Swisscom"
+    },
+    {
+      "ticker": "SCR.PA",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Reinsurance",
+      "description": "SCOR SE"
+    },
+    {
+      "ticker": "SCT.L",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Electronics & Computer Distribution",
+      "description": "Softcat"
+    },
+    {
+      "ticker": "SDLF.L",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance - Life",
+      "description": "Phoenix Group"
+    },
+    {
+      "ticker": "SDR.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "Schroders"
+    },
+    {
+      "ticker": "SDZ.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-Specialty & Generic",
+      "description": "Sandoz"
+    },
+    {
+      "ticker": "SEB-A.ST",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "Skandinaviska Enskilda Banken"
+    },
+    {
+      "ticker": "SECU-B.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Security & Protection Services",
+      "description": "Securitas AB"
+    },
+    {
+      "ticker": "SFOR.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Advertising Agencies",
+      "description": "S4 Capital"
+    },
+    {
+      "ticker": "SGE.L",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software-Application",
+      "description": "Sage Group"
+    },
+    {
+      "ticker": "SGO.PA",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Products",
+      "description": "Saint-Gobain"
+    },
+    {
+      "ticker": "SGRO.L",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Industrial",
+      "description": "Segro"
+    },
+    {
+      "ticker": "SGSN.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Consulting Services",
+      "description": "SGS S.A."
+    },
+    {
+      "ticker": "SHB-B.ST",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Diversified",
+      "description": "Svenska Handelsbanken"
+    },
+    {
+      "ticker": "SHEL.L",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Integrated",
+      "description": "Shell plc"
+    },
+    {
+      "ticker": "SIE.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Siemens"
+    },
+    {
+      "ticker": "SIGN.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Packaging & Containers",
+      "description": "SIG Group"
+    },
+    {
+      "ticker": "SIKA.SW",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Sika"
+    },
+    {
+      "ticker": "SIX2.DE",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Rental & Leasing Services",
+      "description": "Sixt"
+    },
+    {
+      "ticker": "SKA-B.ST",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering & Construction",
+      "description": "Skanska"
+    },
+    {
+      "ticker": "SKF-B.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Tools & Accessories",
+      "description": "SKF"
+    },
+    {
+      "ticker": "SKG.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Packaging & Containers",
+      "description": "Smurfit Kappa"
+    },
+    {
+      "ticker": "SKY.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Entertainment",
+      "description": "Sky Group"
+    },
+    {
+      "ticker": "SLHN.SW",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Swiss Life"
+    },
+    {
+      "ticker": "SMIN.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Smiths Group"
+    },
+    {
+      "ticker": "SMT.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "Scottish Mortgage Investment Trust"
+    },
+    {
+      "ticker": "SN.L",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Devices",
+      "description": "Smith & Nephew"
+    },
+    {
+      "ticker": "SOLB.BR",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Chemicals",
+      "description": "Solvay"
+    },
+    {
+      "ticker": "SOON.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Devices",
+      "description": "Sonova"
+    },
+    {
+      "ticker": "SPSN.SW",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Real Estate-Diversified",
+      "description": "Swiss Prime Site"
+    },
+    {
+      "ticker": "SPX.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Spirax-Sarco Engineering"
+    },
+    {
+      "ticker": "SREN.SW",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Reinsurance",
+      "description": "Swiss Re"
+    },
+    {
+      "ticker": "SRG.MI",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Utilities-Regulated Gas",
+      "description": "Snam"
+    },
+    {
+      "ticker": "SRT3.DE",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Instruments & Supplies",
+      "description": "Sartorius"
+    },
+    {
+      "ticker": "SSE.L",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Diversified",
+      "description": "SSE plc"
+    },
+    {
+      "ticker": "STAN.L",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Diversified",
+      "description": "Standard Chartered"
+    },
+    {
+      "ticker": "STB.OL",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Financial Conglomerates",
+      "description": "Storebrand"
+    },
+    {
+      "ticker": "STERV.HE",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Packaging & Containers",
+      "description": "Stora Enso"
+    },
+    {
+      "ticker": "STJ.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Asset Management",
+      "description": "St. James's Place"
+    },
+    {
+      "ticker": "STLAM.MI",
+      "category": "equity",
+      "sector": "Automobiles and Parts",
+      "sub_sector": "Auto Manufacturers",
+      "description": "Stellantis"
+    },
+    {
+      "ticker": "STMN.SW",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Instruments & Supplies",
+      "description": "Straumann"
+    },
+    {
+      "ticker": "STMPA.PA",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Semiconductors",
+      "description": "STMicroelectronics"
+    },
+    {
+      "ticker": "SU.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Electrical Equipment",
+      "description": "Schneider Electric"
+    },
+    {
+      "ticker": "SUNB.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Rental & Leasing Services",
+      "description": "Ashtead Group"
+    },
+    {
+      "ticker": "SVT.L",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Water",
+      "description": "Severn Trent"
+    },
+    {
+      "ticker": "SW.PA",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Specialty Business Services",
+      "description": "Sodexo"
+    },
+    {
+      "ticker": "SWEC-A.ST",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Engineering & Construction",
+      "description": "Sweco"
+    },
+    {
+      "ticker": "SWED-A.ST",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Regional",
+      "description": "Swedbank"
+    },
+    {
+      "ticker": "SY1.DE",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Specialty Chemicals",
+      "description": "Symrise"
+    },
+    {
+      "ticker": "TATE.L",
+      "category": "equity",
+      "sector": "Food, Beverage and Tobacco",
+      "sub_sector": "Packaged Foods",
+      "description": "Tate & Lyle"
+    },
+    {
+      "ticker": "TEF.MC",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Telefónica"
+    },
+    {
+      "ticker": "TEL.OL",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Telenor"
+    },
+    {
+      "ticker": "TEL2-B.ST",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Tele2"
+    },
+    {
+      "ticker": "TELIA.ST",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Telia Company"
+    },
+    {
+      "ticker": "TEMN.SW",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software-Application",
+      "description": "Temenos Group"
+    },
+    {
+      "ticker": "TEN.MI",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Equipment & Services",
+      "description": "Tenaris"
+    },
+    {
+      "ticker": "TEP.L",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Utilities-Diversified",
+      "description": "Telecom Plus"
+    },
+    {
+      "ticker": "TEP.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Business Services",
+      "description": "Teleperformance"
+    },
+    {
+      "ticker": "TEVA.TA",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Drug Manufacturers-Specialty & Generic",
+      "description": "Teva Pharmaceutical Industries"
+    },
+    {
+      "ticker": "TGS.OL",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Oil & Gas Equipment & Services",
+      "description": "TGS"
+    },
+    {
+      "ticker": "TIT.MI",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Telecom Italia"
+    },
+    {
+      "ticker": "TKA.DE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Conglomerates",
+      "description": "ThyssenKrupp"
+    },
+    {
+      "ticker": "TLX.DE",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Talanx"
+    },
+    {
+      "ticker": "TMV.DE",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software-Application",
+      "description": "TeamViewer"
+    },
+    {
+      "ticker": "TOM.OL",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Waste Management",
+      "description": "Tomra"
+    },
+    {
+      "ticker": "TOM2.AS",
+      "category": "equity",
+      "sector": "Technology",
+      "sub_sector": "Software-Application",
+      "description": "TomTom"
+    },
+    {
+      "ticker": "TPK.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Industrial Distribution",
+      "description": "Travis Perkins"
+    },
+    {
+      "ticker": "TREL-B.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Trelleborg"
+    },
+    {
+      "ticker": "TRN.MI",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Electric",
+      "description": "Terna"
+    },
+    {
+      "ticker": "TRYG.CO",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Tryg"
+    },
+    {
+      "ticker": "TSCO.L",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Grocery Stores",
+      "description": "Tesco"
+    },
+    {
+      "ticker": "TTE.PA",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Integrated Oil and Gas",
+      "description": "TotalEnergies"
+    },
+    {
+      "ticker": "TUI1.DE",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Travel Services",
+      "description": "TUI Group"
+    },
+    {
+      "ticker": "TW.L",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Residential Construction",
+      "description": "Taylor Wimpey"
+    },
+    {
+      "ticker": "UBI.PA",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Electronic Gaming & Multimedia",
+      "description": "Ubisoft"
+    },
+    {
+      "ticker": "UBSG.SW",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks-Diversified",
+      "description": "UBS Group"
+    },
+    {
+      "ticker": "UCG.MI",
+      "category": "equity",
+      "sector": "Banks",
+      "sub_sector": "Banks - Regional",
+      "description": "UniCredit"
+    },
+    {
+      "ticker": "UHR.SW",
+      "category": "equity",
+      "sector": "Consumer Products and Services",
+      "sub_sector": "Luxury Goods",
+      "description": "Swatch Group"
+    },
+    {
+      "ticker": "ULVR.L",
+      "category": "equity",
+      "sector": "Personal Care, Drug and Grocery Stores",
+      "sub_sector": "Household & Personal Products",
+      "description": "Unilever"
+    },
+    {
+      "ticker": "UMG.AS",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Entertainment",
+      "description": "Universal Music Group"
+    },
+    {
+      "ticker": "UMI.BR",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Waste Management",
+      "description": "Umicore"
+    },
+    {
+      "ticker": "UN0.DE",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Gas",
+      "description": "Uniper"
+    },
+    {
+      "ticker": "UPM.HE",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Paper & Paper Products",
+      "description": "UPM-Kymmene"
+    },
+    {
+      "ticker": "URW.PA",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Retail REITs",
+      "description": "Unibail-Rodamco-Westfield"
+    },
+    {
+      "ticker": "UTG.L",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Diversified",
+      "description": "Unite Group"
+    },
+    {
+      "ticker": "UU.L",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Regulated Water",
+      "description": "United Utilities"
+    },
+    {
+      "ticker": "VACN.SW",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "VAT Group"
+    },
+    {
+      "ticker": "VALMT.HE",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Valmet"
+    },
+    {
+      "ticker": "VCT.PA",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Materials",
+      "description": "Vicat"
+    },
+    {
+      "ticker": "VEND.OL",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Internet Content & Information",
+      "description": "Schibsted"
+    },
+    {
+      "ticker": "VER.VI",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Utilities-Renewable",
+      "description": "Verbund"
+    },
+    {
+      "ticker": "VIE.PA",
+      "category": "equity",
+      "sector": "Utilities",
+      "sub_sector": "Water Utilities",
+      "description": "Veolia"
+    },
+    {
+      "ticker": "VIG.VI",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Vienna Insurance Group"
+    },
+    {
+      "ticker": "VITR.ST",
+      "category": "equity",
+      "sector": "Health Care",
+      "sub_sector": "Medical Devices",
+      "description": "Vitrolife"
+    },
+    {
+      "ticker": "VIV.PA",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Electronic Gaming & Multimedia",
+      "description": "Vivendi"
+    },
+    {
+      "ticker": "VK.PA",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Steel",
+      "description": "Vallourec"
+    },
+    {
+      "ticker": "VNA.DE",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Real Estate Services",
+      "description": "Vonovia"
+    },
+    {
+      "ticker": "VOD.L",
+      "category": "equity",
+      "sector": "Telecommunications",
+      "sub_sector": "Telecom Services",
+      "description": "Vodafone"
+    },
+    {
+      "ticker": "VOE.VI",
+      "category": "equity",
+      "sector": "Basic Resources",
+      "sub_sector": "Steel",
+      "description": "Voestalpine"
+    },
+    {
+      "ticker": "VOLV-B.ST",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Farm & Heavy Construction Machinery",
+      "description": "Volvo Group"
+    },
+    {
+      "ticker": "VPK.AS",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Oil & Gas Midstream",
+      "description": "Vopak"
+    },
+    {
+      "ticker": "VPLAY-B.ST",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Entertainment",
+      "description": "Viaplay"
+    },
+    {
+      "ticker": "VWS.CO",
+      "category": "equity",
+      "sector": "Energy",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Vestas"
+    },
+    {
+      "ticker": "WDP.BR",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "REIT-Industrial",
+      "description": "Warehouses De Pauw"
+    },
+    {
+      "ticker": "WEIR.L",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Specialty Industrial Machinery",
+      "description": "Weir Group"
+    },
+    {
+      "ticker": "WIE.VI",
+      "category": "equity",
+      "sector": "Construction and Materials",
+      "sub_sector": "Building Materials",
+      "description": "Wienerberger"
+    },
+    {
+      "ticker": "WIHL.ST",
+      "category": "equity",
+      "sector": "Real Estate",
+      "sub_sector": "Real Estate Services",
+      "description": "Wihlborgs Fastigheter"
+    },
+    {
+      "ticker": "WISE.L",
+      "category": "equity",
+      "sector": "Financial Services",
+      "sub_sector": "Information Technology Services",
+      "description": "Wise"
+    },
+    {
+      "ticker": "WKL.AS",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Specialty Business Services",
+      "description": "Wolters Kluwer"
+    },
+    {
+      "ticker": "WLN.PA",
+      "category": "equity",
+      "sector": "Industrial Goods and Services",
+      "sub_sector": "Software-Infrastructure",
+      "description": "Worldline"
+    },
+    {
+      "ticker": "WPP.L",
+      "category": "equity",
+      "sector": "Media",
+      "sub_sector": "Advertising Agencies",
+      "description": "WPP"
+    },
+    {
+      "ticker": "WTB.L",
+      "category": "equity",
+      "sector": "Travel and Leisure",
+      "sub_sector": "Lodging",
+      "description": "Whitbread"
+    },
+    {
+      "ticker": "YAR.OL",
+      "category": "equity",
+      "sector": "Chemicals",
+      "sub_sector": "Agricultural Inputs",
+      "description": "Yara International"
+    },
+    {
+      "ticker": "ZAL.DE",
+      "category": "equity",
+      "sector": "Retail",
+      "sub_sector": "Internet Retail",
+      "description": "Zalando"
+    },
+    {
+      "ticker": "ZURN.SW",
+      "category": "equity",
+      "sector": "Insurance",
+      "sub_sector": "Insurance-Diversified",
+      "description": "Zurich Insurance Group"
+    }
+  ]
+}

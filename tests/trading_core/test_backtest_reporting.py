@@ -83,8 +83,12 @@ class CoreBacktestReportingTests(unittest.TestCase):
                 "summary": EvaluationSummary(
                     total_return=0.1,
                     ann_return=0.12,
+                    cagr=0.11,
                     ann_vol=0.15,
                     sharpe=0.8,
+                    sortino=1.0,
+                    skewness=0.1,
+                    mar=2.2,
                     mdd=-0.05,
                     avg_turnover=0.2,
                     annualized_turnover=10.0,
@@ -93,6 +97,10 @@ class CoreBacktestReportingTests(unittest.TestCase):
                     pct_positive_days=0.55,
                     num_days=3,
                     num_rebalances=1,
+                    avg_turnover_per_rebalance=1.0,
+                    avg_cost_per_rebalance=0.001,
+                    total_return_gross=0.101,
+                    total_return_cost_drag=0.001,
                 ),
                 "weights_by_rebalance": pd.DataFrame({"A": [0.6], "B": [0.4]}, index=index),
                 "base_weights_by_rebalance": pd.DataFrame({"A": [0.6], "B": [0.4]}, index=index),
@@ -114,6 +122,8 @@ class CoreBacktestReportingTests(unittest.TestCase):
             self.assertTrue((outdir / "summary.json").exists())
             summary = json.loads((outdir / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["total_return"], 0.1)
+            self.assertEqual(summary["total_return_gross"], 0.101)
+            self.assertEqual(summary["mar"], 2.2)
 
     def test_cumulative_nav_compounds_returns(self) -> None:
         nav = cumulative_nav(pd.Series([0.10, -0.05], index=pd.date_range("2026-01-01", periods=2, freq="B")))

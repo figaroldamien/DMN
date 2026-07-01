@@ -1,0 +1,8 @@
+{
+  "ticker": "PSKY",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:48:24.813663+00:00",
+  "data_start": "2005-12-05",
+  "data_end": "2026-07-01",
+  "rows": 5174
+}

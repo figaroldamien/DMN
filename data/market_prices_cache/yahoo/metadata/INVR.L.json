@@ -1,0 +1,8 @@
+{
+  "ticker": "INVR.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:46.513284+00:00",
+  "data_start": "2008-07-10",
+  "data_end": "2026-07-01",
+  "rows": 4541
+}

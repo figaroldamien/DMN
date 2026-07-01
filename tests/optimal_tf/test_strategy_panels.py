@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
 
 from optimal_tf.allocation import compute_strategy_panel, compute_weights_panel, supported_strategies  # noqa: E402
 from optimal_tf.config import EstimationConfig  # noqa: E402
+from optimal_tf.strategies.common import resolve_clean_correlation_at_date, resolve_covariance_at_date  # noqa: E402
 
 
 class StrategyPanelTests(unittest.TestCase):
@@ -37,6 +38,8 @@ class StrategyPanelTests(unittest.TestCase):
         self.assertIn("NM", supported_strategies())
         self.assertIn("EW", supported_strategies())
         self.assertIn("LLTF", supported_strategies())
+        self.assertIn("ARP_AGNOSTIC", supported_strategies())
+        self.assertIn("ATF_AGNOSTIC", supported_strategies())
         self.assertNotIn("ToRP0", supported_strategies())
         self.assertNotIn("ToRP1", supported_strategies())
         self.assertNotIn("ToRP2", supported_strategies())
@@ -90,6 +93,81 @@ class StrategyPanelTests(unittest.TestCase):
             panel.effective_weights.loc[last_date].to_numpy(),
         ))
         self.assertAlmostEqual(float(panel.signal_scale.loc[last_date]), 1.0)
+
+    def test_agnostic_recipe_panel_is_available_through_public_allocation_api(self) -> None:
+        panel = compute_weights_panel(
+            self.prices,
+            EstimationConfig(vol_span=2, trend_span=2, covariance_min_periods=2),
+            "ARP_AGNOSTIC",
+            long_only=False,
+            covariance_cache={self.prices.index[-1]: self.cov},
+        )
+        row = panel.loc[self.prices.index[-1]]
+        self.assertTrue(np.isfinite(row.to_numpy()).all())
+        self.assertAlmostEqual(float(row.abs().sum()), 1.0)
+
+    def test_covariance_cache_reuses_recent_snapshot(self) -> None:
+        recent_date = self.prices.index[-2]
+        target_date = self.prices.index[-1]
+
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_at_date") as mocked:
+            resolved = resolve_covariance_at_date(
+                self.prices,
+                EstimationConfig(),
+                target_date,
+                covariance_cache={recent_date: self.cov},
+            )
+
+        mocked.assert_not_called()
+        self.assertTrue(resolved.equals(self.cov))
+
+    def test_covariance_cache_does_not_reuse_stale_snapshot(self) -> None:
+        stale_cov = pd.DataFrame(
+            [[0.09, 0.0, 0.0], [0.0, 0.04, 0.0], [0.0, 0.0, 0.01]],
+            index=list("ABC"),
+            columns=list("ABC"),
+        )
+        fresh_cov = pd.DataFrame(
+            [[0.01, 0.0, 0.0], [0.0, 0.04, 0.0], [0.0, 0.0, 0.09]],
+            index=list("ABC"),
+            columns=list("ABC"),
+        )
+        target_date = pd.Timestamp("2026-01-20")
+
+        with patch("optimal_tf.strategies.common.estimate_clean_covariance_at_date", return_value=fresh_cov) as mocked:
+            resolved = resolve_covariance_at_date(
+                self.prices,
+                EstimationConfig(),
+                target_date,
+                covariance_cache={pd.Timestamp("2026-01-01"): stale_cov},
+            )
+
+        mocked.assert_called_once()
+        self.assertTrue(resolved.equals(fresh_cov))
+
+    def test_correlation_cache_does_not_reuse_stale_snapshot(self) -> None:
+        stale_corr = pd.DataFrame(
+            [[1.0, 0.9, 0.0], [0.9, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            index=list("ABC"),
+            columns=list("ABC"),
+        )
+        fresh_corr = pd.DataFrame(
+            [[1.0, 0.1, 0.0], [0.1, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            index=list("ABC"),
+            columns=list("ABC"),
+        )
+        target_date = pd.Timestamp("2026-01-20")
+
+        with patch("optimal_tf.strategies.common.estimate_clean_correlation_at_date", return_value=fresh_corr) as mocked:
+            resolved = resolve_clean_correlation_at_date(
+                self.prices,
+                EstimationConfig(),
+                target_date,
+                correlation_cache={pd.Timestamp("2026-01-01"): stale_corr},
+            )
+
+        mocked.assert_called_once()
+        self.assertTrue(resolved.equals(fresh_corr))
 
 
 if __name__ == "__main__":

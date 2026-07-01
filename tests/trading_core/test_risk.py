@@ -20,6 +20,7 @@ from trading_core.risk import (  # noqa: E402
     estimate_clean_covariance_panel,
     marchenko_pastur_law,
 )
+from trading_core.risk.pipeline import rolling_corr_frame  # noqa: E402
 
 
 class TradingCoreRiskTests(unittest.TestCase):
@@ -95,6 +96,26 @@ class TradingCoreRiskTests(unittest.TestCase):
         self.assertIn(prices.index[-1], panel)
         cov = panel[prices.index[-1]]
         self.assertGreaterEqual(len(cov.index), 2)
+
+    def test_rolling_corr_frame_only_evaluates_requested_dates_present_in_index(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "A": [0.01, 0.02, 0.03, 0.04, 0.05],
+                "B": [0.03, 0.01, 0.04, 0.02, 0.05],
+                "C": [0.02, 0.03, 0.01, 0.05, 0.04],
+            },
+            index=pd.date_range("2026-01-01", periods=5, freq="B"),
+        )
+        target_dates = pd.DatetimeIndex([frame.index[1], frame.index[3], pd.Timestamp("2026-02-01")])
+
+        result = rolling_corr_frame(
+            frame,
+            window=3,
+            min_periods=3,
+            target_dates=target_dates,
+        )
+
+        self.assertEqual(list(result.keys()), [frame.index[3]])
 
 
 if __name__ == "__main__":

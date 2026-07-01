@@ -1,0 +1,8 @@
+{
+  "ticker": "DHER.DE",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:14.207195+00:00",
+  "data_start": "2017-06-30",
+  "data_end": "2026-07-01",
+  "rows": 2286
+}

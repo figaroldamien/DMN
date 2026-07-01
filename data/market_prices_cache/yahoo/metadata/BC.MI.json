@@ -1,0 +1,8 @@
+{
+  "ticker": "BC.MI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:39:57.662049+00:00",
+  "data_start": "2012-04-27",
+  "data_end": "2026-07-01",
+  "rows": 3596
+}

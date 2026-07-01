@@ -1,0 +1,8 @@
+{
+  "ticker": "GFTU.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:32.247105+00:00",
+  "data_start": "2002-07-30",
+  "data_end": "2026-07-01",
+  "rows": 6071
+}

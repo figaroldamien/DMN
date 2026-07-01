@@ -1,0 +1,8 @@
+{
+  "ticker": "VLA.PA",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T15:42:21.021746+00:00",
+  "data_start": "2007-06-29",
+  "data_end": "2026-07-01",
+  "rows": 4862
+}

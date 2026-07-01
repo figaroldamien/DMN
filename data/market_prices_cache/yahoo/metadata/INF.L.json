@@ -1,0 +1,8 @@
+{
+  "ticker": "INF.L",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:40:45.941085+00:00",
+  "data_start": "1998-12-22",
+  "data_end": "2026-07-01",
+  "rows": 7012
+}

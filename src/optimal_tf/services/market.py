@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from market_tickers_data.universes import (
@@ -9,8 +10,11 @@ from market_tickers_data.universes import (
     DATASET_COMPONENTS,
     DJI_COMPONENTS,
     EUROSTOXX50_COMPONENTS,
+    EUROSTOXX600_COMPONENTS,
+    FUTURES_COMPONENTS,
     INDEX_COMPONENTS,
     NASDAQ100_COMPONENTS,
+    SBF120_COMPONENTS,
     SP500_COMPONENTS,
     WORLD_INDEX_COMPONENTS,
 )
@@ -35,8 +39,11 @@ UNIVERSE_COMPONENTS = {
     'cac40': CAC40_COMPONENTS,
     'dji': DJI_COMPONENTS,
     'sp500': SP500_COMPONENTS,
+    'sbf120': SBF120_COMPONENTS,
     'eurostoxx50': EUROSTOXX50_COMPONENTS,
+    'eurostoxx600': EUROSTOXX600_COMPONENTS,
     'index': INDEX_COMPONENTS,
+    'futures': FUTURES_COMPONENTS,
     'dataset': DATASET_COMPONENTS,
     'dataset_all': DATASET_COMPONENTS,
     'table8_all': DATASET_COMPONENTS,
@@ -56,6 +63,7 @@ def _component_metadata(universe: str, tickers: list[str]) -> pd.DataFrame:
                 'sector': str(meta.get('sector', '') or '').strip(),
                 'sub_sector': str(meta.get('sub_sector', '') or '').strip(),
                 'category': str(meta.get('category', '') or '').strip(),
+                'sub_category': str(meta.get('sub_category', '') or '').strip(),
                 'description': str(meta.get('description', '') or '').strip(),
             }
         )
@@ -88,6 +96,17 @@ def _compute_ticker_momentum(history: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _compute_monthly_return_history(history: pd.DataFrame) -> pd.DataFrame:
+    monthly_prices = history.resample('ME').last().ffill()
+    monthly_returns = monthly_prices.pct_change().dropna(how='all')
+    if monthly_returns.empty:
+        return pd.DataFrame(index=history.columns)
+    monthly_returns = monthly_returns.T
+    monthly_returns.columns = [pd.Timestamp(ts).strftime('%b-%y') for ts in monthly_returns.columns]
+    monthly_returns.index.name = 'ticker'
+    return monthly_returns
+
+
 def _build_consolidated_frame(ticker_frame: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     for sector, sector_frame in ticker_frame.groupby('sector', sort=True):
@@ -102,6 +121,32 @@ def _build_consolidated_frame(ticker_frame: pd.DataFrame) -> pd.DataFrame:
         })
         for sub_sector, sub_frame in sector_frame.groupby('sub_sector', sort=True):
             sub_metrics = sub_frame[list(MOMENTUM_WINDOWS)].mean(axis=0)
+            rows.append({
+                'level': 'sub_sector',
+                'sector': sector,
+                'sub_sector': sub_sector,
+                'label': f'  {sub_sector}',
+                'num_tickers': int(len(sub_frame)),
+                **sub_metrics.to_dict(),
+            })
+    return pd.DataFrame(rows)
+
+
+def _build_monthly_consolidated_frame(monthly_ticker_frame: pd.DataFrame) -> pd.DataFrame:
+    month_columns = [column for column in monthly_ticker_frame.columns if column not in {'sector', 'sub_sector', 'category', 'sub_category', 'description'}]
+    rows: list[dict[str, object]] = []
+    for sector, sector_frame in monthly_ticker_frame.groupby('sector', sort=True):
+        sector_metrics = sector_frame[month_columns].mean(axis=0)
+        rows.append({
+            'level': 'sector',
+            'sector': sector,
+            'sub_sector': '',
+            'label': sector,
+            'num_tickers': int(len(sector_frame)),
+            **sector_metrics.to_dict(),
+        })
+        for sub_sector, sub_frame in sector_frame.groupby('sub_sector', sort=True):
+            sub_metrics = sub_frame[month_columns].mean(axis=0)
             rows.append({
                 'level': 'sub_sector',
                 'sector': sector,
@@ -135,6 +180,17 @@ def _build_group_nav_frame(history: pd.DataFrame, metadata: pd.DataFrame, *, gro
     return pd.DataFrame(group_series).sort_index(axis=1)
 
 
+def _build_ticker_nav_frame(history: pd.DataFrame) -> pd.DataFrame:
+    if history.empty:
+        return pd.DataFrame()
+    filled = history.ffill().copy()
+    first_valid = filled.apply(
+        lambda column: column.dropna().iloc[0] if not column.dropna().empty else np.nan
+    )
+    rebased = 100.0 * filled.divide(first_valid.replace(0.0, np.nan), axis="columns")
+    return rebased.dropna(how='all').sort_index(axis=1)
+
+
 def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResult:
     universe_cfg, *_ = load_config(request.config_path)
     universe_name = request.universe or universe_cfg.name
@@ -147,6 +203,8 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         raise ValueError(f'No price history available on or before {as_of_date.date()}.')
 
     ticker_momentum = _compute_ticker_momentum(history)
+    monthly_ticker_returns = _compute_monthly_return_history(history)
+    ticker_nav_frame = _build_ticker_nav_frame(history)
     metadata = _component_metadata(universe_name, list(ticker_momentum.index))
     hierarchy_mask = _hierarchy_mask(metadata)
     category_mask = _category_mask(metadata)
@@ -161,14 +219,27 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         metadata['hierarchy_complete'] = hierarchy_mask.astype(bool)
         metadata = metadata.sort_values(['hierarchy_complete', 'sector', 'sub_sector'], ascending=[False, True, True])
         sorted_tickers = list(metadata.index)
+
         ticker_frame = ticker_momentum.loc[sorted_tickers].copy()
         ticker_frame.insert(0, 'sector', metadata.loc[sorted_tickers, 'sector'].to_numpy())
         ticker_frame.insert(1, 'sub_sector', metadata.loc[sorted_tickers, 'sub_sector'].to_numpy())
         ticker_frame.insert(2, 'category', metadata.loc[sorted_tickers, 'category'].to_numpy())
-        ticker_frame.insert(3, 'description', metadata.loc[sorted_tickers, 'description'].to_numpy())
-        ticker_frame.insert(4, 'hierarchy_complete', metadata.loc[sorted_tickers, 'hierarchy_complete'].to_numpy())
+        ticker_frame.insert(3, 'sub_category', metadata.loc[sorted_tickers, 'sub_category'].to_numpy())
+        ticker_frame.insert(4, 'description', metadata.loc[sorted_tickers, 'description'].to_numpy())
+        ticker_frame.insert(5, 'hierarchy_complete', metadata.loc[sorted_tickers, 'hierarchy_complete'].to_numpy())
         classified_ticker_frame = ticker_frame.loc[ticker_frame['hierarchy_complete']].drop(columns=['hierarchy_complete'])
         consolidated_frame = _build_consolidated_frame(classified_ticker_frame)
+
+        monthly_ticker_frame = monthly_ticker_returns.loc[sorted_tickers].copy()
+        monthly_ticker_frame.insert(0, 'sector', metadata.loc[sorted_tickers, 'sector'].to_numpy())
+        monthly_ticker_frame.insert(1, 'sub_sector', metadata.loc[sorted_tickers, 'sub_sector'].to_numpy())
+        monthly_ticker_frame.insert(2, 'category', metadata.loc[sorted_tickers, 'category'].to_numpy())
+        monthly_ticker_frame.insert(3, 'sub_category', metadata.loc[sorted_tickers, 'sub_category'].to_numpy())
+        monthly_ticker_frame.insert(4, 'description', metadata.loc[sorted_tickers, 'description'].to_numpy())
+        monthly_ticker_frame.insert(5, 'hierarchy_complete', metadata.loc[sorted_tickers, 'hierarchy_complete'].to_numpy())
+        classified_monthly_ticker_frame = monthly_ticker_frame.loc[monthly_ticker_frame['hierarchy_complete']].drop(columns=['hierarchy_complete'])
+        monthly_consolidated_frame = _build_monthly_consolidated_frame(classified_monthly_ticker_frame)
+
         sector_nav_frame = _build_group_nav_frame(history, metadata, group_column='sector', mask_column='hierarchy_complete')
         index = pd.MultiIndex.from_arrays(
             [
@@ -180,6 +251,8 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         )
         ticker_frame = ticker_frame.drop(columns=['sector', 'sub_sector'])
         ticker_frame.index = index
+        monthly_ticker_frame = monthly_ticker_frame.drop(columns=['sector', 'sub_sector'])
+        monthly_ticker_frame.index = index
     elif bool(category_mask.any()):
         synthesis_mode = 'category'
         metadata = metadata.copy()
@@ -187,11 +260,21 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         metadata['category'] = metadata['category'].where(category_mask, 'category_unclassified')
         metadata = metadata.sort_values(['category_complete', 'category'], ascending=[False, True])
         sorted_tickers = list(metadata.index)
+
         ticker_frame = ticker_momentum.loc[sorted_tickers].copy()
         ticker_frame.insert(0, 'category', metadata.loc[sorted_tickers, 'category'].to_numpy())
-        ticker_frame.insert(1, 'description', metadata.loc[sorted_tickers, 'description'].to_numpy())
-        ticker_frame.insert(2, 'category_complete', metadata.loc[sorted_tickers, 'category_complete'].to_numpy())
+        ticker_frame.insert(1, 'sub_category', metadata.loc[sorted_tickers, 'sub_category'].to_numpy())
+        ticker_frame.insert(2, 'description', metadata.loc[sorted_tickers, 'description'].to_numpy())
+        ticker_frame.insert(3, 'category_complete', metadata.loc[sorted_tickers, 'category_complete'].to_numpy())
+
+        monthly_ticker_frame = monthly_ticker_returns.loc[sorted_tickers].copy()
+        monthly_ticker_frame.insert(0, 'category', metadata.loc[sorted_tickers, 'category'].to_numpy())
+        monthly_ticker_frame.insert(1, 'sub_category', metadata.loc[sorted_tickers, 'sub_category'].to_numpy())
+        monthly_ticker_frame.insert(2, 'description', metadata.loc[sorted_tickers, 'description'].to_numpy())
+        monthly_ticker_frame.insert(3, 'category_complete', metadata.loc[sorted_tickers, 'category_complete'].to_numpy())
+
         consolidated_frame = pd.DataFrame()
+        monthly_consolidated_frame = pd.DataFrame()
         sector_nav_frame = pd.DataFrame()
         index = pd.MultiIndex.from_arrays(
             [
@@ -202,14 +285,21 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         )
         ticker_frame = ticker_frame.drop(columns=['category'])
         ticker_frame.index = index
+        monthly_ticker_frame = monthly_ticker_frame.drop(columns=['category'])
+        monthly_ticker_frame.index = index
     else:
         consolidated_frame = pd.DataFrame()
+        monthly_consolidated_frame = pd.DataFrame()
         sector_nav_frame = pd.DataFrame()
         ticker_frame = ticker_momentum.sort_index()
+        monthly_ticker_frame = monthly_ticker_returns.loc[ticker_frame.index].copy() if not monthly_ticker_returns.empty else pd.DataFrame(index=ticker_frame.index)
         if not metadata.empty:
             ticker_frame.insert(0, 'description', metadata.loc[ticker_frame.index, 'description'].to_numpy())
             ticker_frame.insert(1, 'category', metadata.loc[ticker_frame.index, 'category'].to_numpy())
-
+            ticker_frame.insert(2, 'sub_category', metadata.loc[ticker_frame.index, 'sub_category'].to_numpy())
+            monthly_ticker_frame.insert(0, 'description', metadata.loc[ticker_frame.index, 'description'].to_numpy())
+            monthly_ticker_frame.insert(1, 'category', metadata.loc[ticker_frame.index, 'category'].to_numpy())
+            monthly_ticker_frame.insert(2, 'sub_category', metadata.loc[ticker_frame.index, 'sub_category'].to_numpy())
 
     outdir = ensure_output_dir(request.output_dir)
     files: dict[str, Path] = {}
@@ -217,14 +307,27 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         ticker_path = outdir / 'ticker_momentum.csv'
         ticker_frame.to_csv(ticker_path)
         files['ticker_momentum'] = ticker_path
+
+        monthly_ticker_path = outdir / 'ticker_monthly_returns.csv'
+        monthly_ticker_frame.to_csv(monthly_ticker_path)
+        files['ticker_monthly_returns'] = monthly_ticker_path
+
         if not consolidated_frame.empty:
             consolidated_path = outdir / 'consolidated_momentum.csv'
             consolidated_frame.to_csv(consolidated_path, index=False)
             files['consolidated_momentum'] = consolidated_path
+        if not monthly_consolidated_frame.empty:
+            monthly_consolidated_path = outdir / 'consolidated_monthly_returns.csv'
+            monthly_consolidated_frame.to_csv(monthly_consolidated_path, index=False)
+            files['consolidated_monthly_returns'] = monthly_consolidated_path
         if not sector_nav_frame.empty:
             sector_nav_path = outdir / 'sector_nav.csv'
             sector_nav_frame.to_csv(sector_nav_path)
             files['sector_nav'] = sector_nav_path
+        if not ticker_nav_frame.empty:
+            ticker_nav_path = outdir / 'ticker_nav.csv'
+            ticker_nav_frame.to_csv(ticker_nav_path)
+            files['ticker_nav'] = ticker_nav_path
         req = write_request_json(outdir, request)
         if req is not None:
             files['request'] = req
@@ -243,6 +346,7 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
                 'num_category_classified_tickers': int(category_mask.sum()),
                 'num_category_unclassified_tickers': int((~category_mask).sum()),
                 'momentum_windows': MOMENTUM_WINDOWS,
+                'monthly_columns': list(monthly_ticker_returns.columns),
             },
         )
         files['summary'] = outdir / 'summary.json'
@@ -257,5 +361,8 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         consolidated_frame=consolidated_frame,
         ticker_frame=ticker_frame,
         sector_nav_frame=sector_nav_frame,
+        ticker_nav_frame=ticker_nav_frame,
+        monthly_consolidated_frame=monthly_consolidated_frame,
+        monthly_ticker_frame=monthly_ticker_frame,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )

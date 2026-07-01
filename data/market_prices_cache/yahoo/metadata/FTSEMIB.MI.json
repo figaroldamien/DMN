@@ -1,0 +1,8 @@
+{
+  "ticker": "FTSEMIB.MI",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T17:22:51.974380+00:00",
+  "data_start": "1997-12-31",
+  "data_end": "2026-07-01",
+  "rows": 7278
+}

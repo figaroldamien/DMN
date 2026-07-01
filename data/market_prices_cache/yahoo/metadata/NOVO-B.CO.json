@@ -1,0 +1,8 @@
+{
+  "ticker": "NOVO-B.CO",
+  "provider": "yahoo",
+  "last_fetch_at": "2026-07-01T16:41:08.755447+00:00",
+  "data_start": "2001-01-08",
+  "data_end": "2026-07-01",
+  "rows": 6415
+}
