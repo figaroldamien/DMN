@@ -983,14 +983,51 @@ def _mode_service_selector() -> tuple[str, str]:
     return usage_mode, service_name
 
 
+def _round_up_to_half_ten(value: float) -> int:
+    return max(5, int(5 * np.ceil(float(value) / 5.0)))
+
+
+def _universe_covariance_window_default(universe: str) -> tuple[int, int]:
+    num_assets = len(MARKET_TICKERS.get(universe, []))
+    return _round_up_to_half_ten(1.5 * max(1, num_assets)), num_assets
+
+
+def _universe_covariance_window_range_default(universe: str) -> tuple[list[int], int]:
+    num_assets = len(MARKET_TICKERS.get(universe, []))
+    base = max(1, num_assets)
+    windows = sorted({
+        _round_up_to_half_ten(multiplier * base)
+        for multiplier in (1.1, 1.25, 1.5, 1.75, 2.0)
+    })
+    if windows[-1] < 252:
+        windows.append(252)
+    return windows, num_assets
+
+
+def _sync_widget_default(key: str, default_value: Any, *, context: Any) -> None:
+    default_key = f'{key}::default'
+    context_key = f'{key}::context'
+    previous_context = st.session_state.get(context_key)
+    previous_default = st.session_state.get(default_key)
+
+    if previous_context != context:
+        st.session_state[key] = default_value
+    elif previous_default is None or key not in st.session_state:
+        st.session_state[key] = default_value
+    else:
+        current_value = st.session_state.get(key, previous_default)
+        if current_value == previous_default:
+            st.session_state[key] = default_value
+
+    st.session_state[default_key] = default_value
+    st.session_state[context_key] = context
+
+
 def _estimation_controls(config_defaults: dict[str, Any], *, prefix: str, universe: str) -> tuple[str, int | None]:
     estimation_defaults = config_defaults.get('estimation', {})
     cleaning_default = estimation_defaults.get('cleaning_method', CLEANING_OPTIONS[0])
-    config_window_default = int(estimation_defaults.get('covariance_window', 252) or 252)
     cleaning_key = f'{prefix.lower()}::cleaning_method'
     window_key = f'{prefix.lower()}::covariance_window'
-    default_key = f'{prefix.lower()}::covariance_window_default'
-    context_key = f'{prefix.lower()}::covariance_window_context'
 
     cleaning = st.sidebar.selectbox(
         f'{prefix} cleaning method',
@@ -1000,23 +1037,8 @@ def _estimation_controls(config_defaults: dict[str, Any], *, prefix: str, univer
     )
     st.sidebar.caption(f'Default from config: {cleaning_default}')
 
-    num_assets = len(MARKET_TICKERS.get(universe, []))
-    recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning == 'rie_reference' else config_window_default
-    current_context = (universe, cleaning, num_assets)
-    previous_context = st.session_state.get(context_key)
-    previous_default = st.session_state.get(default_key)
-
-    if previous_context != current_context:
-        st.session_state[window_key] = recommended_window
-    elif previous_default is None:
-        st.session_state[window_key] = recommended_window
-    else:
-        current_window = int(st.session_state.get(window_key, previous_default))
-        if current_window == int(previous_default):
-            st.session_state[window_key] = recommended_window
-
-    st.session_state[default_key] = recommended_window
-    st.session_state[context_key] = current_context
+    recommended_window, num_assets = _universe_covariance_window_default(universe)
+    _sync_widget_default(window_key, recommended_window, context=(universe, cleaning, num_assets))
 
     covariance_window = int(st.sidebar.number_input(
         f'{prefix} covariance window',
@@ -1024,10 +1046,7 @@ def _estimation_controls(config_defaults: dict[str, Any], *, prefix: str, univer
         step=1,
         key=window_key,
     ))
-    if cleaning == 'rie_reference':
-        st.sidebar.caption(f'Default for rie_reference: {recommended_window} (1.5x {num_assets} assets)')
-    else:
-        st.sidebar.caption(f'Default from config: {config_window_default}')
+    st.sidebar.caption(f'Universe suggestion: {recommended_window} (1.5x {num_assets} assets, rounded up to the nearest 5)')
     return cleaning, covariance_window
 
 
@@ -1643,6 +1662,25 @@ def _handle_navigation_change() -> None:
     )
 
 
+def _handle_universe_group_change() -> None:
+    selected_group = st.session_state.get('nav::universe_group_widget')
+    if selected_group is None:
+        return
+    st.session_state['nav::universe_group'] = selected_group
+    group_options = UNIVERSE_GROUPS.get(selected_group, UNIVERSE_OPTIONS) or UNIVERSE_OPTIONS
+    current_universe = st.session_state.get('nav::universe')
+    if current_universe not in group_options:
+        fallback_universe = group_options[0]
+        st.session_state['nav::universe'] = fallback_universe
+        st.session_state['nav::universe_widget'] = fallback_universe
+
+
+def _handle_universe_change() -> None:
+    selected_universe = st.session_state.get('nav::universe_widget')
+    if selected_universe is not None:
+        st.session_state['nav::universe'] = selected_universe
+
+
 def _render_service_header(usage_mode: str, service_name: str) -> None:
     st.subheader(f'{usage_mode} / {service_name}')
     intro = SERVICE_INTRO.get((usage_mode, service_name))
@@ -1684,13 +1722,34 @@ common_evaluation_end = config_defaults.get('evaluation', {}).get('evaluation_en
 if usage_mode not in {'Guide', 'Config'}:
     group_default = _default_universe_group(universe_default)
     group_names = [name for name, options in UNIVERSE_GROUPS.items() if options]
-    group_index = group_names.index(group_default) if group_default in group_names else 0
-    universe_group = st.sidebar.selectbox('Universe group', group_names, index=group_index)
+    stored_group = st.session_state.get('nav::universe_group')
+    if stored_group not in group_names:
+        stored_group = group_default
+        st.session_state['nav::universe_group'] = stored_group
+    universe_group = st.sidebar.selectbox(
+        'Universe group',
+        group_names,
+        index=group_names.index(stored_group),
+        key='nav::universe_group_widget',
+        on_change=_handle_universe_group_change,
+    )
+    st.session_state['nav::universe_group'] = universe_group
     group_options = UNIVERSE_GROUPS.get(universe_group, UNIVERSE_OPTIONS)
     if not group_options:
         group_options = UNIVERSE_OPTIONS
-    universe_index = group_options.index(universe_default) if universe_default in group_options else 0
-    universe = st.sidebar.selectbox('Universe', group_options, index=universe_index, format_func=_format_universe_label)
+    stored_universe = st.session_state.get('nav::universe')
+    if stored_universe not in group_options:
+        stored_universe = universe_default if universe_default in group_options else group_options[0]
+        st.session_state['nav::universe'] = stored_universe
+    universe = st.sidebar.selectbox(
+        'Universe',
+        group_options,
+        index=group_options.index(stored_universe),
+        key='nav::universe_widget',
+        on_change=_handle_universe_change,
+        format_func=_format_universe_label,
+    )
+    st.session_state['nav::universe'] = universe
     st.sidebar.caption(f'Default from config: {universe_default}')
     start = _date_input_value('Start date', start_default, key='global::start_date')
     st.sidebar.caption(f'Default from config: {start_default}')
@@ -1741,8 +1800,8 @@ elif usage_mode == 'Standard' and service_name == 'Allocation':
         long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
         cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
         shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        num_assets = len(MARKET_TICKERS.get(universe, []))
-        config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('standard::allocation::covariance_window', window_default, context=(universe, 'allocation', num_assets))
 
         row1 = st.columns(3)
         with row1[0]:
@@ -1757,13 +1816,12 @@ elif usage_mode == 'Standard' and service_name == 'Allocation':
                 key='standard::allocation::linear_shrinkage',
                 default_value=shrinkage_default,
             )
-        recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
         with row1[2]:
             covariance_window = int(
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=recommended_window,
+                    value=int(st.session_state['standard::allocation::covariance_window']),
                     step=1,
                     key='standard::allocation::covariance_window',
                 )
@@ -1791,12 +1849,11 @@ elif usage_mode == 'Standard' and service_name == 'Allocation':
         with row3[0]:
             output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/allocation', key='standard::allocation::output_dir')
         _render_service_guidance(
-            defaults=f"strategy={allocation_default}, cleaning={cleaning_default}, covariance window={config_window_default}",
+            defaults=f"strategy={allocation_default}, cleaning={cleaning_default}, covariance window={window_default}",
             recommendation='Prefer the latest available date for an operational snapshot, and switch to a manual date only when you want to inspect a historical allocation.',
             action=f'compute one allocation snapshot for strategy `{strategy}` on `{as_of_date or "the latest available date"}`.',
         )
-        if cleaning_method == 'rie_reference':
-            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run allocation')
     if run_clicked:
         request = AllocationRequest(
@@ -1866,8 +1923,8 @@ elif usage_mode == 'Standard' and service_name == 'Evaluation':
     with st.form('standard_evaluation_form'):
         cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
         shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        num_assets = len(MARKET_TICKERS.get(universe, []))
-        config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('standard::evaluation::covariance_window', window_default, context=(universe, 'evaluation', num_assets))
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
         long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
@@ -1885,13 +1942,12 @@ elif usage_mode == 'Standard' and service_name == 'Evaluation':
                 key='standard::evaluation::linear_shrinkage',
                 default_value=shrinkage_default,
             )
-        recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
         with row1[2]:
             covariance_window = int(
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=recommended_window,
+                    value=int(st.session_state['standard::evaluation::covariance_window']),
                     step=1,
                     key='standard::evaluation::covariance_window',
                 )
@@ -1925,14 +1981,13 @@ elif usage_mode == 'Standard' and service_name == 'Evaluation':
             output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/evaluation', key='standard::evaluation::output_dir')
         _render_service_guidance(
             defaults=(
-                f"strategy={strategy_default}, cleaning={cleaning_default}, covariance window={config_window_default}, "
+                f"strategy={strategy_default}, cleaning={cleaning_default}, covariance window={window_default}, "
                 f"rebalance frequency={freq_default}, weight smoothing alpha={smoothing_default}"
             ),
             recommendation='Keep weight smoothing alpha near 1.0 for reference backtests. Lower values mainly help when you want to study turnover and slower reallocation.',
             action=f'run a backtest for strategy `{strategy}` from `{common_evaluation_start or "config start"}` to `{common_evaluation_end or "config end"}`.',
         )
-        if cleaning_method == 'rie_reference':
-            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run evaluation')
     if run_clicked:
         request = StandardEvaluationRequest(
@@ -2061,8 +2116,8 @@ elif usage_mode == 'Standard' and service_name == 'Strategy testbed':
         smoothing_default = float(backtest_defaults.get('weight_smoothing_alpha', 1.0) or 1.0)
         cleaning_default = estimation_defaults.get('cleaning_method', CLEANING_OPTIONS[0])
         shrinkage_default = float(estimation_defaults.get('linear_shrinkage', 0.0) or 0.0)
-        num_assets = len(MARKET_TICKERS.get(universe, []))
-        config_window_default = int(estimation_defaults.get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('standard::testbed::covariance_window', window_default, context=(universe, 'testbed', num_assets))
         freq_default = evaluation_defaults.get('rebalance_frequency', FREQUENCY_OPTIONS[0])
 
         row1 = st.columns(3)
@@ -2154,13 +2209,12 @@ elif usage_mode == 'Standard' and service_name == 'Strategy testbed':
                 key='standard::testbed::linear_shrinkage',
                 default_value=shrinkage_default,
             )
-        recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
         with row3[2]:
             covariance_window = int(
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=recommended_window,
+                    value=int(st.session_state['standard::testbed::covariance_window']),
                     step=1,
                     key='standard::testbed::covariance_window',
                 )
@@ -2217,7 +2271,7 @@ elif usage_mode == 'Standard' and service_name == 'Strategy testbed':
                 key='standard::testbed::long_only',
             )
         st.caption(
-            f"Config defaults: cleaning={cleaning_default}, window={config_window_default}, "
+            f"Config defaults: cleaning={cleaning_default}, window={window_default}, "
             f"shrinkage={shrinkage_default}, frequency={freq_default}, smoothing={smoothing_default}, "
             f"long_only={bool(backtest_defaults.get('long_only', False))}"
         )
@@ -2230,8 +2284,7 @@ elif usage_mode == 'Standard' and service_name == 'Strategy testbed':
             )
         if agnostic_controls_enabled and q_model != 'phi_shrink_correlation':
             st.caption("`phi` is ignored unless `Q model` is `phi_shrink_correlation`.")
-        if cleaning_method == 'rie_reference':
-            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run strategy testbed')
     if run_clicked:
         request = StrategyTestbedRequest(
@@ -2388,8 +2441,8 @@ elif usage_mode == 'Standard' and service_name == 'Compare':
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
         long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
-        num_assets = len(MARKET_TICKERS.get(universe, []))
-        config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('standard::compare::covariance_window', window_default, context=(universe, 'compare', num_assets))
         row1 = st.columns(3)
         with row1[0]:
             cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
@@ -2404,13 +2457,12 @@ elif usage_mode == 'Standard' and service_name == 'Compare':
                 key='standard::compare::linear_shrinkage',
                 default_value=shrinkage_default,
             )
-        recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
         with row1[2]:
             covariance_window = int(
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=recommended_window,
+                    value=int(st.session_state['standard::compare::covariance_window']),
                     step=1,
                     key='standard::compare::covariance_window',
                 )
@@ -2444,14 +2496,13 @@ elif usage_mode == 'Standard' and service_name == 'Compare':
             output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/compare', key='standard::compare::output_dir')
         _render_service_guidance(
             defaults=(
-                f"strategies={', '.join(compare_defaults)}, cleaning={cleaning_default}, covariance window={config_window_default}, "
+                f"strategies={', '.join(compare_defaults)}, cleaning={cleaning_default}, covariance window={window_default}, "
                 f"rebalance frequency={freq_default}, weight smoothing alpha={smoothing_default}"
             ),
             recommendation='Use a compact strategy set when you want a readable NAV comparison. Larger sets are better suited to summary-table inspection first.',
             action=f'compare {max(1, len(strategies))} strategy selections over the shared evaluation window.',
         )
-        if cleaning_method == 'rie_reference':
-            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run compare')
     if run_clicked:
         request = CompareRequest(
@@ -2537,7 +2588,8 @@ elif usage_mode == 'Tuning' and service_name == 'Vary cleaning':
     with st.form('vary_cleaning_form'):
         methods_defaults = [config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0]), 'linear_shrinkage']
         shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('vary_cleaning::window', window_default, context=(universe, 'vary_cleaning', num_assets))
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
         row1 = st.columns(3)
@@ -2554,7 +2606,7 @@ elif usage_mode == 'Tuning' and service_name == 'Vary cleaning':
                 default_value=shrinkage_default,
             )
         with row1[2]:
-            window = int(st.number_input('Covariance window', value=window_default, min_value=2, step=1, key='vary_cleaning::window'))
+            window = int(st.number_input('Covariance window', min_value=2, value=int(st.session_state['vary_cleaning::window']), step=1, key='vary_cleaning::window'))
 
         row2 = st.columns(3)
         with row2[0]:
@@ -2587,6 +2639,7 @@ elif usage_mode == 'Tuning' and service_name == 'Vary cleaning':
             recommendation='Keep the method set short when you want a readable scree overlay. Add more methods only when you are explicitly mapping cleaner sensitivity.',
             action=f'run strategy `{strategy}` across {max(1, len(methods))} cleaning methods.',
         )
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run vary cleaning')
     if run_clicked:
         request = VaryCleaningRequest(
@@ -2662,7 +2715,9 @@ elif usage_mode == 'Tuning' and service_name == 'Vary window':
     with st.form('vary_window_form'):
         cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
         shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_defaults, num_assets = _universe_covariance_window_range_default(universe)
+        window_default = ','.join(str(item) for item in window_defaults)
+        _sync_widget_default('vary_window::windows', window_default, context=(universe, 'vary_window', num_assets))
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
         row1 = st.columns(3)
@@ -2679,11 +2734,7 @@ elif usage_mode == 'Tuning' and service_name == 'Vary window':
                 default_value=shrinkage_default,
             )
         with row1[2]:
-            windows = st.text_input(
-                'Covariance windows',
-                value=f'{max(20, window_default // 2)},{window_default},{max(window_default, 252)}',
-                key='vary_window::windows',
-            )
+            windows = st.text_input('Covariance windows', value=str(st.session_state['vary_window::windows']), key='vary_window::windows')
 
         row2 = st.columns(3)
         with row2[0]:
@@ -2712,10 +2763,11 @@ elif usage_mode == 'Tuning' and service_name == 'Vary window':
         with row3[0]:
             output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/vary_window', key='vary_window::output_dir')
         _render_service_guidance(
-            defaults=f"cleaning={cleaning_default}, covariance window={window_default}, rebalance frequency={freq_default}, weight smoothing alpha={smoothing_default}",
+            defaults=f"cleaning={cleaning_default}, covariance windows={window_default}, rebalance frequency={freq_default}, weight smoothing alpha={smoothing_default}",
             recommendation='Include one shorter, one default and one longer window to learn something useful without making the comparison noisy.',
             action=f'run strategy `{strategy}` with cleaning `{method}` across the listed covariance windows.',
         )
+        st.caption(f'Universe suggestion: {window_default} ({num_assets} assets, rounded up to the nearest 5, with 252 added when needed)')
         run_clicked = st.form_submit_button('Run vary window')
     if run_clicked:
         request = VaryWindowRequest(
@@ -2790,7 +2842,8 @@ elif usage_mode == 'Tuning' and service_name == 'Vary strategy':
     with st.form('vary_strategy_form'):
         cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
         shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('vary_strategy::window', window_default, context=(universe, 'vary_strategy', num_assets))
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
         row1 = st.columns(3)
@@ -2807,7 +2860,7 @@ elif usage_mode == 'Tuning' and service_name == 'Vary strategy':
                 default_value=shrinkage_default,
             )
         with row1[2]:
-            window = int(st.number_input('Covariance window', value=window_default, min_value=2, step=1, key='vary_strategy::window'))
+            window = int(st.number_input('Covariance window', min_value=2, value=int(st.session_state['vary_strategy::window']), step=1, key='vary_strategy::window'))
 
         row2 = st.columns(3)
         with row2[0]:
@@ -2836,6 +2889,7 @@ elif usage_mode == 'Tuning' and service_name == 'Vary strategy':
             recommendation='Mix only a few families per run if you want the NAV chart to stay readable and the result table easier to interpret.',
             action=f'compare {max(1, len(strategies))} strategies under one shared cleaning and covariance window setup.',
         )
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run vary strategy')
     if run_clicked:
         request = VaryStrategyRequest(
@@ -2903,8 +2957,8 @@ elif usage_mode == 'Tuning' and service_name == 'Vary frequency':
         shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
-        num_assets = len(MARKET_TICKERS.get(universe, []))
-        config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('vary_frequency::window', window_default, context=(universe, 'vary_frequency', num_assets))
         row1 = st.columns(3)
         with row1[0]:
             method = st.selectbox(
@@ -2918,13 +2972,12 @@ elif usage_mode == 'Tuning' and service_name == 'Vary frequency':
                 key='vary_frequency::linear_shrinkage',
                 default_value=shrinkage_default,
             )
-        recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if method == 'rie_reference' else config_window_default
         with row1[2]:
             window = int(
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=recommended_window,
+                    value=int(st.session_state['vary_frequency::window']),
                     step=1,
                     key='vary_frequency::window',
                 )
@@ -2955,12 +3008,11 @@ elif usage_mode == 'Tuning' and service_name == 'Vary frequency':
         with row3[0]:
             output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/vary_frequency', key='vary_frequency::output_dir')
         _render_service_guidance(
-            defaults=f"cleaning={cleaning_default}, rebalance frequency={freq_default}, covariance window={config_window_default}, weight smoothing alpha={smoothing_default}",
+            defaults=f"cleaning={cleaning_default}, rebalance frequency={freq_default}, covariance window={window_default}, weight smoothing alpha={smoothing_default}",
             recommendation='Group frequencies as a comparison set, then use the NAV and drawdown tabs to see whether higher activity is really rewarded.',
             action=f'run strategy `{strategy}` across {max(1, len(frequencies))} rebalance frequencies.',
         )
-        if method == 'rie_reference':
-            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run vary frequency')
     if run_clicked:
         request = VaryFrequencyRequest(
@@ -3027,7 +3079,9 @@ elif usage_mode == 'Tuning' and service_name == 'Hyperparameter tuning':
     with st.form('hyperparameter_tuning_form'):
         shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-        window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_defaults, num_assets = _universe_covariance_window_range_default(universe)
+        window_default = ','.join(str(item) for item in window_defaults)
+        _sync_widget_default('hyperparameter::windows', window_default, context=(universe, 'hyperparameter', num_assets))
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
         st.markdown('#### Search space')
         row1 = st.columns(3)
@@ -3044,7 +3098,7 @@ elif usage_mode == 'Tuning' and service_name == 'Hyperparameter tuning':
                 default_value=shrinkage_default,
             )
         with row1[2]:
-            windows = st.text_input('Covariance windows', value=f'40,60,80,120,{window_default},504', key='hyperparameter::windows')
+            windows = st.text_input('Covariance windows', value=str(st.session_state['hyperparameter::windows']), key='hyperparameter::windows')
 
         st.markdown('#### Backtest context')
         row2 = st.columns(2)
@@ -3073,13 +3127,14 @@ elif usage_mode == 'Tuning' and service_name == 'Hyperparameter tuning':
             output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/hyperparameter_tuning', key='hyperparameter::output_dir')
         window_count = max(1, len([item for item in windows.split(',') if item.strip()]))
         _render_service_guidance(
-            defaults=f"rebalance frequency={freq_default}, covariance window={window_default}, weight smoothing alpha={smoothing_default}",
+            defaults=f"rebalance frequency={freq_default}, covariance windows={window_default}, weight smoothing alpha={smoothing_default}",
             recommendation='Start with a narrow grid to validate the direction of the search. Widen the space only once the first ranking looks sensible.',
             action=(
                 f'evaluate a grid over {max(1, len(strategies))} strategies, {max(1, len(methods))} cleaning methods, '
                 f'{window_count} covariance windows and {max(1, len(frequencies))} rebalance frequencies.'
             ),
         )
+        st.caption(f'Universe suggestion: {window_default} ({num_assets} assets, rounded up to the nearest 5, with 252 added when needed)')
         run_clicked = st.form_submit_button('Run hyperparameter tuning')
     if run_clicked:
         request = HyperparameterTuningRequest(
@@ -3131,8 +3186,8 @@ elif usage_mode == 'Inspection' and service_name == 'Inspection snapshot':
         freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
         long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
         smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
-        num_assets = len(MARKET_TICKERS.get(universe, []))
-        config_window_default = int(config_defaults.get('estimation', {}).get('covariance_window', 252) or 252)
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        _sync_widget_default('inspection::snapshot::covariance_window', window_default, context=(universe, 'inspection_snapshot', num_assets))
         inspection_date_default = config_defaults.get('allocation', {}).get('date')
 
         row1 = st.columns(3)
@@ -3148,13 +3203,12 @@ elif usage_mode == 'Inspection' and service_name == 'Inspection snapshot':
                 key='inspection::snapshot::linear_shrinkage',
                 default_value=shrinkage_default,
             )
-        recommended_window = max(2, int(np.ceil(1.5 * num_assets))) if cleaning_method == 'rie_reference' else config_window_default
         with row1[2]:
             covariance_window = int(
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=recommended_window,
+                    value=int(st.session_state['inspection::snapshot::covariance_window']),
                     step=1,
                     key='inspection::snapshot::covariance_window',
                 )
@@ -3202,14 +3256,13 @@ elif usage_mode == 'Inspection' and service_name == 'Inspection snapshot':
             output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_snapshot', key='inspection::snapshot::output_dir')
         _render_service_guidance(
             defaults=(
-                f"strategy={strategy_default}, cleaning={cleaning_default}, covariance window={config_window_default}, "
+                f"strategy={strategy_default}, cleaning={cleaning_default}, covariance window={window_default}, "
                 f"rebalance frequency={freq_default}, weight smoothing alpha={smoothing_default}"
             ),
             recommendation='Use the latest inspection date for an operational diagnostic, or pick a manual date when you want to understand a historical rebalance decision.',
             action=f'build one inspection snapshot for strategy `{strategy}` on `{inspection_date or "the latest available date"}`.',
         )
-        if cleaning_method == 'rie_reference':
-            st.caption(f'RIE reference suggestion for {universe}: {recommended_window} (1.5x {num_assets} assets)')
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run inspection snapshot')
     if run_clicked:
         request = InspectionSnapshotRequest(
