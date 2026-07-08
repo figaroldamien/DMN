@@ -2,9 +2,11 @@
 
 from .benchmark import (
     build_normalized_returns,
+    build_sanitized_raw_returns,
     eigenvalue_rows,
     matrix_benchmark_rows,
     matrix_sample,
+    matrix_sample_bundle,
     reference_pipe_row,
     render_scree_overview,
     strategy_benchmark_rows,
@@ -23,9 +25,11 @@ from .cli import (
 
 __all__ = [
     "build_normalized_returns",
+    "build_sanitized_raw_returns",
     "eigenvalue_rows",
     "matrix_benchmark_rows",
     "matrix_sample",
+    "matrix_sample_bundle",
     "merge_common_overrides",
     "parse_csv_list",
     "parse_windows",

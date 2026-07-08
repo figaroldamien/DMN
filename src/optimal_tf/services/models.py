@@ -441,6 +441,10 @@ class InspectionSnapshotRequest:
     strategy: str | None = None
     date: str | None = None
     cleaning_method: str | None = None
+    correlation_input: str | None = None
+    matrix_kind: str | None = None
+    estimator_mode: str | None = None
+    matrix_smoothing_span: int | None = None
     linear_shrinkage: float | None = None
     covariance_window: int | None = None
     weight_smoothing_alpha: float | None = None
@@ -453,15 +457,18 @@ class InspectionSnapshotRequest:
 class InspectionSnapshotResult:
     request: InspectionSnapshotRequest
     universe: str
-    strategy: str
     cleaning_method: str
+    correlation_input: str
+    matrix_kind: str
+    estimator_mode: str
     covariance_window: int
     allocation_date: pd.Timestamp
     sample_size: int
     num_assets: int
-    signal_scale: float
     sample_correlation: pd.DataFrame
+    sample_covariance: pd.DataFrame
     empirical_cleaned_correlation: pd.DataFrame
+    empirical_cleaned_covariance: pd.DataFrame
     cleaned_correlation: pd.DataFrame
     cleaned_covariance: pd.DataFrame
     correlation_spectrum: pd.DataFrame
@@ -469,9 +476,5 @@ class InspectionSnapshotResult:
     correlation_eigenvectors: pd.DataFrame
     covariance_eigenvectors: pd.DataFrame
     feature_frame: pd.DataFrame
-    empirical_allocation_frame: pd.DataFrame
-    allocation_frame: pd.DataFrame
     cleaner_comparison_frame: pd.DataFrame
-    portfolio_comparison_frame: pd.DataFrame
-    portfolio_nav_comparison: pd.DataFrame
     artifacts: RunArtifacts
