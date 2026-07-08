@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -20,13 +19,11 @@ from market_tickers_data.components import (
     SP500_COMPONENTS,
     WORLD_INDEX_COMPONENTS,
 )
-from optimal_tf.allocation import compute_strategy_state_at_date, supported_strategies
-from optimal_tf.strategies.types import StrategyState
 from optimal_tf.config_io import load_config
 from optimal_tf.data import load_prices_for_universe
-from optimal_tf.evaluation import evaluate_portfolio
 from optimal_tf.features import trend_ema_signal
 from optimal_tf.scripts.common import (
+    matrix_sample_bundle,
     matrix_sample,
     merge_common_overrides,
     parse_windows,
@@ -40,9 +37,8 @@ from trading_core.risk import (
     supported_cleaning_methods,
 )
 from trading_core.reporting.plots import plt
-from trading_core.reporting import cumulative_nav
 
-from optimal_tf.strategies.common import resolve_allocation_date, resolve_covariance_cache_until_date, sanitized_normalized_returns
+from optimal_tf.strategies.common import resolve_allocation_date, sanitized_normalized_returns
 
 from .io import ensure_output_dir, write_json, write_request_json
 from .models import (
@@ -54,6 +50,9 @@ from .models import (
 )
 
 DEFAULT_WINDOWS = (40, 60, 80, 120, 252, 504, 1200)
+MATRIX_INPUT_OPTIONS = {"normalized", "raw"}
+MATRIX_KIND_OPTIONS = {"correlation", "covariance"}
+ESTIMATOR_MODE_OPTIONS = {"window_sample", "ewma_cross"}
 UNIVERSE_COMPONENTS = {
     "nasdaq100": NASDAQ100_COMPONENTS,
     "cac40": CAC40_COMPONENTS,
@@ -95,11 +94,17 @@ def _sector_metadata(universe: str, tickers: list[str]) -> pd.DataFrame:
     rows: list[dict[str, str]] = []
     for ticker in tickers:
         meta = components.get(ticker, {})
+        sector = str(meta.get("sector", "")).strip()
+        sub_sector = str(meta.get("sub_sector", "")).strip()
+        category = str(meta.get("category", "")).strip()
+        sub_category = str(meta.get("sub_category", "")).strip()
         rows.append(
             {
                 "ticker": ticker,
-                "sector": str(meta.get("sector", "zzz_unknown")).strip() or "zzz_unknown",
-                "sub_sector": str(meta.get("sub_sector", "zzz_unknown")).strip() or "zzz_unknown",
+                "sector": sector or category or "zzz_unknown",
+                "sub_sector": sub_sector or sub_category or "zzz_unknown",
+                "category": category or "zzz_unknown",
+                "sub_category": sub_category or "zzz_unknown",
             }
         )
     frame = pd.DataFrame(rows).set_index("ticker")
@@ -640,13 +645,21 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         default_evaluation=evaluation,
     )
 
-    strategy = request.strategy or evaluation.strategy
-    if strategy not in supported_strategies():
-        raise ValueError(f"Unknown strategy {strategy!r}.")
-
     cleaning_method = request.cleaning_method or estimation.cleaning_method
     if cleaning_method not in supported_cleaning_methods():
         raise ValueError(f"Unknown cleaning method {cleaning_method!r}.")
+    correlation_input = str(request.correlation_input or "normalized").strip().lower()
+    if correlation_input not in MATRIX_INPUT_OPTIONS:
+        raise ValueError(f"Unknown correlation_input {correlation_input!r}.")
+    matrix_kind = str(request.matrix_kind or "correlation").strip().lower()
+    if matrix_kind not in MATRIX_KIND_OPTIONS:
+        raise ValueError(f"Unknown matrix_kind {matrix_kind!r}.")
+    estimator_mode = str(request.estimator_mode or "window_sample").strip().lower()
+    if estimator_mode not in ESTIMATOR_MODE_OPTIONS:
+        raise ValueError(f"Unknown estimator_mode {estimator_mode!r}.")
+    matrix_smoothing_span = int(request.matrix_smoothing_span or request.covariance_window or estimation.covariance_window or 252)
+    if matrix_smoothing_span <= 0:
+        raise ValueError("matrix_smoothing_span must be strictly positive.")
 
     covariance_window = int(request.covariance_window or estimation.covariance_window or 252)
     snapshot_estimation = resolve_window_estimation_cfg(
@@ -661,17 +674,20 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         if request.linear_shrinkage is not None
         else snapshot_estimation.linear_shrinkage,
     })
-    if request.weight_smoothing_alpha is not None:
-        backtest = replace(backtest, weight_smoothing_alpha=float(request.weight_smoothing_alpha))
-    long_only = bool(backtest.long_only if request.long_only is None else request.long_only)
-
     prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
     allocation_date = resolve_allocation_date(prices.index, as_of_date=request.date)
     history = prices.loc[prices.index <= allocation_date]
     if history.empty:
         raise ValueError(f"No price history available on or before {allocation_date.date()}.")
 
-    empirical_corr, sample_size, sample_frame = matrix_sample(history, snapshot_estimation, allocation_date)
+    empirical_corr, sample_cov, sample_size, sample_frame = matrix_sample_bundle(
+        history,
+        snapshot_estimation,
+        allocation_date,
+        input_mode=correlation_input,
+        estimator_mode=estimator_mode,
+        smoothing_span=matrix_smoothing_span,
+    )
     empirical_cleaned_corr = clean_correlation_matrix(
         empirical_corr,
         data=sample_frame,
@@ -691,89 +707,19 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
 
     returns, vol, z_returns = sanitized_normalized_returns(history, snapshot_estimation)
     trend = trend_ema_signal(z_returns, alpha=snapshot_estimation.trend_alpha, span=snapshot_estimation.trend_span)
-    vol_t = vol.loc[:allocation_date].ffill().iloc[-1].reindex(cleaned_corr.index).fillna(0.0)
-    cleaned_cov = correlation_to_covariance(cleaned_corr, vol_t)
-
-    covariance_cache = resolve_covariance_cache_until_date(history, snapshot_estimation, allocation_date)
-
-    def _snapshot_state_from_evaluation(eval_result) -> StrategyState | None:
-        if eval_result.weights_by_rebalance.empty:
-            return None
-        rebalance_date = pd.Timestamp(eval_result.weights_by_rebalance.index[-1])
-        base_weights = (
-            eval_result.base_weights_by_rebalance.loc[rebalance_date]
-            if rebalance_date in eval_result.base_weights_by_rebalance.index
-            else pd.Series(0.0, index=history.columns, dtype=float)
-        )
-        signal_scale = (
-            float(eval_result.signal_scale_by_rebalance.loc[rebalance_date])
-            if rebalance_date in eval_result.signal_scale_by_rebalance.index
-            else 1.0
-        )
-        effective_weights = eval_result.weights_by_rebalance.loc[rebalance_date]
-        return StrategyState(
-            base_weights=base_weights.reindex(history.columns).fillna(0.0).astype(float),
-            signal_scale=signal_scale,
-            effective_weights=effective_weights.reindex(history.columns).fillna(0.0).astype(float),
-        )
-
-    state = None
-    empirical_state = None
-    smoothing_alpha = float(getattr(backtest, "weight_smoothing_alpha", 1.0))
-    if smoothing_alpha < 1.0:
-        snapshot_eval_cfg = replace(
-            evaluation,
-            strategy=strategy,
-            rebalance_frequency=request.rebalance_frequency or evaluation.rebalance_frequency,
-            evaluation_start=request.evaluation_start if request.evaluation_start is not None else evaluation.evaluation_start,
-            evaluation_end=allocation_date.date().isoformat(),
-        )
-        try:
-            smoothed_eval = evaluate_portfolio(history, snapshot_estimation, backtest, snapshot_eval_cfg)
-            state = _snapshot_state_from_evaluation(smoothed_eval)
-        except Exception:
-            state = None
-    empirical_snapshot_estimation = snapshot_estimation.__class__(**{
-        **snapshot_estimation.__dict__,
-        "cleaning_method": "empirical",
-        "linear_shrinkage": 0.0,
-    })
-    empirical_covariance_cache = resolve_covariance_cache_until_date(history, empirical_snapshot_estimation, allocation_date)
-    if smoothing_alpha < 1.0:
-        empirical_eval_cfg = replace(
-            evaluation,
-            strategy=strategy,
-            rebalance_frequency=request.rebalance_frequency or evaluation.rebalance_frequency,
-            evaluation_start=request.evaluation_start if request.evaluation_start is not None else evaluation.evaluation_start,
-            evaluation_end=allocation_date.date().isoformat(),
-        )
-        try:
-            empirical_eval = evaluate_portfolio(history, empirical_snapshot_estimation, backtest, empirical_eval_cfg)
-            empirical_state = _snapshot_state_from_evaluation(empirical_eval)
-        except Exception:
-            empirical_state = None
-    if state is None:
-        state = compute_strategy_state_at_date(
-            history,
-            snapshot_estimation,
-            strategy,
-            date=allocation_date,
-            long_only=long_only,
-            covariance_cache=covariance_cache,
-        )
-    if empirical_state is None:
-        empirical_state = compute_strategy_state_at_date(
-            history,
-            empirical_snapshot_estimation,
-            strategy,
-            date=allocation_date,
-            long_only=long_only,
-            covariance_cache=empirical_covariance_cache,
-        )
+    sample_vol = pd.Series(
+        np.sqrt(np.clip(np.diag(sample_cov.to_numpy(dtype=float)), 0.0, None)),
+        index=sample_cov.index,
+        dtype=float,
+    ).reindex(cleaned_corr.index).fillna(0.0)
+    empirical_cleaned_cov = correlation_to_covariance(empirical_cleaned_corr, sample_vol)
+    cleaned_cov = correlation_to_covariance(cleaned_corr, sample_vol)
 
     metadata, sorted_tickers = _sorted_metadata(universe.name, list(cleaned_corr.index))
     sorted_sample_corr = _sorted_matrix(empirical_corr, sorted_tickers)
+    sorted_sample_cov = _sorted_matrix(sample_cov, sorted_tickers)
     sorted_empirical_cleaned_corr = _sorted_matrix(empirical_cleaned_corr, sorted_tickers)
+    sorted_empirical_cleaned_cov = _sorted_matrix(empirical_cleaned_cov, sorted_tickers)
     sorted_cleaned_corr = _sorted_matrix(cleaned_corr, sorted_tickers)
     sorted_cleaned_cov = _sorted_matrix(cleaned_cov, sorted_tickers)
 
@@ -800,23 +746,6 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         index=feature_index,
     )
 
-    allocation_frame = pd.DataFrame(
-        {
-            "base_weight": state.base_weights.reindex(sorted_tickers).fillna(0.0).to_numpy(dtype=float),
-            "effective_weight": state.effective_weights.reindex(sorted_tickers).fillna(0.0).to_numpy(dtype=float),
-        },
-        index=feature_index,
-    )
-    allocation_frame["abs_effective_weight"] = allocation_frame["effective_weight"].abs()
-    empirical_allocation_frame = pd.DataFrame(
-        {
-            "base_weight": empirical_state.base_weights.reindex(sorted_tickers).fillna(0.0).to_numpy(dtype=float),
-            "effective_weight": empirical_state.effective_weights.reindex(sorted_tickers).fillna(0.0).to_numpy(dtype=float),
-        },
-        index=feature_index,
-    )
-    empirical_allocation_frame["abs_effective_weight"] = empirical_allocation_frame["effective_weight"].abs()
-    allocation_diff = allocation_frame["effective_weight"] - empirical_allocation_frame["effective_weight"]
     corr_diff = sorted_cleaned_corr - sorted_empirical_cleaned_corr
     cleaner_comparison_frame = pd.DataFrame(
         [
@@ -827,58 +756,16 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
                 "max_abs_corr_diff_vs_empirical": float(corr_diff.abs().to_numpy().max()),
                 "mean_abs_corr_diff_vs_empirical": float(corr_diff.abs().to_numpy().mean()),
                 "fro_corr_diff_vs_empirical": float(np.linalg.norm(corr_diff.to_numpy(dtype=float), ord="fro")),
-                "max_abs_weight_diff_vs_empirical": float(allocation_diff.abs().max()),
-                "mean_abs_weight_diff_vs_empirical": float(allocation_diff.abs().mean()),
-                "l1_weight_diff_vs_empirical": float(allocation_diff.abs().sum()),
-                "signal_scale_vs_empirical": float(state.signal_scale),
-                "empirical_signal_scale": float(empirical_state.signal_scale),
             }
         ]
     )
-    selected_eval_cfg = evaluation.__class__(
-        strategy=strategy,
-        rebalance_frequency=evaluation.rebalance_frequency,
-        evaluation_start=evaluation.evaluation_start,
-        evaluation_end=allocation_date.strftime("%Y-%m-%d"),
-    )
-    selected_eval_result = evaluate_portfolio(history, snapshot_estimation, backtest, selected_eval_cfg)
-    empirical_eval_result = evaluate_portfolio(history, empirical_snapshot_estimation, backtest, selected_eval_cfg)
-    selected_daily = selected_eval_result.daily_returns_net.fillna(0.0)
-    empirical_daily = empirical_eval_result.daily_returns_net.reindex(selected_daily.index).fillna(0.0)
-    daily_diff = selected_daily - empirical_daily
-    portfolio_nav_comparison = pd.DataFrame(
-        {
-            "selected_cleaner": cumulative_nav(selected_daily),
-            "empirical": cumulative_nav(empirical_daily),
-        }
-    )
-    portfolio_comparison_frame = pd.DataFrame(
-        [
-            {
-                "selected_cleaner": cleaning_method,
-                "reference_cleaner": "empirical",
-                "selected_sharpe": float(selected_eval_result.summary.sharpe),
-                "empirical_sharpe": float(empirical_eval_result.summary.sharpe),
-                "sharpe_diff_vs_empirical": float(selected_eval_result.summary.sharpe - empirical_eval_result.summary.sharpe),
-                "selected_total_return": float(selected_eval_result.summary.total_return),
-                "empirical_total_return": float(empirical_eval_result.summary.total_return),
-                "total_return_diff_vs_empirical": float(selected_eval_result.summary.total_return - empirical_eval_result.summary.total_return),
-                "daily_return_corr_vs_empirical": float(selected_daily.corr(empirical_daily)) if len(selected_daily) else float("nan"),
-                "tracking_error_ann_vs_empirical": float(daily_diff.std(ddof=0) * np.sqrt(252.0)) if len(daily_diff) else 0.0,
-                "max_abs_daily_return_diff_vs_empirical": float(daily_diff.abs().max()) if len(daily_diff) else 0.0,
-                "mean_abs_daily_return_diff_vs_empirical": float(daily_diff.abs().mean()) if len(daily_diff) else 0.0,
-                "selected_avg_turnover": float(selected_eval_result.summary.avg_turnover),
-                "empirical_avg_turnover": float(empirical_eval_result.summary.avg_turnover),
-                "avg_turnover_diff_vs_empirical": float(selected_eval_result.summary.avg_turnover - empirical_eval_result.summary.avg_turnover),
-            }
-        ]
-    )
-
     outdir = ensure_output_dir(request.output_dir or "output/optimal_tf/inspection/snapshot")
     files: dict[str, Path] = {}
     if outdir is not None:
         sample_corr_path = outdir / "sample_correlation.csv"
+        sample_cov_path = outdir / "sample_covariance.csv"
         empirical_cleaned_corr_path = outdir / "empirical_cleaned_correlation.csv"
+        empirical_cleaned_cov_path = outdir / "empirical_cleaned_covariance.csv"
         cleaned_corr_path = outdir / "cleaned_correlation.csv"
         cleaned_cov_path = outdir / "cleaned_covariance.csv"
         corr_spectrum_path = outdir / "correlation_spectrum.csv"
@@ -886,13 +773,11 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         corr_vectors_path = outdir / "correlation_eigenvectors.csv"
         cov_vectors_path = outdir / "covariance_eigenvectors.csv"
         features_path = outdir / "features.csv"
-        empirical_allocation_path = outdir / "empirical_allocation.csv"
-        allocation_path = outdir / "allocation.csv"
         cleaner_comparison_path = outdir / "cleaner_comparison.csv"
-        portfolio_comparison_path = outdir / "portfolio_comparison.csv"
-        portfolio_nav_path = outdir / "portfolio_nav_comparison.csv"
         sorted_sample_corr.to_csv(sample_corr_path)
+        sorted_sample_cov.to_csv(sample_cov_path)
         sorted_empirical_cleaned_corr.to_csv(empirical_cleaned_corr_path)
+        sorted_empirical_cleaned_cov.to_csv(empirical_cleaned_cov_path)
         sorted_cleaned_corr.to_csv(cleaned_corr_path)
         sorted_cleaned_cov.to_csv(cleaned_cov_path)
         corr_spectrum.to_csv(corr_spectrum_path, index=False)
@@ -900,32 +785,30 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         corr_eigenvectors.to_csv(corr_vectors_path)
         cov_eigenvectors.to_csv(cov_vectors_path)
         feature_frame.to_csv(features_path)
-        empirical_allocation_frame.to_csv(empirical_allocation_path)
-        allocation_frame.to_csv(allocation_path)
         cleaner_comparison_frame.to_csv(cleaner_comparison_path, index=False)
-        portfolio_comparison_frame.to_csv(portfolio_comparison_path, index=False)
-        portfolio_nav_comparison.to_csv(portfolio_nav_path)
         request_path = write_request_json(outdir, request)
         summary_path = write_json(
             outdir,
             "summary.json",
             {
                 "universe": universe.name,
-                "strategy": strategy,
                 "cleaning_method": cleaning_method,
+                "correlation_input": correlation_input,
+                "matrix_kind": matrix_kind,
+                "estimator_mode": estimator_mode,
+                "matrix_smoothing_span": matrix_smoothing_span,
                 "covariance_window": covariance_window,
                 "allocation_date": allocation_date.strftime("%Y-%m-%d"),
                 "num_assets": int(len(sorted_tickers)),
                 "sample_size": int(sample_size),
-                "signal_scale": float(state.signal_scale),
-                "long_only": bool(long_only),
                 "cleaner_comparison": cleaner_comparison_frame.iloc[0].to_dict(),
-                "portfolio_comparison": portfolio_comparison_frame.iloc[0].to_dict(),
             },
         )
         files = {
             "sample_correlation": sample_corr_path,
+            "sample_covariance": sample_cov_path,
             "empirical_cleaned_correlation": empirical_cleaned_corr_path,
+            "empirical_cleaned_covariance": empirical_cleaned_cov_path,
             "cleaned_correlation": cleaned_corr_path,
             "cleaned_covariance": cleaned_cov_path,
             "correlation_spectrum": corr_spectrum_path,
@@ -933,11 +816,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             "correlation_eigenvectors": corr_vectors_path,
             "covariance_eigenvectors": cov_vectors_path,
             "features": features_path,
-            "empirical_allocation": empirical_allocation_path,
-            "allocation": allocation_path,
             "cleaner_comparison": cleaner_comparison_path,
-            "portfolio_comparison": portfolio_comparison_path,
-            "portfolio_nav_comparison": portfolio_nav_path,
         }
         if request_path is not None:
             files["request"] = request_path
@@ -947,15 +826,18 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
     return InspectionSnapshotResult(
         request=request,
         universe=universe.name,
-        strategy=strategy,
         cleaning_method=cleaning_method,
+        correlation_input=correlation_input,
+        matrix_kind=matrix_kind,
+        estimator_mode=estimator_mode,
         covariance_window=covariance_window,
         allocation_date=allocation_date,
         sample_size=int(sample_size),
         num_assets=int(len(sorted_tickers)),
-        signal_scale=float(state.signal_scale),
         sample_correlation=sorted_sample_corr,
+        sample_covariance=sorted_sample_cov,
         empirical_cleaned_correlation=sorted_empirical_cleaned_corr,
+        empirical_cleaned_covariance=sorted_empirical_cleaned_cov,
         cleaned_correlation=sorted_cleaned_corr,
         cleaned_covariance=sorted_cleaned_cov,
         correlation_spectrum=corr_spectrum,
@@ -963,10 +845,6 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         correlation_eigenvectors=corr_eigenvectors,
         covariance_eigenvectors=cov_eigenvectors,
         feature_frame=feature_frame,
-        empirical_allocation_frame=empirical_allocation_frame,
-        allocation_frame=allocation_frame,
         cleaner_comparison_frame=cleaner_comparison_frame,
-        portfolio_comparison_frame=portfolio_comparison_frame,
-        portfolio_nav_comparison=portfolio_nav_comparison,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )

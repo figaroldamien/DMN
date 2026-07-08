@@ -12,8 +12,9 @@ from optimal_tf.evaluation import evaluate_portfolio
 from trading_core.features import compute_returns, ewma_vol, normalize_returns_by_vol, sanitize_returns
 from trading_core.reporting import cumulative_nav
 from trading_core.reporting.plots import plt
-from trading_core.risk import clean_correlation_matrix
+from trading_core.risk import clean_correlation_matrix, covariance_to_correlation
 from trading_core.risk.pipeline import _resolve_covariance_window, rolling_corr_frame
+from trading_core.features.volatility import resolve_ewma_alpha, ewma_cov_frame
 
 
 def build_normalized_returns(prices: pd.DataFrame, estimation: EstimationConfig) -> pd.DataFrame:
@@ -22,23 +23,95 @@ def build_normalized_returns(prices: pd.DataFrame, estimation: EstimationConfig)
     return normalize_returns_by_vol(returns, vol)
 
 
+def build_sanitized_raw_returns(prices: pd.DataFrame, estimation: EstimationConfig) -> pd.DataFrame:
+    return sanitize_returns(compute_returns(prices), max_abs_return=estimation.max_abs_return)
+
+
+def build_matrix_sample_input(
+    prices: pd.DataFrame,
+    estimation: EstimationConfig,
+    *,
+    input_mode: str = "normalized",
+) -> pd.DataFrame:
+    if input_mode == "normalized":
+        return build_normalized_returns(prices, estimation)
+    if input_mode == "raw":
+        return build_sanitized_raw_returns(prices, estimation)
+    raise ValueError(f"Unknown matrix sample input_mode '{input_mode}'.")
+
+
+def matrix_sample_bundle(
+    prices: pd.DataFrame,
+    estimation: EstimationConfig,
+    matrix_date: pd.Timestamp,
+    *,
+    input_mode: str = "normalized",
+    estimator_mode: str = "window_sample",
+    smoothing_span: int | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, int, pd.DataFrame]:
+    sample_input = build_matrix_sample_input(prices, estimation, input_mode=input_mode)
+    covariance_window = _resolve_covariance_window(estimation)
+    effective_smoothing_span = int(smoothing_span or covariance_window)
+    if effective_smoothing_span <= 0:
+        raise ValueError("matrix smoothing span must be strictly positive.")
+
+    if estimator_mode == "window_sample":
+        raw_corr = rolling_corr_frame(
+            sample_input,
+            window=covariance_window,
+            min_periods=estimation.covariance_min_periods,
+            target_dates=pd.DatetimeIndex([matrix_date]),
+        )
+        if matrix_date not in raw_corr:
+            raise ValueError(
+                f"No correlation sample available on {matrix_date.date()} for covariance_window={estimation.covariance_window}."
+            )
+        corr, sample_size, sample_frame = raw_corr[matrix_date]
+        sample_vol = sample_frame.std(ddof=1).reindex(corr.index).fillna(0.0)
+        sample_cov = pd.DataFrame(
+            corr.to_numpy(dtype=float) * np.outer(sample_vol.to_numpy(dtype=float), sample_vol.to_numpy(dtype=float)),
+            index=corr.index,
+            columns=corr.columns,
+        )
+        return corr, sample_cov, sample_size, sample_frame
+
+    if estimator_mode == "ewma_cross":
+        alpha = resolve_ewma_alpha(span=effective_smoothing_span)
+        cov_panel = ewma_cov_frame(
+            sample_input,
+            alpha=alpha,
+            min_periods=estimation.covariance_min_periods,
+        )
+        if matrix_date not in cov_panel:
+            raise ValueError(
+                f"No EWMA covariance sample available on {matrix_date.date()} for matrix_smoothing_span={effective_smoothing_span}."
+            )
+        cov, sample_size = cov_panel[matrix_date]
+        corr = covariance_to_correlation(cov)
+        sample_frame = sample_input.loc[:matrix_date].tail(effective_smoothing_span).reindex(columns=corr.index)
+        return corr.astype(float), cov.astype(float), int(sample_size), sample_frame.astype(float)
+
+    raise ValueError(f"Unknown matrix sample estimator_mode '{estimator_mode}'.")
+
+
 def matrix_sample(
     prices: pd.DataFrame,
     estimation: EstimationConfig,
     matrix_date: pd.Timestamp,
+    *,
+    input_mode: str = "normalized",
+    estimator_mode: str = "window_sample",
+    smoothing_span: int | None = None,
 ) -> tuple[pd.DataFrame, int, pd.DataFrame]:
-    z_returns = build_normalized_returns(prices, estimation)
-    raw_corr = rolling_corr_frame(
-        z_returns,
-        window=_resolve_covariance_window(estimation),
-        min_periods=estimation.covariance_min_periods,
-        target_dates=pd.DatetimeIndex([matrix_date]),
+    corr, _cov, sample_size, sample_frame = matrix_sample_bundle(
+        prices,
+        estimation,
+        matrix_date,
+        input_mode=input_mode,
+        estimator_mode=estimator_mode,
+        smoothing_span=smoothing_span,
     )
-    if matrix_date not in raw_corr:
-        raise ValueError(
-            f"No correlation sample available on {matrix_date.date()} for covariance_window={estimation.covariance_window}."
-        )
-    return raw_corr[matrix_date]
+    return corr, sample_size, sample_frame
 
 
 def matrix_benchmark_rows(
