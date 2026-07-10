@@ -25,7 +25,7 @@ class DashboardCatalogTests(unittest.TestCase):
     def test_product_modes_follow_target_information_architecture(self) -> None:
         self.assertEqual(
             PRODUCT_MODES,
-            ("Workspace", "Run", "Compare", "Search", "Guide"),
+            ("Workspace", "Run", "Matrix Inspection", "Compare", "Search", "Guide"),
         )
 
     def test_every_service_route_has_intro(self) -> None:
@@ -64,6 +64,15 @@ class DashboardCatalogTests(unittest.TestCase):
             [
                 "Strategy testbed",
                 "Hyperparameter tuning",
+            ],
+        )
+
+    def test_matrix_inspection_mode_groups_static_and_interval_views(self) -> None:
+        self.assertEqual(
+            list(MODE_SERVICES["Matrix Inspection"]),
+            [
+                "Inspect at date",
+                "Inspect over interval",
             ],
         )
 

@@ -5,6 +5,7 @@ from typing import Final
 PRODUCT_MODES: Final[tuple[str, ...]] = (
     "Workspace",
     "Run",
+    "Matrix Inspection",
     "Compare",
     "Search",
     "Guide",
@@ -13,6 +14,7 @@ PRODUCT_MODES: Final[tuple[str, ...]] = (
 MODE_INTRO: Final[dict[str, str]] = {
     "Workspace": "Configure the shared research workspace before running analyses.",
     "Run": "Execute one focused analysis or diagnostic under the current workspace context.",
+    "Matrix Inspection": "Inspect cleaned matrices and their spectral structure either at one date or across an interval.",
     "Compare": "Compare controlled alternatives under shared assumptions in one comparison family.",
     "Search": "Explore broader strategy and parameter spaces to find promising candidates.",
     "Guide": "Use the guide area to understand strategies and service roles before running experiments.",
@@ -25,7 +27,10 @@ MODE_SERVICES: Final[dict[str, dict[str, str]]] = {
     "Run": {
         "Allocation": "Single-date allocation of one strategy.",
         "Evaluation": "Packaged backtest for one strategy over an evaluation window.",
-        "Matrix inspection": "Inspect one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.",
+    },
+    "Matrix Inspection": {
+        "Inspect at date": "Inspect one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.",
+        "Inspect over interval": "Inspect how cleaned matrices and leading eigenmodes evolve over an interval of rebalance dates.",
     },
     "Compare": {
         "Compare": "Compare several strategies under one shared market and backtest context.",
@@ -47,7 +52,8 @@ SERVICE_INTRO: Final[dict[tuple[str, str], str]] = {
     ("Workspace", "Config editor"): "Administrative view to inspect and update the shared TOML defaults used by the dashboard.",
     ("Run", "Allocation"): "Single-date allocation service. Use it when you want the latest portfolio weights rather than a full backtest.",
     ("Run", "Evaluation"): "Packaged backtest service. Use it when you want performance, turnover and benchmark comparison over an evaluation window.",
-    ("Run", "Matrix inspection"): "Diagnostic snapshot of one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.",
+    ("Matrix Inspection", "Inspect at date"): "Diagnostic snapshot of one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.",
+    ("Matrix Inspection", "Inspect over interval"): "Time-series diagnostic view of cleaned matrices and leading eigenmodes over the selected interval.",
     ("Compare", "Compare"): "Comparison lab entry point for multi-strategy analysis under one shared market and backtest context.",
     ("Compare", "Vary strategy"): "Comparison experiment that keeps the market context fixed and compares several strategy families under the same estimation settings.",
     ("Compare", "Vary cleaning"): "Comparison experiment that keeps the strategy fixed and compares several cleaning methods under the same evaluation setup.",
@@ -60,7 +66,7 @@ SERVICE_INTRO: Final[dict[tuple[str, str], str]] = {
 
 COMMON_EVALUATION_DATE_SERVICES: Final[set[tuple[str, str]]] = {
     ("Run", "Evaluation"),
-    ("Run", "Matrix inspection"),
+    ("Matrix Inspection", "Inspect over interval"),
     ("Compare", "Compare"),
     ("Compare", "Vary strategy"),
     ("Compare", "Vary cleaning"),

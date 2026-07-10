@@ -37,6 +37,10 @@ def rolling_corr_frame(
         if len(valid_cols) < 2:
             continue
         sample = sample.loc[:, valid_cols]
+        varying_cols = sample.columns[sample.std(axis=0, ddof=1, skipna=True) > 0.0]
+        if len(varying_cols) < 2:
+            continue
+        sample = sample.loc[:, varying_cols]
         corr = sample.corr(min_periods=min_periods)
         keep = corr.index[~corr.isna().any(axis=1)]
         corr = corr.loc[keep, keep]

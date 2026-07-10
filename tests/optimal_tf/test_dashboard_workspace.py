@@ -64,6 +64,7 @@ class DashboardWorkspaceTests(unittest.TestCase):
         self.assertFalse(workspace_mode_uses_shared_controls("Workspace"))
         self.assertFalse(workspace_mode_uses_shared_controls("Guide"))
         self.assertTrue(workspace_mode_uses_shared_controls("Run"))
+        self.assertTrue(workspace_mode_uses_shared_controls("Matrix Inspection"))
         self.assertTrue(workspace_mode_uses_shared_controls("Compare"))
 
     def test_build_workspace_context_normalizes_optional_dates(self) -> None:

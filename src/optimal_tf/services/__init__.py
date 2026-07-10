@@ -22,6 +22,7 @@ from .inspection import (
     EigenvectorInspectionRequest,
     EigenvectorInspectionResult,
     run_eigenvector_inspection,
+    run_inspection_interval,
     run_inspection_snapshot,
 )
 from .models import *

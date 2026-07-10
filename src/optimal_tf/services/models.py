@@ -471,10 +471,58 @@ class InspectionSnapshotResult:
     empirical_cleaned_covariance: pd.DataFrame
     cleaned_correlation: pd.DataFrame
     cleaned_covariance: pd.DataFrame
+    sample_sector_matrix: pd.DataFrame
+    empirical_cleaned_sector_matrix: pd.DataFrame
+    cleaned_sector_matrix: pd.DataFrame
+    sector_pair_counts: pd.DataFrame
+    sector_membership: pd.DataFrame
+    sample_sub_sector_matrix: pd.DataFrame
+    empirical_cleaned_sub_sector_matrix: pd.DataFrame
+    cleaned_sub_sector_matrix: pd.DataFrame
+    sub_sector_pair_counts: pd.DataFrame
+    sub_sector_membership: pd.DataFrame
     correlation_spectrum: pd.DataFrame
     covariance_spectrum: pd.DataFrame
     correlation_eigenvectors: pd.DataFrame
     covariance_eigenvectors: pd.DataFrame
     feature_frame: pd.DataFrame
     cleaner_comparison_frame: pd.DataFrame
+    artifacts: RunArtifacts
+
+
+@dataclass(frozen=True)
+class InspectionIntervalRequest:
+    config_path: str = "configs/optimal_tf.example.toml"
+    universe: str | None = None
+    start: str | None = None
+    evaluation_start: str | None = None
+    evaluation_end: str | None = None
+    rebalance_frequency: str | None = None
+    cleaning_method: str | None = None
+    correlation_input: str | None = None
+    matrix_kind: str | None = None
+    estimator_mode: str | None = None
+    matrix_smoothing_span: int | None = None
+    linear_shrinkage: float | None = None
+    covariance_window: int | None = None
+    leading_eigenvectors: int = 3
+    refresh_policy: str = 'auto'
+    output_dir: str | None = None
+
+
+@dataclass(frozen=True)
+class InspectionIntervalResult:
+    request: InspectionIntervalRequest
+    universe: str
+    cleaning_method: str
+    correlation_input: str
+    matrix_kind: str
+    estimator_mode: str
+    covariance_window: int
+    observation_dates: tuple[pd.Timestamp, ...]
+    num_assets: int
+    summary_frame: pd.DataFrame
+    spectrum_frame: pd.DataFrame
+    variogram_frame: pd.DataFrame
+    eigenvector_similarity_frame: pd.DataFrame
     artifacts: RunArtifacts

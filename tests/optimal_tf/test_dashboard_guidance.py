@@ -40,7 +40,7 @@ class DashboardGuidanceTests(unittest.TestCase):
 
     def test_guide_service_choices_cover_run_compare_and_search(self) -> None:
         choices = guide_service_choices()
-        self.assertEqual([row["service_family"] for row in choices], ["Run", "Compare", "Search"])
+        self.assertEqual([row["service_family"] for row in choices], ["Run", "Matrix Inspection", "Compare", "Search"])
         self.assertTrue(all(row["when_to_use"] for row in choices))
         self.assertTrue(all(row["best_for"] for row in choices))
 
@@ -49,6 +49,8 @@ class DashboardGuidanceTests(unittest.TestCase):
         services = [row["recommended_service"] for row in rows]
         self.assertIn("Run / Allocation", services)
         self.assertIn("Run / Evaluation", services)
+        self.assertIn("Matrix Inspection / Inspect at date", services)
+        self.assertIn("Matrix Inspection / Inspect over interval", services)
         self.assertIn("Compare / Comparison Lab", services)
         self.assertIn("Search / Strategy testbed", services)
         self.assertIn("Search / Hyperparameter tuning", services)

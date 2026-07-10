@@ -117,6 +117,30 @@ class TradingCoreRiskTests(unittest.TestCase):
 
         self.assertEqual(list(result.keys()), [frame.index[3]])
 
+    def test_rolling_corr_frame_drops_constant_columns_instead_of_skipping_window(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "A": [0.01, 0.02, 0.03, 0.04, 0.05],
+                "B": [0.05, 0.04, 0.03, 0.02, 0.01],
+                "C": [0.0, 0.0, 0.0, 0.0, 0.0],
+            },
+            index=pd.date_range("2026-01-01", periods=5, freq="B"),
+        )
+
+        result = rolling_corr_frame(
+            frame,
+            window=5,
+            min_periods=5,
+            target_dates=pd.DatetimeIndex([frame.index[-1]]),
+        )
+
+        self.assertEqual(list(result.keys()), [frame.index[-1]])
+        corr, sample_size, sample = result[frame.index[-1]]
+        self.assertEqual(list(corr.index), ["A", "B"])
+        self.assertEqual(list(corr.columns), ["A", "B"])
+        self.assertEqual(sample_size, 5)
+        self.assertEqual(list(sample.columns), ["A", "B"])
+
 
 if __name__ == "__main__":
     unittest.main()

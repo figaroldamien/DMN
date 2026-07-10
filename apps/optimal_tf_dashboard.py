@@ -59,6 +59,7 @@ from optimal_tf.services import (
     AllocationRequest,
     CompareRequest,
     HyperparameterTuningRequest,
+    InspectionIntervalRequest,
     InspectionSnapshotRequest,
     StrategyTestbedRequest,
     StandardEvaluationRequest,
@@ -70,6 +71,7 @@ from optimal_tf.services import (
     run_compare,
     run_evaluation,
     run_hyperparameter_tuning,
+    run_inspection_interval,
     run_inspection_snapshot,
     run_strategy_testbed,
     run_vary_cleaning,
@@ -1481,6 +1483,59 @@ def _render_line_chart(frame: pd.DataFrame | pd.Series, *, height: int = 280) ->
     st.altair_chart(chart, width="stretch")
 
 
+def _render_rank_chart_grid(
+    frame: pd.DataFrame,
+    *,
+    x_column: str = "date",
+    x_title: str | None = None,
+    x_temporal: bool = True,
+    value_columns: list[str],
+    series_labels: dict[str, str] | None = None,
+    title_prefix: str,
+    height: int = 220,
+) -> None:
+    if frame.empty:
+        st.info("No data available for this chart.")
+        return
+    ranks = sorted(int(rank) for rank in pd.to_numeric(frame.get("rank"), errors="coerce").dropna().unique())
+    if not ranks:
+        st.info("No ranked data available for this chart.")
+        return
+    for rank in ranks:
+        panel = frame.loc[pd.to_numeric(frame["rank"], errors="coerce") == rank, [x_column, *value_columns]].copy()
+        if panel.empty:
+            continue
+        x_values = pd.to_datetime(panel[x_column]) if x_temporal else pd.to_numeric(panel[x_column], errors="coerce")
+        plot = panel.drop(columns=x_column)
+        plot.index = x_values
+        plot = plot.sort_index()
+        if series_labels:
+            plot = plot.rename(columns=series_labels)
+        st.caption(f"{title_prefix} {rank}")
+        if x_temporal:
+            _render_line_chart(plot, height=height)
+        else:
+            long_frame = plot.reset_index(names=x_column).melt(id_vars=x_column, var_name="series", value_name="value")
+            chart = (
+                alt.Chart(long_frame)
+                .mark_line(strokeWidth=2.0)
+                .encode(
+                    x=alt.X(f"{x_column}:Q", title=x_title),
+                    y=alt.Y("value:Q", title=None),
+                    color=alt.Color("series:N", legend=alt.Legend(title=None, orient="top")),
+                    tooltip=[
+                        alt.Tooltip(f"{x_column}:Q", title=x_title or x_column, format=".0f"),
+                        alt.Tooltip("series:N", title="Series"),
+                        alt.Tooltip("value:Q", title="Value", format=".6f"),
+                    ],
+                )
+                .properties(height=height)
+                .configure(axis=alt.AxisConfig(gridColor="#d7dbe2"))
+                .configure_view(strokeOpacity=0)
+            )
+            st.altair_chart(chart, width="stretch")
+
+
 def _render_colored_frame(
     frame: pd.DataFrame,
     *,
@@ -1506,6 +1561,7 @@ def _render_matrix_heatmap(
     cmap: str = 'RdBu_r',
     universe: str | None = None,
     compact: bool = False,
+    annotate_values: bool = False,
 ) -> None:
     if frame.empty:
         st.info('No matrix available.')
@@ -1597,12 +1653,183 @@ def _render_matrix_heatmap(
         right_ax.set_yticks(group_centers)
         right_ax.set_yticklabels(group_labels, fontsize=group_fontsize)
         right_ax.tick_params(length=0, pad=2)
+    if annotate_values:
+        font_size = 6 if compact else 8
+        threshold = 0.55 * vmax
+        for row_idx in range(values.shape[0]):
+            for col_idx in range(values.shape[1]):
+                value = values[row_idx, col_idx]
+                if not np.isfinite(value):
+                    continue
+                text_color = 'white' if abs(float(value)) >= threshold else 'black'
+                ax.text(
+                    col_idx,
+                    row_idx,
+                    f'{float(value):.2f}',
+                    ha='center',
+                    va='center',
+                    fontsize=font_size,
+                    color=text_color,
+                )
     ax.set_xlabel('Tickers')
     if group_centers:
         ax.set_ylabel('Sector / category')
     fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
+
+
+def _render_grouped_matrix_view(
+    *,
+    label: str,
+    cleaned_matrix: pd.DataFrame,
+    baseline_matrix: pd.DataFrame,
+    sample_matrix: pd.DataFrame,
+    pair_counts: pd.DataFrame,
+    membership: pd.DataFrame,
+    primary_label: str,
+) -> None:
+    st.caption(
+        f"Each cell is the mean of the underlying ticker-by-ticker {primary_label.lower()} block. "
+        "Inside one group, the diagonal ticker self-correlations are excluded when the group has more than one ticker."
+    )
+    st.subheader(f"Cleaned {label.lower()} {primary_label.lower()}")
+    _render_matrix_heatmap(
+        cleaned_matrix,
+        title=f"Cleaned {label.lower()} {primary_label.lower()}",
+        annotate_values=True,
+    )
+    st.subheader("Cleaner effect vs empirical baseline")
+    _render_matrix_heatmap(
+        cleaned_matrix - baseline_matrix,
+        title=f"Cleaned minus empirical baseline {label.lower()} {primary_label.lower()}",
+        cmap="RdBu_r",
+        annotate_values=True,
+    )
+    st.caption(f"Comparison row: cleaned, empirical baseline, and sample {label.lower()} {primary_label.lower()}.")
+    cleaned_col, baseline_col, sample_col = st.columns(3)
+    with cleaned_col:
+        st.subheader("Cleaned")
+        _render_matrix_heatmap(cleaned_matrix, title="Cleaned", compact=True, annotate_values=True)
+    with baseline_col:
+        st.subheader("Empirical baseline")
+        _render_matrix_heatmap(baseline_matrix, title="Empirical baseline", compact=True, annotate_values=True)
+    with sample_col:
+        st.subheader("Sample")
+        _render_matrix_heatmap(sample_matrix, title="Sample", compact=True, annotate_values=True)
+    with st.expander(f"Open {label.lower()} aggregation details", expanded=False):
+        detail_left, detail_center = st.columns(2)
+        with detail_left:
+            st.caption("Group membership")
+            _render_compact_table(membership, priority=["group", "sector", "sub_sector", "num_tickers", "ticker"])
+        with detail_center:
+            st.caption("Pair counts used per block")
+            _render_colored_frame(pair_counts, max_rows=40, max_cols=40, cmap="Blues")
+
+
+def _render_mp_outlier_eigenvectors(
+    eigenvector_frame: pd.DataFrame,
+    spectrum_frame: pd.DataFrame,
+    *,
+    num_assets: int,
+    sample_size: int,
+) -> None:
+    if eigenvector_frame.empty or spectrum_frame.empty:
+        st.info("No eigenvector data available.")
+        return
+
+    ticker_font_size = 12
+    sector_font_size = 13
+    title_font_size = 14
+    axis_label_font_size = 12
+    y_tick_font_size = 11
+
+    try:
+        mp_law = marchenko_pastur_law(num_assets=num_assets, sample_size=sample_size, variance=1.0)
+    except ValueError as exc:
+        st.warning(f"Unable to build the Marchenko-Pastur reference law: {exc}")
+        return
+
+    outlier_spectrum = spectrum_frame.loc[
+        pd.to_numeric(spectrum_frame.get("eigenvalue"), errors="coerce") > float(mp_law.lambda_plus)
+    ].copy()
+    if outlier_spectrum.empty:
+        st.info("No correlation eigenvalue is outside the Marchenko-Pastur bulk on this date.")
+        return
+
+    ticker_labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in eigenvector_frame.index]
+    sector_labels = [str(item[0]) if isinstance(item, tuple) else "" for item in eigenvector_frame.index]
+    sub_sector_labels = [str(item[1]) if isinstance(item, tuple) and len(item) > 1 else "" for item in eigenvector_frame.index]
+    positions = np.arange(len(ticker_labels))
+
+    sector_boundaries: list[int] = []
+    sub_sector_boundaries: list[int] = []
+    sector_centers: list[float] = []
+    sector_names: list[str] = []
+    if ticker_labels:
+        start = 0
+        current_sector = sector_labels[0]
+        for idx in range(1, len(ticker_labels) + 1):
+            if idx == len(ticker_labels) or sector_labels[idx] != current_sector:
+                sector_centers.append(start + (idx - start - 1) / 2.0)
+                sector_names.append(current_sector)
+                if idx < len(ticker_labels):
+                    start = idx
+                    current_sector = sector_labels[idx]
+    for idx in range(1, len(ticker_labels)):
+        if sector_labels[idx] != sector_labels[idx - 1]:
+            sector_boundaries.append(idx)
+        if (
+            sector_labels[idx] != sector_labels[idx - 1]
+            or sub_sector_labels[idx] != sub_sector_labels[idx - 1]
+        ):
+            sub_sector_boundaries.append(idx)
+
+    subplot_count = len(outlier_spectrum)
+    fig_width = 18.0
+    fig_height = max(3.0 * subplot_count, 3.8)
+    fig, axes = plt.subplots(subplot_count, 1, sharex=True, figsize=(fig_width, fig_height), dpi=180)
+    if subplot_count == 1:
+        axes = [axes]
+
+    for ax, (_, spectrum_row) in zip(axes, outlier_spectrum.iterrows()):
+        rank = int(pd.to_numeric(spectrum_row["rank"], errors="coerce"))
+        eigenvalue = float(pd.to_numeric(spectrum_row["eigenvalue"], errors="coerce"))
+        column_name = f"corr_ev{rank}"
+        if column_name not in eigenvector_frame.columns:
+            continue
+        weights = pd.to_numeric(eigenvector_frame[column_name], errors="coerce").to_numpy(dtype=float)
+        ax.axhline(0.0, color="#666666", linewidth=0.9, alpha=0.7)
+        ax.plot(positions, weights, color="#2C6E91", linewidth=0.45, alpha=0.9, zorder=1)
+        positive_mask = np.isfinite(weights) & (weights >= 0.0)
+        negative_mask = np.isfinite(weights) & (weights < 0.0)
+        ax.vlines(positions[positive_mask], 0.0, weights[positive_mask], color="#2E8B57", linewidth=1.2, alpha=0.9)
+        ax.vlines(positions[negative_mask], 0.0, weights[negative_mask], color="#C44E52", linewidth=1.2, alpha=0.9)
+        ax.scatter(positions[positive_mask], weights[positive_mask], color="#2E8B57", s=16, marker="s", zorder=3)
+        ax.scatter(positions[negative_mask], weights[negative_mask], color="#C44E52", s=16, marker="s", zorder=3)
+        for boundary in sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=1.1, alpha=0.9)
+        for boundary in sub_sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=0.6, alpha=0.28)
+        ax.set_ylabel("Weight", fontsize=axis_label_font_size)
+        ax.tick_params(axis="y", labelsize=y_tick_font_size)
+        ax.set_title(f"Rank {rank} | eigenvalue={eigenvalue:.4f}", loc="left", fontsize=title_font_size)
+        ax.grid(True, axis="y", alpha=0.18)
+        if sector_centers:
+            top_ax = ax.secondary_xaxis("top")
+            top_ax.set_xticks(sector_centers)
+            top_ax.set_xticklabels(sector_names, fontsize=sector_font_size)
+            top_ax.tick_params(length=0, pad=2)
+
+    axes[-1].set_xticks(positions)
+    axes[-1].set_xticklabels(ticker_labels, rotation=90, fontsize=ticker_font_size)
+    axes[-1].set_xlabel("Tickers sorted by sector, sub-sector, then alphabetical order", fontsize=axis_label_font_size)
+    fig.tight_layout()
+    st.pyplot(fig, clear_figure=True)
+    st.caption(
+        f"Shown eigenvectors correspond to correlation eigenvalues above MP lambda+ = {float(mp_law.lambda_plus):.4f}. "
+        "Sector boundaries are dark; sub-sector boundaries are lighter."
+    )
 
 
 def _render_eigenvalue_distribution_with_mp(
@@ -3642,9 +3869,9 @@ elif usage_mode == 'Search' and service_name == 'Hyperparameter tuning':
         with artifacts_tab:
             _artifacts_block(result.artifacts.files)
 
-elif usage_mode == 'Run' and service_name == 'Matrix inspection':
+elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
     inspection_state_key = 'inspection::snapshot::result'
-    st.info('Matrix inspection is a diagnostic view of one dated state focused on cleaned matrices, spectra, eigenvectors and cross-asset features rather than allocation outputs or performance paths.')
+    st.info('Inspect at date is the static matrix diagnostic view. Use it when you want one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.')
     st.markdown('### Service parameters')
     with st.form('inspection_snapshot_form'):
         cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
@@ -3698,7 +3925,7 @@ elif usage_mode == 'Run' and service_name == 'Matrix inspection':
                 index=MATRIX_KIND_OPTIONS.index(matrix_kind_default) if matrix_kind_default in MATRIX_KIND_OPTIONS else 0,
                 format_func=lambda value: MATRIX_KIND_LABELS.get(value, value),
                 key='inspection::snapshot::matrix_kind',
-                help='Choose whether Matrix inspection highlights cleaned correlation matrices or covariance matrices.',
+                help='Choose whether the inspection highlights cleaned correlation matrices or covariance matrices.',
             )
 
         row3 = st.columns(3)
@@ -3749,7 +3976,7 @@ elif usage_mode == 'Run' and service_name == 'Matrix inspection':
             action=f'build one matrix inspection snapshot on `{inspection_date or "the latest available date"}`.',
         )
         st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
-        run_clicked = st.form_submit_button('Run matrix inspection')
+        run_clicked = st.form_submit_button('Run inspect at date')
     if run_clicked:
         request = InspectionSnapshotRequest(
             refresh_policy=_consume_refresh_policy(),
@@ -3773,13 +4000,30 @@ elif usage_mode == 'Run' and service_name == 'Matrix inspection':
     if result is not None:
         results_tab, config_tab, artifacts_tab = _run_result_tabs(include_nav=False)
         with results_tab:
-            overview_tab, matrices_tab, spectrum_tab, eigenvectors_tab, features_tab = st.tabs([
+            run_summary_tab, overview_tab, matrices_tab, sectors_tab, sub_sectors_tab, spectrum_tab, eigenvectors_tab, features_tab = st.tabs([
+                'Run summary',
                 'Overview',
                 'Matrices',
+                'Sector matrix',
+                'Sub-sector matrix',
                 'Spectrum',
                 'Correlation eigenvectors',
                 'Features',
             ])
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Matrix Inspection',
+                    service='Inspect at date',
+                    request=result.request,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'cleaning_method': result.cleaning_method,
+                        'matrix_kind': result.matrix_kind,
+                        'estimator_mode': result.estimator_mode,
+                        'covariance_window': result.covariance_window,
+                    },
+                )
             with overview_tab:
                 st.subheader('Snapshot summary')
                 _render_compact_table(pd.DataFrame([{
@@ -3874,6 +4118,26 @@ elif usage_mode == 'Run' and service_name == 'Matrix inspection':
                     with right:
                         st.caption(f'Sample {primary_label.lower()} preview')
                         _render_colored_frame(sample_matrix, max_rows=30, max_cols=30)
+            with sectors_tab:
+                _render_grouped_matrix_view(
+                    label='Sector matrix',
+                    cleaned_matrix=result.cleaned_sector_matrix,
+                    baseline_matrix=result.empirical_cleaned_sector_matrix,
+                    sample_matrix=result.sample_sector_matrix,
+                    pair_counts=result.sector_pair_counts,
+                    membership=result.sector_membership,
+                    primary_label=primary_label,
+                )
+            with sub_sectors_tab:
+                _render_grouped_matrix_view(
+                    label='Sub-sector matrix',
+                    cleaned_matrix=result.cleaned_sub_sector_matrix,
+                    baseline_matrix=result.empirical_cleaned_sub_sector_matrix,
+                    sample_matrix=result.sample_sub_sector_matrix,
+                    pair_counts=result.sub_sector_pair_counts,
+                    membership=result.sub_sector_membership,
+                    primary_label=primary_label,
+                )
             with spectrum_tab:
                 spectrum_frame = result.covariance_spectrum if result.matrix_kind == 'covariance' else result.correlation_spectrum
                 st.subheader(f'{primary_label} scree plot')
@@ -3889,10 +4153,20 @@ elif usage_mode == 'Run' and service_name == 'Matrix inspection':
                 else:
                     st.info('Marchenko-Pastur reference is shown for correlation spectra only.')
             with eigenvectors_tab:
-                eigenvector_frame = result.covariance_eigenvectors if result.matrix_kind == 'covariance' else result.correlation_eigenvectors
-                leading_cols = eigenvector_frame.iloc[:, : min(12, eigenvector_frame.shape[1])]
-                st.subheader(f'{primary_label} eigenvectors')
-                _render_colored_frame(leading_cols, max_rows=160, max_cols=min(12, leading_cols.shape[1]))
+                st.subheader('Correlation eigenvectors outside the Marchenko-Pastur bulk')
+                st.caption(
+                    "One panel per outlier eigenvalue. Tickers stay ordered by sector, sub-sector, then alphabetical order, "
+                    "and each eigenvector is shown as connected ticker weights."
+                )
+                _render_mp_outlier_eigenvectors(
+                    result.correlation_eigenvectors,
+                    result.correlation_spectrum,
+                    num_assets=result.num_assets,
+                    sample_size=result.sample_size,
+                )
+                with st.expander('Open eigenvector table preview', expanded=False):
+                    leading_cols = result.correlation_eigenvectors.iloc[:, : min(12, result.correlation_eigenvectors.shape[1])]
+                    _render_colored_frame(leading_cols, max_rows=160, max_cols=min(12, leading_cols.shape[1]))
             with features_tab:
                 st.subheader('Features at inspection date')
                 _render_colored_frame(result.feature_frame, max_rows=200, max_cols=result.feature_frame.shape[1], cmap='RdYlBu_r')
@@ -3909,11 +4183,224 @@ elif usage_mode == 'Run' and service_name == 'Matrix inspection':
                 'sample_size': result.sample_size,
                 'num_assets': result.num_assets,
                 'cleaner_comparison': result.cleaner_comparison_frame.iloc[0].to_dict(),
-                'evaluation_start': common_evaluation_start,
-                'evaluation_end': common_evaluation_end,
             })
         with artifacts_tab:
             _artifacts_block(result.artifacts.files)
+elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect over interval':
+    inspection_interval_state_key = 'inspection::interval::result'
+    st.info('Inspect over interval is the dynamic matrix diagnostic view. Use it when you want to study how spectra and leading eigenmodes evolve over a rebalance interval.')
+    st.markdown('### Service parameters')
+    with st.form('inspection_interval_form'):
+        cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+        shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+        freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+        correlation_input_default = str(st.session_state.get('inspection::interval::correlation_input', 'normalized') or 'normalized')
+        matrix_kind_default = str(st.session_state.get('inspection::interval::matrix_kind', 'correlation') or 'correlation')
+        estimator_mode_default = str(st.session_state.get('inspection::interval::estimator_mode', 'window_sample') or 'window_sample')
+        window_default, num_assets = _universe_covariance_window_default(universe)
+        smoothing_span_default = int(st.session_state.get('inspection::interval::matrix_smoothing_span', int(window_default)) or int(window_default))
+        leading_default = int(st.session_state.get('inspection::interval::leading_eigenvectors', 3) or 3)
+        _sync_widget_default('inspection::interval::covariance_window', window_default, context=(universe, 'inspection_interval', num_assets))
 
-else:
-    st.info('This inspection UI now focuses on the snapshot workflow only.')
+        row1 = st.columns(3)
+        with row1[0]:
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                CLEANING_OPTIONS,
+                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                key='inspection::interval::cleaning_method',
+            )
+        with row1[1]:
+            linear_shrinkage = _linear_shrinkage_input(
+                key='inspection::interval::linear_shrinkage',
+                default_value=shrinkage_default,
+            )
+        with row1[2]:
+            covariance_window = int(
+                st.number_input(
+                    'Covariance window',
+                    min_value=2,
+                    value=int(st.session_state['inspection::interval::covariance_window']),
+                    step=1,
+                    key='inspection::interval::covariance_window',
+                )
+            )
+
+        row2 = st.columns(2)
+        with row2[0]:
+            correlation_input = st.selectbox(
+                'Correlation input',
+                MATRIX_INPUT_OPTIONS,
+                index=MATRIX_INPUT_OPTIONS.index(correlation_input_default) if correlation_input_default in MATRIX_INPUT_OPTIONS else 0,
+                format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value),
+                key='inspection::interval::correlation_input',
+            )
+        with row2[1]:
+            matrix_kind = st.selectbox(
+                'Matrix type',
+                MATRIX_KIND_OPTIONS,
+                index=MATRIX_KIND_OPTIONS.index(matrix_kind_default) if matrix_kind_default in MATRIX_KIND_OPTIONS else 0,
+                format_func=lambda value: MATRIX_KIND_LABELS.get(value, value),
+                key='inspection::interval::matrix_kind',
+            )
+
+        row3 = st.columns(3)
+        with row3[0]:
+            estimator_mode = st.selectbox(
+                'Estimator',
+                MATRIX_ESTIMATOR_OPTIONS,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_mode_default) if estimator_mode_default in MATRIX_ESTIMATOR_OPTIONS else 0,
+                format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value),
+                key='inspection::interval::estimator_mode',
+            )
+        with row3[1]:
+            matrix_smoothing_span = int(
+                st.number_input(
+                    'Matrix smoothing span',
+                    min_value=2,
+                    value=int(smoothing_span_default),
+                    step=1,
+                    key='inspection::interval::matrix_smoothing_span',
+                    help='Used by the EWMA cross-products estimator. Higher span means slower matrix smoothing.',
+                )
+            )
+        with row3[2]:
+            leading_eigenvectors = int(
+                st.number_input(
+                    'Leading eigenvectors',
+                    min_value=1,
+                    max_value=12,
+                    value=int(leading_default),
+                    step=1,
+                    key='inspection::interval::leading_eigenvectors',
+                    help='Number of leading eigenvectors tracked through time via absolute alignment.',
+                )
+            )
+
+        row4 = st.columns(2)
+        with row4[0]:
+            rebalance_frequency = st.selectbox(
+                'Inspection frequency',
+                FREQUENCY_OPTIONS,
+                index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
+                key='inspection::interval::rebalance_frequency',
+            )
+        with row4[1]:
+            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_interval', key='inspection::interval::output_dir')
+
+        _render_service_guidance(
+            defaults=(
+                f"matrix={MATRIX_KIND_LABELS.get(matrix_kind, matrix_kind)}, estimator={MATRIX_ESTIMATOR_LABELS.get(estimator_mode, estimator_mode)}, "
+                f"input={MATRIX_INPUT_LABELS.get(correlation_input, correlation_input)}, covariance window={covariance_window}, "
+                f"inspection frequency={rebalance_frequency}, leading eigenvectors={leading_eigenvectors}"
+            ),
+            recommendation='Start with monthly or quarterly inspection dates if you want a readable first picture of spectral evolution.',
+            action=f'inspect matrix evolution from `{workspace_context.evaluation_start or "config start"}` to `{workspace_context.evaluation_end or "config end"}` on `{rebalance_frequency}` dates.',
+        )
+        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
+        run_clicked = st.form_submit_button('Run inspect over interval')
+    if run_clicked:
+        request = InspectionIntervalRequest(
+            refresh_policy=_consume_refresh_policy(),
+            config_path=workspace_context.config_path,
+            universe=workspace_context.universe,
+            start=workspace_context.start or None,
+            evaluation_start=workspace_context.evaluation_start or None,
+            evaluation_end=workspace_context.evaluation_end or None,
+            rebalance_frequency=rebalance_frequency,
+            cleaning_method=cleaning_method,
+            correlation_input=correlation_input,
+            matrix_kind=matrix_kind,
+            estimator_mode=estimator_mode,
+            matrix_smoothing_span=matrix_smoothing_span,
+            linear_shrinkage=linear_shrinkage,
+            covariance_window=int(covariance_window),
+            leading_eigenvectors=leading_eigenvectors,
+            output_dir=output_dir or None,
+        )
+        st.session_state[inspection_interval_state_key] = run_inspection_interval(request)
+    result = st.session_state.get(inspection_interval_state_key)
+    if result is not None:
+        results_tab, config_tab, artifacts_tab = _run_result_tabs(include_nav=False)
+        with results_tab:
+            run_summary_tab, overview_tab, trends_tab, eigenvectors_tab = st.tabs([
+                'Run summary',
+                'Overview',
+                'Spectrum trends',
+                'Eigenvector stability',
+            ])
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Matrix Inspection',
+                    service='Inspect over interval',
+                    request=result.request,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'cleaning_method': result.cleaning_method,
+                        'matrix_kind': result.matrix_kind,
+                        'estimator_mode': result.estimator_mode,
+                        'covariance_window': result.covariance_window,
+                        'rebalance_frequency': result.request.rebalance_frequency,
+                    },
+                )
+            with overview_tab:
+                st.subheader('Interval summary')
+                _render_compact_table(
+                    result.summary_frame,
+                    priority=['date', 'sample_size', 'num_assets', 'leading_eigenvalue', 'second_eigenvalue', 'third_eigenvalue', 'bulk_outlier_count', 'mp_lambda_plus'],
+                )
+            with trends_tab:
+                st.subheader(f'{MATRIX_KIND_LABELS.get(result.matrix_kind, result.matrix_kind)} leading eigenvalues over time')
+                spectrum_top = result.spectrum_frame[
+                    result.spectrum_frame['rank'] <= max(1, int(result.request.leading_eigenvectors))
+                ].copy()
+                _render_rank_chart_grid(
+                    spectrum_top,
+                    value_columns=['eigenvalue'],
+                    series_labels={'eigenvalue': 'eigenvalue'},
+                    title_prefix='Eigenvalue rank',
+                )
+                st.subheader('Eigenvalue variogram')
+                st.caption(
+                    f"Semi-variance by lag on retained eigenvalues, up to lag {int(pd.to_numeric(result.variogram_frame.get('lag'), errors='coerce').max()) if not result.variogram_frame.empty else 0}."
+                )
+                _render_rank_chart_grid(
+                    result.variogram_frame,
+                    x_column='lag',
+                    x_title='Lag',
+                    x_temporal=False,
+                    value_columns=['semivariance'],
+                    series_labels={'semivariance': 'semivariance'},
+                    title_prefix='Variogram rank',
+                    height=320,
+                )
+            with eigenvectors_tab:
+                st.subheader('Leading eigenvector stability')
+                similarity_frame = result.eigenvector_similarity_frame.copy()
+                _render_rank_chart_grid(
+                    similarity_frame,
+                    value_columns=['abs_alignment_anchor', 'abs_alignment_previous'],
+                    series_labels={
+                        'abs_alignment_anchor': 'anchor alignment',
+                        'abs_alignment_previous': 'previous alignment',
+                    },
+                    title_prefix='Eigenvector rank',
+                )
+        with config_tab:
+            _request_block(result.request, config_defaults, {
+                'universe': result.universe,
+                'cleaning_method': result.cleaning_method,
+                'matrix_kind': result.matrix_kind,
+                'estimator_mode': result.estimator_mode,
+                'correlation_input': result.correlation_input,
+                'covariance_window': result.covariance_window,
+                'matrix_smoothing_span': int(result.request.matrix_smoothing_span or result.covariance_window),
+                'evaluation_start': result.request.evaluation_start,
+                'evaluation_end': result.request.evaluation_end,
+                'rebalance_frequency': result.request.rebalance_frequency,
+                'num_dates': int(len(result.summary_frame)),
+                'num_assets': result.num_assets,
+            })
+        with artifacts_tab:
+            _artifacts_block(result.artifacts.files)

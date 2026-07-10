@@ -44,6 +44,8 @@ from .io import ensure_output_dir, write_json, write_request_json
 from .models import (
     EigenvectorInspectionRequest,
     EigenvectorInspectionResult,
+    InspectionIntervalRequest,
+    InspectionIntervalResult,
     InspectionSnapshotRequest,
     InspectionSnapshotResult,
     RunArtifacts,
@@ -119,6 +121,48 @@ def _selection_suffix(selection_mode: str, *, cumulative_variance_pct: float, to
     if selection_mode == "top_n":
         return f"top_{top_n}"
     raise ValueError(f"Unknown selection mode {selection_mode!r}")
+
+
+def _absolute_vector_alignment(left: pd.Series, right: pd.Series) -> float | None:
+    common = left.index.intersection(right.index)
+    if common.empty:
+        return None
+    left_values = left.loc[common].to_numpy(dtype=float)
+    right_values = right.loc[common].to_numpy(dtype=float)
+    left_norm = float(np.linalg.norm(left_values))
+    right_norm = float(np.linalg.norm(right_values))
+    if left_norm <= 0.0 or right_norm <= 0.0:
+        return None
+    return float(abs(np.dot(left_values / left_norm, right_values / right_norm)))
+
+
+def _variogram_frame(series_frame: pd.DataFrame, *, max_lag: int) -> pd.DataFrame:
+    if series_frame.empty:
+        return pd.DataFrame(columns=["rank", "lag", "semivariance", "num_pairs"])
+    rows: list[dict[str, float | int]] = []
+    effective_max_lag = max(0, min(int(max_lag), len(series_frame) - 1))
+    ordered = series_frame.sort_index()
+    for column in ordered.columns:
+        rank_label = str(column)
+        rank = int(rank_label.removeprefix("rank_")) if rank_label.startswith("rank_") else rank_label
+        values = pd.to_numeric(ordered[column], errors="coerce").to_numpy(dtype=float)
+        for lag in range(effective_max_lag + 1):
+            if lag == 0:
+                rows.append({"rank": rank, "lag": 0, "semivariance": 0.0, "num_pairs": int(len(values))})
+                continue
+            diffs = values[lag:] - values[:-lag]
+            valid = np.isfinite(diffs)
+            num_pairs = int(np.sum(valid))
+            semivariance = float(0.5 * np.mean(np.square(diffs[valid]))) if num_pairs else np.nan
+            rows.append(
+                {
+                    "rank": rank,
+                    "lag": lag,
+                    "semivariance": semivariance,
+                    "num_pairs": num_pairs,
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def _select_eigen_positions(
@@ -594,6 +638,73 @@ def _sorted_matrix(frame: pd.DataFrame, sorted_tickers: list[str]) -> pd.DataFra
     return frame.loc[tickers, tickers]
 
 
+def _aggregate_matrix_by_groups(
+    frame: pd.DataFrame,
+    metadata: pd.DataFrame,
+    *,
+    level: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    tickers = [ticker for ticker in metadata.index if ticker in frame.index and ticker in frame.columns]
+    if not tickers:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    ordered = frame.loc[tickers, tickers]
+    metadata_slice = metadata.loc[tickers].copy()
+    if level == "sector":
+        metadata_slice["group_label"] = metadata_slice["sector"].astype(str)
+        membership = (
+            metadata_slice.reset_index()
+            .rename(columns={"index": "ticker"})
+            .loc[:, ["group_label", "sector", "ticker"]]
+            .rename(columns={"group_label": "group"})
+        )
+    elif level == "sub_sector":
+        metadata_slice["group_label"] = (metadata_slice["sector"].astype(str) + " | " + metadata_slice["sub_sector"].astype(str)).astype(str)
+        membership = (
+            metadata_slice.reset_index()
+            .rename(columns={"index": "ticker"})
+            .loc[:, ["group_label", "sector", "sub_sector", "ticker"]]
+            .rename(columns={"group_label": "group"})
+        )
+    else:
+        raise ValueError(f"Unknown aggregation level {level!r}.")
+
+    membership_counts = (
+        membership.groupby("group", sort=False)
+        .size()
+        .rename("num_tickers")
+        .reset_index()
+    )
+    membership = membership.merge(membership_counts, on="group", how="left")
+    if level == "sector":
+        membership = membership.loc[:, ["group", "sector", "num_tickers", "ticker"]]
+    else:
+        membership = membership.loc[:, ["group", "sector", "sub_sector", "num_tickers", "ticker"]]
+
+    group_labels = membership_counts["group"].tolist()
+    label_array = metadata_slice["group_label"].to_numpy(dtype=object)
+    values = ordered.to_numpy(dtype=float)
+    aggregated = pd.DataFrame(index=group_labels, columns=group_labels, dtype=float)
+    pair_counts = pd.DataFrame(index=group_labels, columns=group_labels, dtype=float)
+
+    masks = {group: (label_array == group) for group in group_labels}
+    for left_group in group_labels:
+        left_mask = masks[left_group]
+        left_count = int(np.sum(left_mask))
+        for right_group in group_labels:
+            right_mask = masks[right_group]
+            block = values[np.ix_(left_mask, right_mask)]
+            if left_group == right_group and left_count > 1:
+                block_values = block[~np.eye(left_count, dtype=bool)]
+            else:
+                block_values = block.reshape(-1)
+            finite = block_values[np.isfinite(block_values)]
+            pair_counts.loc[left_group, right_group] = float(finite.size)
+            aggregated.loc[left_group, right_group] = float(finite.mean()) if finite.size else np.nan
+
+    return aggregated, pair_counts, membership
+
+
 def _spectrum_frame(eigenvalues: np.ndarray, *, label: str) -> pd.DataFrame:
     total = float(np.sum(eigenvalues))
     cumulative = np.cumsum(eigenvalues)
@@ -722,6 +833,36 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
     sorted_empirical_cleaned_cov = _sorted_matrix(empirical_cleaned_cov, sorted_tickers)
     sorted_cleaned_corr = _sorted_matrix(cleaned_corr, sorted_tickers)
     sorted_cleaned_cov = _sorted_matrix(cleaned_cov, sorted_tickers)
+    sample_sector_matrix, sector_pair_counts, sector_membership = _aggregate_matrix_by_groups(
+        sorted_sample_cov if matrix_kind == "covariance" else sorted_sample_corr,
+        metadata,
+        level="sector",
+    )
+    empirical_cleaned_sector_matrix, _, _ = _aggregate_matrix_by_groups(
+        sorted_empirical_cleaned_cov if matrix_kind == "covariance" else sorted_empirical_cleaned_corr,
+        metadata,
+        level="sector",
+    )
+    cleaned_sector_matrix, _, _ = _aggregate_matrix_by_groups(
+        sorted_cleaned_cov if matrix_kind == "covariance" else sorted_cleaned_corr,
+        metadata,
+        level="sector",
+    )
+    sample_sub_sector_matrix, sub_sector_pair_counts, sub_sector_membership = _aggregate_matrix_by_groups(
+        sorted_sample_cov if matrix_kind == "covariance" else sorted_sample_corr,
+        metadata,
+        level="sub_sector",
+    )
+    empirical_cleaned_sub_sector_matrix, _, _ = _aggregate_matrix_by_groups(
+        sorted_empirical_cleaned_cov if matrix_kind == "covariance" else sorted_empirical_cleaned_corr,
+        metadata,
+        level="sub_sector",
+    )
+    cleaned_sub_sector_matrix, _, _ = _aggregate_matrix_by_groups(
+        sorted_cleaned_cov if matrix_kind == "covariance" else sorted_cleaned_corr,
+        metadata,
+        level="sub_sector",
+    )
 
     corr_spectrum, corr_eigenvectors = _eigenvector_frame(sorted_cleaned_corr, universe=universe.name, prefix="corr_ev")
     cov_spectrum, cov_eigenvectors = _eigenvector_frame(sorted_cleaned_cov, universe=universe.name, prefix="cov_ev")
@@ -768,6 +909,16 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         empirical_cleaned_cov_path = outdir / "empirical_cleaned_covariance.csv"
         cleaned_corr_path = outdir / "cleaned_correlation.csv"
         cleaned_cov_path = outdir / "cleaned_covariance.csv"
+        sector_matrix_path = outdir / "cleaned_sector_matrix.csv"
+        sector_baseline_path = outdir / "empirical_cleaned_sector_matrix.csv"
+        sector_sample_path = outdir / "sample_sector_matrix.csv"
+        sector_counts_path = outdir / "sector_pair_counts.csv"
+        sector_membership_path = outdir / "sector_membership.csv"
+        sub_sector_matrix_path = outdir / "cleaned_sub_sector_matrix.csv"
+        sub_sector_baseline_path = outdir / "empirical_cleaned_sub_sector_matrix.csv"
+        sub_sector_sample_path = outdir / "sample_sub_sector_matrix.csv"
+        sub_sector_counts_path = outdir / "sub_sector_pair_counts.csv"
+        sub_sector_membership_path = outdir / "sub_sector_membership.csv"
         corr_spectrum_path = outdir / "correlation_spectrum.csv"
         cov_spectrum_path = outdir / "covariance_spectrum.csv"
         corr_vectors_path = outdir / "correlation_eigenvectors.csv"
@@ -780,6 +931,16 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         sorted_empirical_cleaned_cov.to_csv(empirical_cleaned_cov_path)
         sorted_cleaned_corr.to_csv(cleaned_corr_path)
         sorted_cleaned_cov.to_csv(cleaned_cov_path)
+        cleaned_sector_matrix.to_csv(sector_matrix_path)
+        empirical_cleaned_sector_matrix.to_csv(sector_baseline_path)
+        sample_sector_matrix.to_csv(sector_sample_path)
+        sector_pair_counts.to_csv(sector_counts_path)
+        sector_membership.to_csv(sector_membership_path, index=False)
+        cleaned_sub_sector_matrix.to_csv(sub_sector_matrix_path)
+        empirical_cleaned_sub_sector_matrix.to_csv(sub_sector_baseline_path)
+        sample_sub_sector_matrix.to_csv(sub_sector_sample_path)
+        sub_sector_pair_counts.to_csv(sub_sector_counts_path)
+        sub_sector_membership.to_csv(sub_sector_membership_path, index=False)
         corr_spectrum.to_csv(corr_spectrum_path, index=False)
         cov_spectrum.to_csv(cov_spectrum_path, index=False)
         corr_eigenvectors.to_csv(corr_vectors_path)
@@ -811,6 +972,16 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             "empirical_cleaned_covariance": empirical_cleaned_cov_path,
             "cleaned_correlation": cleaned_corr_path,
             "cleaned_covariance": cleaned_cov_path,
+            "sample_sector_matrix": sector_sample_path,
+            "empirical_cleaned_sector_matrix": sector_baseline_path,
+            "cleaned_sector_matrix": sector_matrix_path,
+            "sector_pair_counts": sector_counts_path,
+            "sector_membership": sector_membership_path,
+            "sample_sub_sector_matrix": sub_sector_sample_path,
+            "empirical_cleaned_sub_sector_matrix": sub_sector_baseline_path,
+            "cleaned_sub_sector_matrix": sub_sector_matrix_path,
+            "sub_sector_pair_counts": sub_sector_counts_path,
+            "sub_sector_membership": sub_sector_membership_path,
             "correlation_spectrum": corr_spectrum_path,
             "covariance_spectrum": cov_spectrum_path,
             "correlation_eigenvectors": corr_vectors_path,
@@ -840,11 +1011,268 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         empirical_cleaned_covariance=sorted_empirical_cleaned_cov,
         cleaned_correlation=sorted_cleaned_corr,
         cleaned_covariance=sorted_cleaned_cov,
+        sample_sector_matrix=sample_sector_matrix,
+        empirical_cleaned_sector_matrix=empirical_cleaned_sector_matrix,
+        cleaned_sector_matrix=cleaned_sector_matrix,
+        sector_pair_counts=sector_pair_counts,
+        sector_membership=sector_membership,
+        sample_sub_sector_matrix=sample_sub_sector_matrix,
+        empirical_cleaned_sub_sector_matrix=empirical_cleaned_sub_sector_matrix,
+        cleaned_sub_sector_matrix=cleaned_sub_sector_matrix,
+        sub_sector_pair_counts=sub_sector_pair_counts,
+        sub_sector_membership=sub_sector_membership,
         correlation_spectrum=corr_spectrum,
         covariance_spectrum=cov_spectrum,
         correlation_eigenvectors=corr_eigenvectors,
         covariance_eigenvectors=cov_eigenvectors,
         feature_frame=feature_frame,
         cleaner_comparison_frame=cleaner_comparison_frame,
+        artifacts=RunArtifacts(root_dir=outdir, files=files),
+    )
+
+
+def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionIntervalResult:
+    universe, estimation, backtest, allocation, evaluation, compare, output = load_config(request.config_path)
+    del allocation, compare, output
+
+    universe, estimation, backtest, evaluation = _resolve_config_overrides(
+        request,
+        default_universe=universe,
+        default_estimation=estimation,
+        default_backtest=backtest,
+        default_evaluation=evaluation,
+    )
+    del backtest
+
+    cleaning_method = request.cleaning_method or estimation.cleaning_method
+    if cleaning_method not in supported_cleaning_methods():
+        raise ValueError(f"Unknown cleaning method {cleaning_method!r}.")
+    correlation_input = str(request.correlation_input or "normalized").strip().lower()
+    if correlation_input not in MATRIX_INPUT_OPTIONS:
+        raise ValueError(f"Unknown correlation_input {correlation_input!r}.")
+    matrix_kind = str(request.matrix_kind or "correlation").strip().lower()
+    if matrix_kind not in MATRIX_KIND_OPTIONS:
+        raise ValueError(f"Unknown matrix_kind {matrix_kind!r}.")
+    estimator_mode = str(request.estimator_mode or "window_sample").strip().lower()
+    if estimator_mode not in ESTIMATOR_MODE_OPTIONS:
+        raise ValueError(f"Unknown estimator_mode {estimator_mode!r}.")
+    matrix_smoothing_span = int(request.matrix_smoothing_span or request.covariance_window or estimation.covariance_window or 252)
+    if matrix_smoothing_span <= 0:
+        raise ValueError("matrix_smoothing_span must be strictly positive.")
+    leading_eigenvectors = max(1, int(request.leading_eigenvectors or 3))
+
+    covariance_window = int(request.covariance_window or estimation.covariance_window or 252)
+    interval_estimation = resolve_window_estimation_cfg(
+        estimation,
+        covariance_window,
+        min_periods_mode="clamp",
+    )
+    interval_estimation = interval_estimation.__class__(**{
+        **interval_estimation.__dict__,
+        "cleaning_method": cleaning_method,
+        "linear_shrinkage": float(request.linear_shrinkage)
+        if request.linear_shrinkage is not None
+        else interval_estimation.linear_shrinkage,
+    })
+
+    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    target_dates = pd.DatetimeIndex(resolve_target_dates(prices, evaluation))
+    target_dates = target_dates[target_dates.isin(prices.index)]
+    if target_dates.empty:
+        raise ValueError("No inspection dates available in the selected interval.")
+
+    summary_rows: list[dict[str, float | int | str]] = []
+    spectrum_rows: list[dict[str, float | int | str | bool]] = []
+    alignment_rows: list[dict[str, float | int | str | None]] = []
+    previous_vectors: pd.DataFrame | None = None
+    anchor_vectors: pd.DataFrame | None = None
+    num_assets = 0
+    skipped_dates: list[str] = []
+
+    for matrix_date in target_dates:
+        history = prices.loc[prices.index <= matrix_date]
+        if history.empty:
+            continue
+        try:
+            empirical_corr, sample_cov, sample_size, sample_frame = matrix_sample_bundle(
+                history,
+                interval_estimation,
+                matrix_date,
+                input_mode=correlation_input,
+                estimator_mode=estimator_mode,
+                smoothing_span=matrix_smoothing_span,
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if (
+                message.startswith("No correlation sample available on ")
+                or message.startswith("No EWMA covariance sample available on ")
+            ):
+                skipped_dates.append(matrix_date.strftime("%Y-%m-%d"))
+                continue
+            raise
+        cleaned_corr = clean_correlation_matrix(
+            empirical_corr,
+            data=sample_frame,
+            sample_size=sample_size,
+            method=cleaning_method,
+            linear_shrinkage=interval_estimation.linear_shrinkage,
+            bandwidth=interval_estimation.rie_bandwidth,
+        )
+        sample_vol = pd.Series(
+            np.sqrt(np.clip(np.diag(sample_cov.to_numpy(dtype=float)), 0.0, None)),
+            index=sample_cov.index,
+            dtype=float,
+        ).reindex(cleaned_corr.index).fillna(0.0)
+        cleaned_cov = correlation_to_covariance(cleaned_corr, sample_vol)
+        metadata, sorted_tickers = _sorted_metadata(universe.name, list(cleaned_corr.index))
+        del metadata
+        sorted_cleaned_corr = _sorted_matrix(cleaned_corr, sorted_tickers)
+        sorted_cleaned_cov = _sorted_matrix(cleaned_cov, sorted_tickers)
+        selected_matrix = sorted_cleaned_cov if matrix_kind == "covariance" else sorted_cleaned_corr
+
+        eigenvalues, eigenvectors = np.linalg.eigh(selected_matrix.to_numpy(dtype=float))
+        order = np.argsort(eigenvalues)[::-1]
+        eigenvalues = eigenvalues[order].astype(float)
+        eigenvectors = eigenvectors[:, order].astype(float)
+        total = float(np.sum(eigenvalues))
+        cumulative = np.cumsum(eigenvalues)
+        mp = marchenko_pastur_law(len(sorted_cleaned_corr), sample_size, variance=1.0)
+        num_assets = int(len(sorted_tickers))
+
+        bulk_outlier_count = int(np.sum(np.linalg.eigvalsh(sorted_cleaned_corr.to_numpy(dtype=float)) > mp.lambda_plus))
+        summary_rows.append(
+            {
+                "date": matrix_date.strftime("%Y-%m-%d"),
+                "sample_size": int(sample_size),
+                "num_assets": num_assets,
+                "trace": float(np.trace(selected_matrix.to_numpy(dtype=float))),
+                "leading_eigenvalue": float(eigenvalues[0]) if len(eigenvalues) else 0.0,
+                "second_eigenvalue": float(eigenvalues[1]) if len(eigenvalues) > 1 else np.nan,
+                "third_eigenvalue": float(eigenvalues[2]) if len(eigenvalues) > 2 else np.nan,
+                "bulk_outlier_count": bulk_outlier_count,
+                "mp_lambda_plus": float(mp.lambda_plus),
+            }
+        )
+
+        for rank, eigenvalue in enumerate(eigenvalues, start=1):
+            spectrum_rows.append(
+                {
+                    "date": matrix_date.strftime("%Y-%m-%d"),
+                    "rank": rank,
+                    "eigenvalue": float(eigenvalue),
+                    "variance_share": float(eigenvalue / total) if total else 0.0,
+                    "cumulative_variance_share": float(cumulative[rank - 1] / total) if total else 0.0,
+                    "num_assets": num_assets,
+                    "sample_size": int(sample_size),
+                    "mp_lambda_plus": float(mp.lambda_plus),
+                    "is_mp_outlier": bool(rank <= bulk_outlier_count),
+                }
+            )
+
+        active_components = min(leading_eigenvectors, eigenvectors.shape[1])
+        current_vectors = pd.DataFrame(
+            eigenvectors[:, :active_components],
+            index=sorted_tickers,
+            columns=[f"rank_{position + 1}" for position in range(active_components)],
+            dtype=float,
+        )
+        if anchor_vectors is None:
+            anchor_vectors = current_vectors.copy()
+        for position in range(active_components):
+            current_vector = current_vectors.iloc[:, position]
+            previous_alignment = None
+            if previous_vectors is not None and position < previous_vectors.shape[1]:
+                previous_alignment = _absolute_vector_alignment(
+                    current_vector,
+                    previous_vectors.iloc[:, position],
+                )
+            anchor_alignment = _absolute_vector_alignment(
+                current_vector,
+                anchor_vectors.iloc[:, position],
+            )
+            alignment_rows.append(
+                {
+                    "date": matrix_date.strftime("%Y-%m-%d"),
+                    "rank": position + 1,
+                    "abs_alignment_previous": previous_alignment,
+                    "abs_alignment_anchor": anchor_alignment,
+                }
+            )
+        previous_vectors = current_vectors.copy()
+
+    if not summary_rows:
+        raise ValueError("No matrix inspection data could be computed over the selected interval.")
+
+    summary_frame = pd.DataFrame(summary_rows)
+    spectrum_frame = pd.DataFrame(spectrum_rows)
+    retained_spectrum_frame = spectrum_frame.loc[
+        pd.to_numeric(spectrum_frame["rank"], errors="coerce") <= max(1, leading_eigenvectors)
+    ].copy()
+    retained_pivot = retained_spectrum_frame.pivot(index="date", columns="rank", values="eigenvalue").sort_index()
+    retained_pivot.index = pd.to_datetime(retained_pivot.index)
+    retained_pivot.columns = [f"rank_{int(column)}" for column in retained_pivot.columns]
+    variogram_lag_max = max(600, 2 * int(num_assets))
+    variogram_frame = _variogram_frame(retained_pivot, max_lag=variogram_lag_max)
+    eigenvector_similarity_frame = pd.DataFrame(alignment_rows)
+
+    outdir = ensure_output_dir(request.output_dir or "output/optimal_tf/inspection/interval")
+    files: dict[str, Path] = {}
+    if outdir is not None:
+        summary_path = outdir / "summary_frame.csv"
+        spectrum_path = outdir / "spectrum_frame.csv"
+        variogram_path = outdir / "eigenvalue_variogram.csv"
+        alignment_path = outdir / "eigenvector_similarity.csv"
+        summary_frame.to_csv(summary_path, index=False)
+        spectrum_frame.to_csv(spectrum_path, index=False)
+        variogram_frame.to_csv(variogram_path, index=False)
+        eigenvector_similarity_frame.to_csv(alignment_path, index=False)
+        request_path = write_request_json(outdir, request)
+        summary_json_path = write_json(
+            outdir,
+            "summary.json",
+            {
+                "universe": universe.name,
+                "cleaning_method": cleaning_method,
+                "correlation_input": correlation_input,
+                "matrix_kind": matrix_kind,
+                "estimator_mode": estimator_mode,
+                "matrix_smoothing_span": matrix_smoothing_span,
+                "covariance_window": covariance_window,
+                "leading_eigenvectors": leading_eigenvectors,
+                "variogram_lag_max": int(min(variogram_lag_max, max(0, len(retained_pivot) - 1))),
+                "num_requested_dates": int(len(target_dates)),
+                "num_dates": int(len(summary_frame)),
+                "first_date": str(summary_frame.iloc[0]["date"]),
+                "last_date": str(summary_frame.iloc[-1]["date"]),
+                "num_assets": int(num_assets),
+                "skipped_dates": skipped_dates,
+            },
+        )
+        files = {
+            "summary_frame": summary_path,
+            "spectrum_frame": spectrum_path,
+            "eigenvalue_variogram": variogram_path,
+            "eigenvector_similarity": alignment_path,
+        }
+        if request_path is not None:
+            files["request"] = request_path
+        if summary_json_path is not None:
+            files["summary"] = summary_json_path
+
+    return InspectionIntervalResult(
+        request=request,
+        universe=universe.name,
+        cleaning_method=cleaning_method,
+        correlation_input=correlation_input,
+        matrix_kind=matrix_kind,
+        estimator_mode=estimator_mode,
+        covariance_window=covariance_window,
+        observation_dates=tuple(pd.Timestamp(date) for date in pd.to_datetime(summary_frame["date"])),
+        num_assets=num_assets,
+        summary_frame=summary_frame,
+        spectrum_frame=spectrum_frame,
+        variogram_frame=variogram_frame,
+        eigenvector_similarity_frame=eigenvector_similarity_frame,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
