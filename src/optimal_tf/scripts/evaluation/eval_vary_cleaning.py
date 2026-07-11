@@ -5,7 +5,7 @@ from pathlib import Path
 
 from optimal_tf.services import VaryCleaningRequest, run_vary_cleaning
 
-DEFAULT_METHODS = ("empirical", "linear_shrinkage", "rie", "rie_reference")
+DEFAULT_METHODS = ("empirical", "linear_shrinkage", "rie_spectral", "rie_reference")
 DEFAULT_OUTPUT_DIR = "output/optimal_tf/evaluation/vary_cleaning"
 
 

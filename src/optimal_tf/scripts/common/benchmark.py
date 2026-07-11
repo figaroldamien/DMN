@@ -45,17 +45,17 @@ def matrix_sample_bundle(
     estimation: EstimationConfig,
     matrix_date: pd.Timestamp,
     *,
-    input_mode: str = "normalized",
-    estimator_mode: str = "window_sample",
-    smoothing_span: int | None = None,
+    input_type: str = "normalized",
+    estimator_method: str = "window_sample",
+    estimator_window: int | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, int, pd.DataFrame]:
-    sample_input = build_matrix_sample_input(prices, estimation, input_mode=input_mode)
+    sample_input = build_matrix_sample_input(prices, estimation, input_mode=input_type)
     covariance_window = _resolve_covariance_window(estimation)
-    effective_smoothing_span = int(smoothing_span or covariance_window)
-    if effective_smoothing_span <= 0:
-        raise ValueError("matrix smoothing span must be strictly positive.")
+    effective_window = int(estimator_window or covariance_window)
+    if effective_window <= 0:
+        raise ValueError("estimator_window must be strictly positive.")
 
-    if estimator_mode == "window_sample":
+    if estimator_method == "window_sample":
         raw_corr = rolling_corr_frame(
             sample_input,
             window=covariance_window,
@@ -75,8 +75,8 @@ def matrix_sample_bundle(
         )
         return corr, sample_cov, sample_size, sample_frame
 
-    if estimator_mode == "ewma_cross":
-        alpha = resolve_ewma_alpha(span=effective_smoothing_span)
+    if estimator_method == "ewma_cross":
+        alpha = resolve_ewma_alpha(span=effective_window)
         cov_panel = ewma_cov_frame(
             sample_input,
             alpha=alpha,
@@ -84,14 +84,14 @@ def matrix_sample_bundle(
         )
         if matrix_date not in cov_panel:
             raise ValueError(
-                f"No EWMA covariance sample available on {matrix_date.date()} for matrix_smoothing_span={effective_smoothing_span}."
+                f"No EWMA covariance sample available on {matrix_date.date()} for estimator_window={effective_window}."
             )
         cov, sample_size = cov_panel[matrix_date]
         corr = covariance_to_correlation(cov)
-        sample_frame = sample_input.loc[:matrix_date].tail(effective_smoothing_span).reindex(columns=corr.index)
+        sample_frame = sample_input.loc[:matrix_date].tail(effective_window).reindex(columns=corr.index)
         return corr.astype(float), cov.astype(float), int(sample_size), sample_frame.astype(float)
 
-    raise ValueError(f"Unknown matrix sample estimator_mode '{estimator_mode}'.")
+    raise ValueError(f"Unknown matrix sample estimator_method '{estimator_method}'.")
 
 
 def matrix_sample(
@@ -99,17 +99,17 @@ def matrix_sample(
     estimation: EstimationConfig,
     matrix_date: pd.Timestamp,
     *,
-    input_mode: str = "normalized",
-    estimator_mode: str = "window_sample",
-    smoothing_span: int | None = None,
+    input_type: str = "normalized",
+    estimator_method: str = "window_sample",
+    estimator_window: int | None = None,
 ) -> tuple[pd.DataFrame, int, pd.DataFrame]:
     corr, _cov, sample_size, sample_frame = matrix_sample_bundle(
         prices,
         estimation,
         matrix_date,
-        input_mode=input_mode,
-        estimator_mode=estimator_mode,
-        smoothing_span=smoothing_span,
+        input_type=input_type,
+        estimator_method=estimator_method,
+        estimator_window=estimator_window,
     )
     return corr, sample_size, sample_frame
 

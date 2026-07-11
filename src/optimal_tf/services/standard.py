@@ -9,7 +9,8 @@ import pandas as pd
 from optimal_tf.comparison import compare_strategies
 from optimal_tf.config import AllocationConfig, BacktestConfig, EvaluationConfig, UniverseConfig
 from optimal_tf.config_io import load_config
-from optimal_tf.data import load_prices_for_universe, load_prices_yf
+from optimal_tf.data import load_prices_yf
+from optimal_tf.data_quality import load_filtered_prices_for_universe
 from optimal_tf.evaluation import evaluate_portfolio
 from optimal_tf.features import alpha_from_span, effective_span_from_alpha
 from optimal_tf.rebalance import supported_rebalance_frequencies
@@ -29,7 +30,7 @@ from trading_core.reporting import (
 )
 from trading_core.risk import estimate_clean_covariance_panel
 
-from .io import ensure_output_dir, write_json, write_request_json
+from .io import ensure_output_dir, write_json, write_quality_artifacts, write_request_json
 from .models import (
     AllocationRequest,
     AllocationResult,
@@ -59,6 +60,20 @@ def _apply_common_overrides(
     if override_long_only is not None:
         backtest = replace(backtest, long_only=override_long_only)
     return universe, backtest
+
+
+def _load_service_prices(
+    universe: UniverseConfig,
+    *,
+    evaluation_start: str | None = None,
+    refresh_policy: str,
+) -> tuple[pd.DataFrame, dict]:
+    prices, report = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation_start,
+        refresh_policy=refresh_policy,
+    )
+    return prices, asdict(report)
 
 
 def _apply_estimation_overrides(
@@ -243,7 +258,7 @@ def run_allocation(request: AllocationRequest) -> AllocationResult:
         date=request.as_of_date if request.as_of_date is not None else allocation.date,
     )
 
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report = _load_service_prices(universe, refresh_policy=request.refresh_policy)
     allocation_date, state = compute_portfolio_strategy_state_at_date(
         prices,
         estimation,
@@ -276,6 +291,7 @@ def run_allocation(request: AllocationRequest) -> AllocationResult:
         req_path = write_request_json(outdir, request)
         if req_path is not None:
             files["request"] = req_path
+        files.update(write_quality_artifacts(outdir, quality_report))
 
     return AllocationResult(
         request=request,
@@ -287,6 +303,7 @@ def run_allocation(request: AllocationRequest) -> AllocationResult:
         signal_scale=float(state.signal_scale),
         weights=state.effective_weights,
         base_weights=state.base_weights,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
 
@@ -319,7 +336,11 @@ def run_evaluation(request: StandardEvaluationRequest) -> StandardEvaluationResu
         evaluation_end=request.evaluation_end if request.evaluation_end is not None else evaluation.evaluation_end,
     )
 
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report = _load_service_prices(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
     result = evaluate_portfolio(prices, estimation, backtest, evaluation)
     benchmark_returns, benchmark_label, benchmark_metadata = _load_primary_benchmark_returns(
         universe.name,
@@ -358,6 +379,7 @@ def run_evaluation(request: StandardEvaluationRequest) -> StandardEvaluationResu
         req_path = write_request_json(outdir, request)
         if req_path is not None:
             files["request"] = req_path
+        files.update(write_quality_artifacts(outdir, quality_report))
 
     return StandardEvaluationResult(
         request=request,
@@ -372,6 +394,7 @@ def run_evaluation(request: StandardEvaluationRequest) -> StandardEvaluationResu
         benchmark_metadata=benchmark_metadata,
         buy_hold_returns=buy_hold_returns,
         buy_hold_label=buy_hold_label,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
 
@@ -404,7 +427,11 @@ def run_strategy_testbed(request: StrategyTestbedRequest) -> StrategyTestbedResu
         evaluation_start=request.evaluation_start if request.evaluation_start is not None else evaluation.evaluation_start,
         evaluation_end=request.evaluation_end if request.evaluation_end is not None else evaluation.evaluation_end,
     )
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report = _load_service_prices(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
 
     if request.strategy is not None:
         compute_strategy_panel_fn = compute_strategy_panel
@@ -469,6 +496,7 @@ def run_strategy_testbed(request: StrategyTestbedRequest) -> StrategyTestbedResu
         req_path = write_request_json(outdir, request)
         if req_path is not None:
             files["request"] = req_path
+        files.update(write_quality_artifacts(outdir, quality_report))
 
     return StrategyTestbedResult(
         request=request,
@@ -488,6 +516,7 @@ def run_strategy_testbed(request: StrategyTestbedRequest) -> StrategyTestbedResu
         benchmark_metadata=benchmark_metadata,
         buy_hold_returns=buy_hold_returns,
         buy_hold_label=buy_hold_label,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
 
@@ -519,7 +548,11 @@ def run_compare(request: CompareRequest) -> CompareResult:
         evaluation_end=request.evaluation_end if request.evaluation_end is not None else evaluation.evaluation_end,
     )
     strategies = _resolve_compare_strategies(request.strategies, allocation, evaluation, compare)
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report = _load_service_prices(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
     comparison = compare_strategies(prices, estimation, backtest, evaluation, strategies)
     benchmark_returns, benchmark_label, benchmark_metadata = _load_primary_benchmark_returns(
         universe.name,
@@ -589,6 +622,7 @@ def run_compare(request: CompareRequest) -> CompareResult:
         req_path = write_request_json(outdir, request)
         if req_path is not None:
             files["request"] = req_path
+        files.update(write_quality_artifacts(outdir, quality_report))
 
     return CompareResult(
         request=request,
@@ -602,5 +636,6 @@ def run_compare(request: CompareRequest) -> CompareResult:
         benchmark_metadata=benchmark_metadata,
         benchmark_nav=benchmark_nav,
         benchmark_drawdown=benchmark_drawdown,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )

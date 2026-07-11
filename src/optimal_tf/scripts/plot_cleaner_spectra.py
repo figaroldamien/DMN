@@ -5,7 +5,7 @@ from pathlib import Path
 
 from optimal_tf.services import SpectrumByCleanerRequest, run_spectrum_by_cleaner
 
-DEFAULT_METHODS = ("empirical", "linear_shrinkage", "rie", "rie_reference")
+DEFAULT_METHODS = ("empirical", "linear_shrinkage", "rie_spectral", "rie_reference")
 
 
 def build_parser() -> argparse.ArgumentParser:

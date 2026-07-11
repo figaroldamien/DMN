@@ -8,7 +8,7 @@ import pandas as pd
 
 from .covariance import make_psd
 
-SUPPORTED_CLEANING_METHODS = ("empirical", "linear_shrinkage", "rie", "rie_reference")
+SUPPORTED_CLEANING_METHODS = ("empirical", "linear_shrinkage", "rie_spectral", "rie_reference", "rie")
 _EIGENVALUE_FLOOR = 1e-10
 _DENOMINATOR_FLOOR = 1e-12
 
@@ -137,6 +137,21 @@ def _native_rie_correlation(
     return _to_frame(cleaned, corr.index)
 
 
+def _spectral_rie_correlation(
+    corr: pd.DataFrame,
+    *,
+    sample_size: int | None,
+) -> pd.DataFrame:
+    """Clean a correlation matrix with the in-project spectral RIE implementation."""
+    if sample_size is None:
+        raise ValueError("clean_correlation_matrix(method='rie_spectral') requires sample_size.")
+
+    from optimal_tf.estimators.rie_spectral import clean_correlation_matrix_rie_spectral
+
+    result = clean_correlation_matrix_rie_spectral(corr, sample_size=int(sample_size))
+    return result.cleaned_matrix
+
+
 def clean_correlation_matrix(
     corr: pd.DataFrame,
     *,
@@ -153,8 +168,10 @@ def clean_correlation_matrix(
         return normalized_corr
     if method == "linear_shrinkage":
         return _linear_shrinkage_correlation(normalized_corr, linear_shrinkage)
+    if method == "rie_spectral":
+        return _spectral_rie_correlation(normalized_corr, sample_size=sample_size)
     if method == "rie":
-        return _native_rie_correlation(normalized_corr, sample_size=sample_size, bandwidth=bandwidth)
+        return _spectral_rie_correlation(normalized_corr, sample_size=sample_size)
     if method == "rie_reference":
         if data is None:
             raise ValueError("clean_correlation_matrix(method='rie_reference') requires the source data frame.")

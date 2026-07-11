@@ -4,6 +4,8 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -70,6 +72,21 @@ class TradingCoreRiskTests(unittest.TestCase):
                 sys.modules["rie_estimator"] = previous
         self.assertAlmostEqual(float(cleaned.loc["A", "A"]), 1.0)
         self.assertAlmostEqual(float(cleaned.loc["A", "B"]), 0.25)
+
+    def test_clean_correlation_matrix_rie_spectral_dispatches_to_project_estimator(self) -> None:
+        corr = pd.DataFrame([[1.0, 0.5], [0.5, 1.0]], index=["A", "B"], columns=["A", "B"])
+        expected = pd.DataFrame([[1.0, 0.2], [0.2, 1.0]], index=["A", "B"], columns=["A", "B"])
+
+        with patch(
+            "optimal_tf.estimators.rie_spectral.clean_correlation_matrix_rie_spectral",
+            return_value=SimpleNamespace(cleaned_matrix=expected),
+        ) as clean_mock:
+            cleaned = clean_correlation_matrix(corr, method="rie_spectral", sample_size=252)
+
+        clean_mock.assert_called_once()
+        self.assertEqual(clean_mock.call_args.args[0].shape, corr.shape)
+        self.assertEqual(clean_mock.call_args.kwargs["sample_size"], 252)
+        self.assertTrue(cleaned.equals(expected))
 
     def test_estimate_clean_covariance_panel_accepts_staggered_universe(self) -> None:
         prices = pd.DataFrame(

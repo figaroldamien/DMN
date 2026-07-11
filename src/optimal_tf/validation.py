@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .config import BacktestConfig, EstimationConfig
+from .config import BacktestConfig, EstimationConfig, UniverseConfig
 from trading_core.risk import supported_cleaning_methods
 
 
@@ -30,6 +30,23 @@ def validate_estimation_config(cfg: EstimationConfig) -> None:
         raise ValueError(
             "covariance_min_periods must be less than or equal to covariance_window "
             f"(got covariance_min_periods={cfg.covariance_min_periods}, covariance_window={cfg.covariance_window})."
+        )
+
+
+def validate_universe_config(cfg: UniverseConfig) -> None:
+    if cfg.quality_min_history_days < 0:
+        raise ValueError("quality_min_history_days must be non-negative.")
+    if not 0.0 <= cfg.quality_min_coverage_ratio <= 1.0:
+        raise ValueError(
+            "quality_min_coverage_ratio must be in the interval [0, 1] "
+            f"(got quality_min_coverage_ratio={cfg.quality_min_coverage_ratio})."
+        )
+    if cfg.quality_max_internal_missing < 0:
+        raise ValueError("quality_max_internal_missing must be non-negative.")
+    if cfg.quality_max_abs_return <= 0.0:
+        raise ValueError(
+            "quality_max_abs_return must be strictly positive "
+            f"(got quality_max_abs_return={cfg.quality_max_abs_return})."
         )
 
 

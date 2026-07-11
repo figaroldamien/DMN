@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 
@@ -20,7 +21,8 @@ from market_tickers_data.components import (
     WORLD_INDEX_COMPONENTS,
 )
 from optimal_tf.config_io import load_config
-from optimal_tf.data import load_prices_for_universe
+from optimal_tf.data_quality import load_filtered_prices_for_universe
+from optimal_tf.estimators import clean_correlation_matrix_rich
 from optimal_tf.features import trend_ema_signal
 from optimal_tf.scripts.common import (
     matrix_sample_bundle,
@@ -40,7 +42,7 @@ from trading_core.reporting.plots import plt
 
 from optimal_tf.strategies.common import resolve_allocation_date, sanitized_normalized_returns
 
-from .io import ensure_output_dir, write_json, write_request_json
+from .io import ensure_output_dir, write_json, write_quality_artifacts, write_request_json
 from .models import (
     EigenvectorInspectionRequest,
     EigenvectorInspectionResult,
@@ -52,9 +54,29 @@ from .models import (
 )
 
 DEFAULT_WINDOWS = (40, 60, 80, 120, 252, 504, 1200)
-MATRIX_INPUT_OPTIONS = {"normalized", "raw"}
-MATRIX_KIND_OPTIONS = {"correlation", "covariance"}
-ESTIMATOR_MODE_OPTIONS = {"window_sample", "ewma_cross"}
+MATRIX_INPUT_OPTIONS = {"normalized_returns", "raw_returns"}
+MATRIX_INPUT_ALIASES = {
+    "normalized": "normalized_returns",
+    "normalized_returns": "normalized_returns",
+    "raw": "raw_returns",
+    "raw_returns": "raw_returns",
+}
+MATRIX_TYPE_OPTIONS = {"correlation", "covariance"}
+ESTIMATOR_METHOD_OPTIONS = {"sample_window", "ewma"}
+ESTIMATOR_METHOD_ALIASES = {
+    "window_sample": "sample_window",
+    "sample_window": "sample_window",
+    "ewma_cross": "ewma",
+    "ewma": "ewma",
+}
+INSPECTION_CLEANING_OPTIONS = {"empirical", "linear_shrinkage", "rie_spectral", "rie_reference"}
+INSPECTION_CLEANING_ALIASES = {
+    "empirical": "empirical",
+    "linear_shrinkage": "linear_shrinkage",
+    "rie": "rie_spectral",
+    "rie_spectral": "rie_spectral",
+    "rie_reference": "rie_reference",
+}
 UNIVERSE_COMPONENTS = {
     "nasdaq100": NASDAQ100_COMPONENTS,
     "cac40": CAC40_COMPONENTS,
@@ -89,6 +111,66 @@ def _resolve_config_overrides(request, *, default_universe, default_estimation, 
             },
         )(),
     )
+
+
+def _resolve_inspection_cleaning_method(value: str | None, *, fallback: str) -> str:
+    raw = str(value or fallback).strip().lower()
+    resolved = INSPECTION_CLEANING_ALIASES.get(raw)
+    if resolved is None or resolved not in INSPECTION_CLEANING_OPTIONS:
+        raise ValueError(f"Unknown cleaning_method {raw!r}.")
+    return resolved
+
+
+def _resolve_input_type(value: str | None, *, fallback: str = "normalized_returns") -> str:
+    raw = str(value or fallback).strip().lower()
+    resolved = MATRIX_INPUT_ALIASES.get(raw)
+    if resolved is None or resolved not in MATRIX_INPUT_OPTIONS:
+        raise ValueError(f"Unknown input_type {raw!r}.")
+    return resolved
+
+
+def _resolve_matrix_type(value: str | None, *, fallback: str = "correlation") -> str:
+    resolved = str(value or fallback).strip().lower()
+    if resolved not in MATRIX_TYPE_OPTIONS:
+        raise ValueError(f"Unknown matrix_type {resolved!r}.")
+    return resolved
+
+
+def _resolve_estimator_method(value: str | None, *, fallback: str = "sample_window") -> str:
+    raw = str(value or fallback).strip().lower()
+    resolved = ESTIMATOR_METHOD_ALIASES.get(raw)
+    if resolved is None or resolved not in ESTIMATOR_METHOD_OPTIONS:
+        raise ValueError(f"Unknown estimator_method {raw!r}.")
+    return resolved
+
+
+def _resolve_estimator_window(request, estimation) -> int:
+    raw = getattr(request, "estimator_window", None)
+    if raw is None:
+        raw = getattr(request, "covariance_window", None)
+    if raw is None:
+        raw = estimation.covariance_window or 252
+    window = int(raw)
+    if window <= 0:
+        raise ValueError("estimator_window must be strictly positive.")
+    return window
+
+
+def _resolve_linear_shrinkage_intensity(request, estimation) -> float:
+    raw = getattr(request, "linear_shrinkage_intensity", None)
+    if raw is None:
+        raw = getattr(request, "linear_shrinkage", None)
+    if raw is None:
+        raw = estimation.linear_shrinkage
+    return float(raw)
+
+
+def _matrix_sample_input_mode(input_type: str) -> str:
+    return "normalized" if input_type == "normalized_returns" else "raw"
+
+
+def _matrix_sample_estimator_mode(estimator_method: str) -> str:
+    return "window_sample" if estimator_method == "sample_window" else "ewma_cross"
 
 
 def _sector_metadata(universe: str, tickers: list[str]) -> pd.DataFrame:
@@ -499,7 +581,12 @@ def run_eigenvector_inspection(request: EigenvectorInspectionRequest) -> Eigenve
     if request.method not in supported_cleaning_methods():
         raise ValueError(f"Unknown cleaning method {request.method!r}.")
 
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report_obj = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
+    quality_report = asdict(quality_report_obj)
     target_dates = resolve_target_dates(prices, evaluation)
     if len(target_dates) == 0:
         raise ValueError("No evaluation rebalance dates available for the spectral comparison window.")
@@ -592,10 +679,12 @@ def run_eigenvector_inspection(request: EigenvectorInspectionRequest) -> Eigenve
             "selection_cumulative_variance": request.selection_cumulative_variance,
             "selection_top_n": request.selection_top_n,
             "log_scale": bool(request.log_scale),
+            "quality_report": quality_report,
         }
         (outdir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         req = write_request_json(outdir, request)
-        files = {
+        files = write_quality_artifacts(outdir, quality_report)
+        files.update({
             "scree_csv": scree_csv,
             "scree_plot": scree_plot,
             "distribution_plot": distribution_plot,
@@ -607,7 +696,7 @@ def run_eigenvector_inspection(request: EigenvectorInspectionRequest) -> Eigenve
             "sub_sector_signed_csv": sub_sector_signed_csv,
             "loadings_csv": loadings_csv,
             "summary": outdir / "summary.json",
-        }
+        })
         if req is not None:
             files["request"] = req
 
@@ -623,6 +712,7 @@ def run_eigenvector_inspection(request: EigenvectorInspectionRequest) -> Eigenve
         sub_sector_presence=sub_sector_presence,
         sub_sector_signed=sub_sector_signed,
         loadings=loadings,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
 
@@ -744,6 +834,30 @@ def _eigenvector_frame(
     return _spectrum_frame(eigenvalues, label=prefix.rstrip("_")), vectors
 
 
+def _spectral_frame_from_decomposition(
+    decomposition,
+    *,
+    universe: str,
+    prefix: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    eigenvalues = np.asarray(decomposition.eigenvalues, dtype=float)
+    eigenvectors = decomposition.eigenvectors.to_numpy(dtype=float)
+    tickers = list(decomposition.eigenvectors.index)
+    metadata, sorted_tickers = _sorted_metadata(universe, tickers)
+    reorder = [tickers.index(ticker) for ticker in sorted_tickers]
+    index = pd.MultiIndex.from_arrays(
+        [
+            metadata.loc[sorted_tickers, "sector"].to_numpy(),
+            metadata.loc[sorted_tickers, "sub_sector"].to_numpy(),
+            np.asarray(sorted_tickers, dtype=object),
+        ],
+        names=["sector", "sub_sector", "ticker"],
+    )
+    columns = [f"{prefix}{rank}" for rank in range(1, len(eigenvalues) + 1)]
+    vectors = pd.DataFrame(eigenvectors[reorder, :], index=index, columns=columns)
+    return _spectrum_frame(eigenvalues, label=prefix.rstrip("_")), vectors
+
+
 def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSnapshotResult:
     universe, estimation, backtest, allocation, evaluation, compare, output = load_config(request.config_path)
     del allocation, compare, output
@@ -756,36 +870,27 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         default_evaluation=evaluation,
     )
 
-    cleaning_method = request.cleaning_method or estimation.cleaning_method
-    if cleaning_method not in supported_cleaning_methods():
-        raise ValueError(f"Unknown cleaning method {cleaning_method!r}.")
-    correlation_input = str(request.correlation_input or "normalized").strip().lower()
-    if correlation_input not in MATRIX_INPUT_OPTIONS:
-        raise ValueError(f"Unknown correlation_input {correlation_input!r}.")
-    matrix_kind = str(request.matrix_kind or "correlation").strip().lower()
-    if matrix_kind not in MATRIX_KIND_OPTIONS:
-        raise ValueError(f"Unknown matrix_kind {matrix_kind!r}.")
-    estimator_mode = str(request.estimator_mode or "window_sample").strip().lower()
-    if estimator_mode not in ESTIMATOR_MODE_OPTIONS:
-        raise ValueError(f"Unknown estimator_mode {estimator_mode!r}.")
-    matrix_smoothing_span = int(request.matrix_smoothing_span or request.covariance_window or estimation.covariance_window or 252)
-    if matrix_smoothing_span <= 0:
-        raise ValueError("matrix_smoothing_span must be strictly positive.")
-
-    covariance_window = int(request.covariance_window or estimation.covariance_window or 252)
+    cleaning_method = _resolve_inspection_cleaning_method(request.cleaning_method, fallback=estimation.cleaning_method)
+    input_type = _resolve_input_type(request.input_type)
+    matrix_type = _resolve_matrix_type(request.matrix_type)
+    estimator_method = _resolve_estimator_method(request.estimator_method)
+    estimator_window = _resolve_estimator_window(request, estimation)
     snapshot_estimation = resolve_window_estimation_cfg(
         estimation,
-        covariance_window,
+        estimator_window,
         min_periods_mode="clamp",
     )
     snapshot_estimation = snapshot_estimation.__class__(**{
         **snapshot_estimation.__dict__,
         "cleaning_method": cleaning_method,
-        "linear_shrinkage": float(request.linear_shrinkage)
-        if request.linear_shrinkage is not None
-        else snapshot_estimation.linear_shrinkage,
+        "linear_shrinkage": _resolve_linear_shrinkage_intensity(request, snapshot_estimation),
     })
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report_obj = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
+    quality_report = asdict(quality_report_obj)
     allocation_date = resolve_allocation_date(prices.index, as_of_date=request.date)
     history = prices.loc[prices.index <= allocation_date]
     if history.empty:
@@ -795,11 +900,11 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         history,
         snapshot_estimation,
         allocation_date,
-        input_mode=correlation_input,
-        estimator_mode=estimator_mode,
-        smoothing_span=matrix_smoothing_span,
+        input_type=_matrix_sample_input_mode(input_type),
+        estimator_method=_matrix_sample_estimator_mode(estimator_method),
+        estimator_window=estimator_window,
     )
-    empirical_cleaned_corr = clean_correlation_matrix(
+    empirical_cleaner = clean_correlation_matrix_rich(
         empirical_corr,
         data=sample_frame,
         sample_size=sample_size,
@@ -807,7 +912,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         linear_shrinkage=0.0,
         bandwidth=snapshot_estimation.rie_bandwidth,
     )
-    cleaned_corr = clean_correlation_matrix(
+    selected_cleaner = clean_correlation_matrix_rich(
         empirical_corr,
         data=sample_frame,
         sample_size=sample_size,
@@ -815,6 +920,8 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         linear_shrinkage=snapshot_estimation.linear_shrinkage,
         bandwidth=snapshot_estimation.rie_bandwidth,
     )
+    empirical_cleaned_corr = empirical_cleaner.cleaned_matrix
+    cleaned_corr = selected_cleaner.cleaned_matrix
 
     returns, vol, z_returns = sanitized_normalized_returns(history, snapshot_estimation)
     trend = trend_ema_signal(z_returns, alpha=snapshot_estimation.trend_alpha, span=snapshot_estimation.trend_span)
@@ -834,37 +941,41 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
     sorted_cleaned_corr = _sorted_matrix(cleaned_corr, sorted_tickers)
     sorted_cleaned_cov = _sorted_matrix(cleaned_cov, sorted_tickers)
     sample_sector_matrix, sector_pair_counts, sector_membership = _aggregate_matrix_by_groups(
-        sorted_sample_cov if matrix_kind == "covariance" else sorted_sample_corr,
+        sorted_sample_cov if matrix_type == "covariance" else sorted_sample_corr,
         metadata,
         level="sector",
     )
     empirical_cleaned_sector_matrix, _, _ = _aggregate_matrix_by_groups(
-        sorted_empirical_cleaned_cov if matrix_kind == "covariance" else sorted_empirical_cleaned_corr,
+        sorted_empirical_cleaned_cov if matrix_type == "covariance" else sorted_empirical_cleaned_corr,
         metadata,
         level="sector",
     )
     cleaned_sector_matrix, _, _ = _aggregate_matrix_by_groups(
-        sorted_cleaned_cov if matrix_kind == "covariance" else sorted_cleaned_corr,
+        sorted_cleaned_cov if matrix_type == "covariance" else sorted_cleaned_corr,
         metadata,
         level="sector",
     )
     sample_sub_sector_matrix, sub_sector_pair_counts, sub_sector_membership = _aggregate_matrix_by_groups(
-        sorted_sample_cov if matrix_kind == "covariance" else sorted_sample_corr,
+        sorted_sample_cov if matrix_type == "covariance" else sorted_sample_corr,
         metadata,
         level="sub_sector",
     )
     empirical_cleaned_sub_sector_matrix, _, _ = _aggregate_matrix_by_groups(
-        sorted_empirical_cleaned_cov if matrix_kind == "covariance" else sorted_empirical_cleaned_corr,
+        sorted_empirical_cleaned_cov if matrix_type == "covariance" else sorted_empirical_cleaned_corr,
         metadata,
         level="sub_sector",
     )
     cleaned_sub_sector_matrix, _, _ = _aggregate_matrix_by_groups(
-        sorted_cleaned_cov if matrix_kind == "covariance" else sorted_cleaned_corr,
+        sorted_cleaned_cov if matrix_type == "covariance" else sorted_cleaned_corr,
         metadata,
         level="sub_sector",
     )
 
-    corr_spectrum, corr_eigenvectors = _eigenvector_frame(sorted_cleaned_corr, universe=universe.name, prefix="corr_ev")
+    corr_spectrum, corr_eigenvectors = _spectral_frame_from_decomposition(
+        selected_cleaner.cleaned,
+        universe=universe.name,
+        prefix="corr_ev",
+    )
     cov_spectrum, cov_eigenvectors = _eigenvector_frame(sorted_cleaned_cov, universe=universe.name, prefix="cov_ev")
 
     feature_index = pd.MultiIndex.from_arrays(
@@ -954,18 +1065,19 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             {
                 "universe": universe.name,
                 "cleaning_method": cleaning_method,
-                "correlation_input": correlation_input,
-                "matrix_kind": matrix_kind,
-                "estimator_mode": estimator_mode,
-                "matrix_smoothing_span": matrix_smoothing_span,
-                "covariance_window": covariance_window,
+                "input_type": input_type,
+                "matrix_type": matrix_type,
+                "estimator_method": estimator_method,
+                "estimator_window": estimator_window,
                 "allocation_date": allocation_date.strftime("%Y-%m-%d"),
                 "num_assets": int(len(sorted_tickers)),
                 "sample_size": int(sample_size),
                 "cleaner_comparison": cleaner_comparison_frame.iloc[0].to_dict(),
+                "quality_report": quality_report,
             },
         )
-        files = {
+        files = write_quality_artifacts(outdir, quality_report)
+        files.update({
             "sample_correlation": sample_corr_path,
             "sample_covariance": sample_cov_path,
             "empirical_cleaned_correlation": empirical_cleaned_corr_path,
@@ -988,7 +1100,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             "covariance_eigenvectors": cov_vectors_path,
             "features": features_path,
             "cleaner_comparison": cleaner_comparison_path,
-        }
+        })
         if request_path is not None:
             files["request"] = request_path
         if summary_path is not None:
@@ -998,10 +1110,10 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         request=request,
         universe=universe.name,
         cleaning_method=cleaning_method,
-        correlation_input=correlation_input,
-        matrix_kind=matrix_kind,
-        estimator_mode=estimator_mode,
-        covariance_window=covariance_window,
+        input_type=input_type,
+        matrix_type=matrix_type,
+        estimator_method=estimator_method,
+        estimator_window=estimator_window,
         allocation_date=allocation_date,
         sample_size=int(sample_size),
         num_assets=int(len(sorted_tickers)),
@@ -1027,6 +1139,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         covariance_eigenvectors=cov_eigenvectors,
         feature_frame=feature_frame,
         cleaner_comparison_frame=cleaner_comparison_frame,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
 
@@ -1044,38 +1157,30 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
     )
     del backtest
 
-    cleaning_method = request.cleaning_method or estimation.cleaning_method
-    if cleaning_method not in supported_cleaning_methods():
-        raise ValueError(f"Unknown cleaning method {cleaning_method!r}.")
-    correlation_input = str(request.correlation_input or "normalized").strip().lower()
-    if correlation_input not in MATRIX_INPUT_OPTIONS:
-        raise ValueError(f"Unknown correlation_input {correlation_input!r}.")
-    matrix_kind = str(request.matrix_kind or "correlation").strip().lower()
-    if matrix_kind not in MATRIX_KIND_OPTIONS:
-        raise ValueError(f"Unknown matrix_kind {matrix_kind!r}.")
-    estimator_mode = str(request.estimator_mode or "window_sample").strip().lower()
-    if estimator_mode not in ESTIMATOR_MODE_OPTIONS:
-        raise ValueError(f"Unknown estimator_mode {estimator_mode!r}.")
-    matrix_smoothing_span = int(request.matrix_smoothing_span or request.covariance_window or estimation.covariance_window or 252)
-    if matrix_smoothing_span <= 0:
-        raise ValueError("matrix_smoothing_span must be strictly positive.")
+    cleaning_method = _resolve_inspection_cleaning_method(request.cleaning_method, fallback=estimation.cleaning_method)
+    input_type = _resolve_input_type(request.input_type)
+    matrix_type = _resolve_matrix_type(request.matrix_type)
+    estimator_method = _resolve_estimator_method(request.estimator_method)
     leading_eigenvectors = max(1, int(request.leading_eigenvectors or 3))
 
-    covariance_window = int(request.covariance_window or estimation.covariance_window or 252)
+    estimator_window = _resolve_estimator_window(request, estimation)
     interval_estimation = resolve_window_estimation_cfg(
         estimation,
-        covariance_window,
+        estimator_window,
         min_periods_mode="clamp",
     )
     interval_estimation = interval_estimation.__class__(**{
         **interval_estimation.__dict__,
         "cleaning_method": cleaning_method,
-        "linear_shrinkage": float(request.linear_shrinkage)
-        if request.linear_shrinkage is not None
-        else interval_estimation.linear_shrinkage,
+        "linear_shrinkage": _resolve_linear_shrinkage_intensity(request, interval_estimation),
     })
 
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report_obj = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
+    quality_report = asdict(quality_report_obj)
     target_dates = pd.DatetimeIndex(resolve_target_dates(prices, evaluation))
     target_dates = target_dates[target_dates.isin(prices.index)]
     if target_dates.empty:
@@ -1098,9 +1203,9 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
                 history,
                 interval_estimation,
                 matrix_date,
-                input_mode=correlation_input,
-                estimator_mode=estimator_mode,
-                smoothing_span=matrix_smoothing_span,
+                input_type=_matrix_sample_input_mode(input_type),
+                estimator_method=_matrix_sample_estimator_mode(estimator_method),
+                estimator_window=estimator_window,
             )
         except ValueError as exc:
             message = str(exc)
@@ -1129,7 +1234,7 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
         del metadata
         sorted_cleaned_corr = _sorted_matrix(cleaned_corr, sorted_tickers)
         sorted_cleaned_cov = _sorted_matrix(cleaned_cov, sorted_tickers)
-        selected_matrix = sorted_cleaned_cov if matrix_kind == "covariance" else sorted_cleaned_corr
+        selected_matrix = sorted_cleaned_cov if matrix_type == "covariance" else sorted_cleaned_corr
 
         eigenvalues, eigenvectors = np.linalg.eigh(selected_matrix.to_numpy(dtype=float))
         order = np.argsort(eigenvalues)[::-1]
@@ -1234,11 +1339,10 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
             {
                 "universe": universe.name,
                 "cleaning_method": cleaning_method,
-                "correlation_input": correlation_input,
-                "matrix_kind": matrix_kind,
-                "estimator_mode": estimator_mode,
-                "matrix_smoothing_span": matrix_smoothing_span,
-                "covariance_window": covariance_window,
+                "input_type": input_type,
+                "matrix_type": matrix_type,
+                "estimator_method": estimator_method,
+                "estimator_window": estimator_window,
                 "leading_eigenvectors": leading_eigenvectors,
                 "variogram_lag_max": int(min(variogram_lag_max, max(0, len(retained_pivot) - 1))),
                 "num_requested_dates": int(len(target_dates)),
@@ -1247,14 +1351,16 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
                 "last_date": str(summary_frame.iloc[-1]["date"]),
                 "num_assets": int(num_assets),
                 "skipped_dates": skipped_dates,
+                "quality_report": quality_report,
             },
         )
-        files = {
+        files = write_quality_artifacts(outdir, quality_report)
+        files.update({
             "summary_frame": summary_path,
             "spectrum_frame": spectrum_path,
             "eigenvalue_variogram": variogram_path,
             "eigenvector_similarity": alignment_path,
-        }
+        })
         if request_path is not None:
             files["request"] = request_path
         if summary_json_path is not None:
@@ -1264,15 +1370,16 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
         request=request,
         universe=universe.name,
         cleaning_method=cleaning_method,
-        correlation_input=correlation_input,
-        matrix_kind=matrix_kind,
-        estimator_mode=estimator_mode,
-        covariance_window=covariance_window,
+        input_type=input_type,
+        matrix_type=matrix_type,
+        estimator_method=estimator_method,
+        estimator_window=estimator_window,
         observation_dates=tuple(pd.Timestamp(date) for date in pd.to_datetime(summary_frame["date"])),
         num_assets=num_assets,
         summary_frame=summary_frame,
         spectrum_frame=spectrum_frame,
         variogram_frame=variogram_frame,
         eigenvector_similarity_frame=eigenvector_similarity_frame,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )

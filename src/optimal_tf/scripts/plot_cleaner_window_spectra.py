@@ -6,7 +6,7 @@ from pathlib import Path
 from optimal_tf.services import EigenvectorInspectionRequest, run_eigenvector_inspection
 
 DEFAULT_WINDOWS = (40, 60, 80, 120, 252, 504, 1200)
-DEFAULT_METHOD = "rie_reference"
+DEFAULT_METHOD = "rie_spectral"
 
 
 def build_parser() -> argparse.ArgumentParser:

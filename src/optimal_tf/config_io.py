@@ -6,7 +6,7 @@ from typing import Any
 
 from .config import AllocationConfig, BacktestConfig, CompareConfig, EstimationConfig, EvaluationConfig, OutputConfig, UniverseConfig
 from .features import alpha_from_span, effective_span_from_alpha
-from .validation import validate_backtest_config, validate_estimation_config
+from .validation import validate_backtest_config, validate_estimation_config, validate_universe_config
 
 
 def _read_mapping(path: Path) -> dict[str, Any]:
@@ -44,7 +44,23 @@ def load_config(
         backtest_raw = portfolio_raw
 
     if universe_raw:
-        universe = replace(universe, **{k: universe_raw[k] for k in ("name", "start") if k in universe_raw})
+        universe = replace(
+            universe,
+            **{
+                k: universe_raw[k]
+                for k in (
+                    "name",
+                    "start",
+                    "quality_filter_enabled",
+                    "quality_min_history_days",
+                    "quality_min_coverage_ratio",
+                    "quality_max_internal_missing",
+                    "quality_max_abs_return",
+                    "quality_require_latest_price",
+                )
+                if k in universe_raw
+            },
+        )
     if estimation_raw:
         estimation = replace(
             estimation,
@@ -128,6 +144,7 @@ def load_config(
             },
         )
 
+    validate_universe_config(universe)
     validate_estimation_config(estimation)
     validate_backtest_config(backtest)
     return universe, estimation, backtest, allocation, evaluation, compare, output

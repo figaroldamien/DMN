@@ -7,6 +7,12 @@ from dataclasses import dataclass
 class UniverseConfig:
     name: str = "cac40"
     start: str = "2000-01-01"
+    quality_filter_enabled: bool = True
+    quality_min_history_days: int = 756
+    quality_min_coverage_ratio: float = 0.9
+    quality_max_internal_missing: int = 0
+    quality_max_abs_return: float = 1.0
+    quality_require_latest_price: bool = True
 
 
 @dataclass(frozen=True)

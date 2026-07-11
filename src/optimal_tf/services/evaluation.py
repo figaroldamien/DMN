@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from itertools import product
 from pathlib import Path
 
@@ -9,7 +9,8 @@ import pandas as pd
 from optimal_tf.allocation import supported_strategies
 from optimal_tf.rebalance import supported_rebalance_frequencies
 from optimal_tf.config_io import load_config
-from optimal_tf.data import load_prices_for_universe, load_prices_yf
+from optimal_tf.data import load_prices_yf
+from optimal_tf.data_quality import load_filtered_prices_for_universe
 from optimal_tf.evaluation import evaluate_portfolio
 from optimal_tf.scripts.common import (
     build_scenario_highlights,
@@ -39,7 +40,7 @@ from trading_core.reporting import (
 )
 from trading_core.risk import supported_cleaning_methods
 
-from .io import ensure_output_dir, write_json, write_request_json
+from .io import ensure_output_dir, write_json, write_quality_artifacts, write_request_json
 from .models import (
     HyperparameterTuningRequest,
     HyperparameterTuningResult,
@@ -59,6 +60,7 @@ from .models import (
 class _HyperparameterGridContext:
     universe_name: str
     prices: pd.DataFrame
+    quality_report: dict[str, object]
     estimation: object
     backtest: object
     evaluation: object
@@ -159,6 +161,7 @@ def _write_scenario_outputs(
         files['request'] = req
     write_json(outdir, 'summary.json', summary_payload)
     files['summary'] = outdir / 'summary.json'
+    files.update(write_quality_artifacts(outdir, summary_payload.get('quality_report')))
     return RunArtifacts(root_dir=outdir, files=files)
 
 
@@ -193,10 +196,15 @@ def _resolve_hyperparameter_context(request: HyperparameterTuningRequest) -> _Hy
     invalid_frequencies = [item for item in frequencies if item not in allowed_frequencies]
     if invalid_frequencies:
         raise ValueError(f"Unknown rebalance frequencies {invalid_frequencies}. Allowed values: {supported_rebalance_frequencies()}")
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
     return _HyperparameterGridContext(
         universe_name=universe.name,
         prices=prices,
+        quality_report=asdict(quality_report),
         estimation=estimation,
         backtest=backtest,
         evaluation=evaluation,
@@ -307,9 +315,11 @@ def run_hyperparameter_tuning(request: HyperparameterTuningRequest) -> Hyperpara
                 'num_assets': int(context.prices.shape[1]),
                 'skipped_configs': int(len(skipped_configs)),
                 'highlights': highlights,
+                'quality_report': context.quality_report,
             },
         )
         files['summary'] = outdir / 'summary.json'
+        files.update(write_quality_artifacts(outdir, context.quality_report))
 
     return HyperparameterTuningResult(
         request=request,
@@ -317,6 +327,7 @@ def run_hyperparameter_tuning(request: HyperparameterTuningRequest) -> Hyperpara
         results_table=results_table,
         skipped_configs=skipped_configs,
         highlights=highlights,
+        quality_report=context.quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
 
@@ -433,6 +444,7 @@ def run_vary_cleaning(request: VaryCleaningRequest) -> VaryCleaningResult:
         'matrix_date': matrix_date.strftime('%Y-%m-%d'),
         'highlights': scenario_highlights,
         'scenario_summary_text': render_scenario_summary_text(strategy_frame, 'method'),
+        'quality_report': context.quality_report,
     }
     artifacts = _write_scenario_outputs(
         outdir=outdir,
@@ -460,6 +472,7 @@ def run_vary_cleaning(request: VaryCleaningRequest) -> VaryCleaningResult:
         benchmark_nav=benchmark_nav,
         benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
+        quality_report=context.quality_report,
         artifacts=artifacts,
         scree_frame=scree_frame,
     )
@@ -561,6 +574,7 @@ def run_vary_window(request: VaryWindowRequest) -> VaryWindowResult:
         'matrix_date': matrix_date.strftime('%Y-%m-%d'),
         'highlights': scenario_highlights,
         'scenario_summary_text': render_scenario_summary_text(strategy_frame, 'covariance_window'),
+        'quality_report': context.quality_report,
     }
     artifacts = _write_scenario_outputs(
         outdir=outdir,
@@ -588,6 +602,7 @@ def run_vary_window(request: VaryWindowRequest) -> VaryWindowResult:
         benchmark_nav=benchmark_nav,
         benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
+        quality_report=context.quality_report,
         artifacts=artifacts,
         scree_frame=scree_frame,
     )
@@ -706,6 +721,7 @@ def run_vary_frequency(request: VaryFrequencyRequest) -> VaryFrequencyResult:
         'matrix_date': matrix_date.strftime('%Y-%m-%d'),
         'highlights': scenario_highlights,
         'scenario_summary_text': render_scenario_summary_text(strategy_frame, 'rebalance_frequency'),
+        'quality_report': context.quality_report,
     }
     artifacts = _write_scenario_outputs(
         outdir=outdir,
@@ -732,6 +748,7 @@ def run_vary_frequency(request: VaryFrequencyRequest) -> VaryFrequencyResult:
         benchmark_nav=benchmark_nav,
         benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
+        quality_report=context.quality_report,
         artifacts=artifacts,
     )
 
@@ -821,6 +838,7 @@ def run_vary_strategy(request: VaryStrategyRequest) -> VaryStrategyResult:
         'matrix_date': matrix_date.strftime('%Y-%m-%d'),
         'highlights': scenario_highlights,
         'scenario_summary_text': render_scenario_summary_text(strategy_frame, 'strategy'),
+        'quality_report': context.quality_report,
     }
     artifacts = _write_scenario_outputs(
         outdir=outdir,
@@ -847,5 +865,6 @@ def run_vary_strategy(request: VaryStrategyRequest) -> VaryStrategyResult:
         benchmark_nav=benchmark_nav,
         benchmark_drawdown=benchmark_drawdown,
         highlights=scenario_highlights,
+        quality_report=context.quality_report,
         artifacts=artifacts,
     )

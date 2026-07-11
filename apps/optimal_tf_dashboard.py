@@ -110,7 +110,17 @@ STANDARD_STRATEGIES_BY_FAMILY = {
     "ATF agnostic": [name for name in STRATEGY_OPTIONS if name in ATF_AGNOSTIC_STRATEGIES],
 }
 FREQUENCY_OPTIONS = supported_rebalance_frequencies()
-CLEANING_OPTIONS = list(supported_cleaning_methods())
+CLEANING_OPTIONS = [method for method in supported_cleaning_methods() if method != "rie"]
+MATRIX_INSPECTION_CLEANING_OPTIONS = [
+    method for method in ("empirical", "rie_spectral", "rie_reference", "linear_shrinkage") if method in CLEANING_OPTIONS
+]
+CLEANING_METHOD_LABELS = {
+    "empirical": "empirical",
+    "linear_shrinkage": "linear_shrinkage",
+    "rie": "rie_spectral",
+    "rie_spectral": "rie_spectral",
+    "rie_reference": "rie_reference",
+}
 AGNOSTIC_SIGNAL_OPTIONS = supported_signal_models()
 AGNOSTIC_Q_OPTIONS = supported_q_models()
 AGNOSTIC_NORMALIZATION_OPTIONS = supported_normalization_modes()
@@ -123,20 +133,32 @@ TESTBED_STRATEGIES_BY_FAMILY = {
     "Custom agnostic": [TESTBED_CUSTOM_PRESET],
 }
 MAX_CHART_POINTS = 750
-MATRIX_INPUT_OPTIONS = ["normalized", "raw"]
+MATRIX_INPUT_OPTIONS = ["normalized_returns", "raw_returns"]
 MATRIX_INPUT_LABELS = {
-    "normalized": "Normalized returns",
-    "raw": "Raw returns",
+    "normalized_returns": "Normalized returns",
+    "raw_returns": "Raw returns",
 }
-MATRIX_KIND_OPTIONS = ["correlation", "covariance"]
-MATRIX_KIND_LABELS = {
+MATRIX_INPUT_ALIASES = {
+    "normalized": "normalized_returns",
+    "normalized_returns": "normalized_returns",
+    "raw": "raw_returns",
+    "raw_returns": "raw_returns",
+}
+MATRIX_TYPE_OPTIONS = ["correlation", "covariance"]
+MATRIX_TYPE_LABELS = {
     "correlation": "Correlation",
     "covariance": "Covariance",
 }
-MATRIX_ESTIMATOR_OPTIONS = ["window_sample", "ewma_cross"]
+MATRIX_ESTIMATOR_OPTIONS = ["sample_window", "ewma"]
 MATRIX_ESTIMATOR_LABELS = {
-    "window_sample": "Window sample",
-    "ewma_cross": "EWMA cross-products",
+    "sample_window": "Sample window",
+    "ewma": "EWMA",
+}
+MATRIX_ESTIMATOR_ALIASES = {
+    "window_sample": "sample_window",
+    "sample_window": "sample_window",
+    "ewma_cross": "ewma",
+    "ewma": "ewma",
 }
 UNIVERSE_COMPONENTS = {
     "nasdaq100": NASDAQ100_COMPONENTS,
@@ -176,7 +198,11 @@ COMMON_COLUMN_CONFIG = {
     'method': st.column_config.TextColumn('Cleaning\nmethod', width='small'),
     'cleaning_method': st.column_config.TextColumn('Cleaning\nmethod', width='small'),
     'covariance_window': st.column_config.NumberColumn('Window\n(days)', width='small', format='%d'),
+    'estimator_window': st.column_config.NumberColumn('Estimator\nwindow', width='small', format='%d'),
     'window': st.column_config.NumberColumn('Window\n(days)', width='small', format='%d'),
+    'matrix_type': st.column_config.TextColumn('Matrix\ntype', width='small'),
+    'input_type': st.column_config.TextColumn('Input\ntype', width='small'),
+    'estimator_method': st.column_config.TextColumn('Estimator', width='small'),
     'rebalance_frequency': st.column_config.TextColumn('Rebalance\nfrequency', width='small'),
     'sharpe': st.column_config.NumberColumn('Sharpe', width='small', format='%.2f'),
     'ann_return': st.column_config.NumberColumn('Ann\nret\n(%/yr)', width='small', format='%.1f'),
@@ -707,10 +733,9 @@ def _single_strategy_family_selector(
     if current_strategy not in options:
         st.session_state[strategy_key] = default_strategy
     with strategy_col:
-        strategy = st.selectbox(
+        strategy = _state_bound_selectbox(
             'Strategy',
             options,
-            index=options.index(st.session_state[strategy_key]),
             key=strategy_key,
         )
     return str(strategy)
@@ -727,12 +752,17 @@ def _multi_strategy_family_selector(
         for family, names in STANDARD_STRATEGIES_BY_FAMILY.items()
         if any(value in names for value in default_values)
     ] or [STANDARD_STRATEGY_FAMILIES[0]]
+    current_families = st.session_state.get(family_key)
+    normalized_families = [family for family in (current_families or []) if family in STANDARD_STRATEGY_FAMILIES]
+    if not normalized_families:
+        st.session_state[family_key] = default_families
+    else:
+        st.session_state[family_key] = normalized_families
     family_col, strategy_col = st.columns([1.45, 1.0])
     with family_col:
-        families = st.multiselect(
+        families = _state_bound_multiselect(
             'Strategy families',
             STANDARD_STRATEGY_FAMILIES,
-            default=default_families,
             key=family_key,
         )
     active_families = families or default_families
@@ -750,10 +780,9 @@ def _multi_strategy_family_selector(
         filtered = [value for value in current_strategies if value in options]
         st.session_state[strategies_key] = filtered or default_strategies
     with strategy_col:
-        strategies = st.multiselect(
+        strategies = _state_bound_multiselect(
             'Strategies',
             options,
-            default=st.session_state[strategies_key],
             key=strategies_key,
         )
     return [str(strategy) for strategy in strategies]
@@ -775,10 +804,9 @@ def _testbed_strategy_selector(*, family_key: str, strategy_key: str) -> tuple[s
     if current_strategy not in options:
         st.session_state[strategy_key] = default_strategy
     with strategy_col:
-        strategy = st.selectbox(
+        strategy = _state_bound_selectbox(
             'Strategy',
             options,
-            index=options.index(default_strategy),
             key=strategy_key,
             format_func=_format_testbed_preset_label,
         )
@@ -1079,6 +1107,22 @@ def _sync_widget_default(key: str, default_value: Any, *, context: Any) -> None:
     st.session_state[context_key] = context
 
 
+def _state_bound_number_input(label: str, *, key: str, **kwargs: Any) -> Any:
+    return st.number_input(label, key=key, **kwargs)
+
+
+def _state_bound_text_input(label: str, *, key: str, **kwargs: Any) -> str:
+    return st.text_input(label, key=key, **kwargs)
+
+
+def _state_bound_multiselect(label: str, options: list[str], *, key: str, **kwargs: Any) -> list[str]:
+    return st.multiselect(label, options, key=key, **kwargs)
+
+
+def _state_bound_selectbox(label: str, options: list[str], *, key: str, **kwargs: Any) -> Any:
+    return st.selectbox(label, options, key=key, **kwargs)
+
+
 def _estimation_controls(config_defaults: dict[str, Any], *, prefix: str, universe: str) -> tuple[str, int | None]:
     estimation_defaults = config_defaults.get('estimation', {})
     cleaning_default = estimation_defaults.get('cleaning_method', CLEANING_OPTIONS[0])
@@ -1158,6 +1202,25 @@ def _compact_metric_display(frame: pd.DataFrame) -> pd.DataFrame:
     return table
 
 
+def _arrow_safe_table(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    table = frame.copy()
+    for column in table.columns:
+        series = table[column]
+        if pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series):
+            non_null = series.dropna()
+            if non_null.empty:
+                continue
+            inferred = pd.api.types.infer_dtype(non_null, skipna=True)
+            if inferred in {"string", "unicode", "bytes", "empty"}:
+                continue
+            table[column] = series.map(
+                lambda value: None if value is None or (isinstance(value, float) and pd.isna(value)) else str(_json_safe(value))
+            )
+    return table
+
+
 def _render_compact_table(
     frame: pd.DataFrame,
     *,
@@ -1166,7 +1229,7 @@ def _render_compact_table(
     max_rows: int | None = None,
     empty_message: str = 'No data available.',
 ) -> None:
-    table = _compact_metric_display(_prepare_table(frame, priority=priority, drop=drop, max_rows=max_rows))
+    table = _arrow_safe_table(_compact_metric_display(_prepare_table(frame, priority=priority, drop=drop, max_rows=max_rows)))
     if table.empty:
         st.info(empty_message)
         return
@@ -2069,10 +2132,9 @@ def _render_compare_lab_shell(service_name: str) -> str:
             'Use one shared shell to compare controlled alternatives. '
             'Keep most assumptions fixed, then change one dimension at a time.'
         )
-        selected_focus = st.selectbox(
+        selected_focus = _state_bound_selectbox(
             'Comparison focus',
             compare_services,
-            index=compare_services.index(st.session_state.get('compare::lab_focus', service_name)),
             key='compare::lab_focus',
         )
         st.caption(MODE_SERVICES['Compare'][selected_focus])
@@ -2096,10 +2158,9 @@ def _render_search_lab_shell(service_name: str) -> str:
             "Use the search family when you want to explore a broader design space. "
             "Start with the focused sandbox, then widen to grid search only when the direction is clear."
         )
-        selected_focus = st.selectbox(
+        selected_focus = _state_bound_selectbox(
             "Search focus",
             search_services,
-            index=search_services.index(st.session_state.get("search::lab_focus", service_name)),
             key="search::lab_focus",
         )
         st.caption(MODE_SERVICES["Search"][selected_focus])
@@ -2231,6 +2292,52 @@ def _render_compare_nav_and_drawdown(nav_frame: pd.DataFrame, drawdown_frame: pd
         _render_line_chart(drawdown_frame)
 
 
+def _first_non_null_attr(obj: Any, *names: str) -> Any:
+    for name in names:
+        if obj is None or not hasattr(obj, name):
+            continue
+        value = getattr(obj, name)
+        if value is not None:
+            return value
+    return None
+
+
+def _resolve_inspection_result_spec(result: Any) -> dict[str, Any]:
+    request = getattr(result, 'request', None)
+    input_type = _first_non_null_attr(result, 'input_type')
+    if input_type is None:
+        input_type = _first_non_null_attr(request, 'input_type', 'correlation_input') or 'normalized_returns'
+    input_type = MATRIX_INPUT_ALIASES.get(str(input_type), str(input_type))
+
+    matrix_type = _first_non_null_attr(result, 'matrix_type')
+    if matrix_type is None:
+        matrix_type = _first_non_null_attr(request, 'matrix_type', 'matrix_kind') or 'correlation'
+    matrix_type = str(matrix_type)
+
+    estimator_method = _first_non_null_attr(result, 'estimator_method')
+    if estimator_method is None:
+        estimator_method = _first_non_null_attr(request, 'estimator_method', 'estimator_mode') or 'sample_window'
+    estimator_method = MATRIX_ESTIMATOR_ALIASES.get(str(estimator_method), str(estimator_method))
+
+    estimator_window = _first_non_null_attr(result, 'estimator_window')
+    if estimator_window is None:
+        estimator_window = _first_non_null_attr(request, 'estimator_window', 'covariance_window')
+    if estimator_window is not None:
+        estimator_window = int(estimator_window)
+
+    cleaning_method = _first_non_null_attr(result, 'cleaning_method') or _first_non_null_attr(request, 'cleaning_method')
+    if cleaning_method is not None:
+        cleaning_method = CLEANING_METHOD_LABELS.get(str(cleaning_method), str(cleaning_method))
+
+    return {
+        'cleaning_method': cleaning_method,
+        'input_type': input_type,
+        'matrix_type': matrix_type,
+        'estimator_method': estimator_method,
+        'estimator_window': estimator_window,
+    }
+
+
 def _run_result_tabs(*, include_nav: bool) -> tuple[Any, ...]:
     if include_nav:
         return st.tabs(['Summary', 'NAV', 'Config', 'Artifacts'])
@@ -2242,6 +2349,7 @@ def _render_result_summary_block(
     mode: str,
     service: str,
     request: Any,
+    result: Any = None,
     universe: str | None,
     artifacts: Any,
     resolved: dict[str, Any] | None = None,
@@ -2257,6 +2365,7 @@ def _render_result_summary_block(
         resolved=resolved,
         highlights=highlights,
         warnings=warnings,
+        result=result,
     )
     st.caption("Run summary")
     _render_compact_table(
@@ -2307,10 +2416,9 @@ def _render_run_estimation_row(
         )
     with row[2]:
         covariance_window = int(
-            st.number_input(
+            _state_bound_number_input(
                 'Covariance window',
                 min_value=2,
-                value=int(st.session_state[window_key]),
                 step=1,
                 key=window_key,
             )
@@ -2562,6 +2670,7 @@ elif usage_mode == 'Run' and service_name == 'Allocation':
                 mode='Run',
                 service='Allocation',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -2693,6 +2802,7 @@ elif usage_mode == 'Run' and service_name == 'Evaluation':
                 mode='Run',
                 service='Evaluation',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -2875,7 +2985,6 @@ elif usage_mode == 'Search' and service_name == 'Strategy testbed':
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=int(st.session_state['standard::testbed::covariance_window']),
                     step=1,
                     key='standard::testbed::covariance_window',
                 )
@@ -3038,6 +3147,7 @@ elif usage_mode == 'Search' and service_name == 'Strategy testbed':
                 mode='Search',
                 service='Strategy testbed',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -3124,7 +3234,6 @@ elif usage_mode == 'Compare' and service_name == 'Compare':
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=int(st.session_state['standard::compare::covariance_window']),
                     step=1,
                     key='standard::compare::covariance_window',
                 )
@@ -3224,6 +3333,7 @@ elif usage_mode == 'Compare' and service_name == 'Compare':
                 mode='Compare',
                 service='Compare',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -3280,7 +3390,7 @@ elif usage_mode == 'Compare' and service_name == 'Vary cleaning':
                 default_value=shrinkage_default,
             )
         with row1[2]:
-            vary_cleaning_window['value'] = int(st.number_input('Covariance window', min_value=2, value=int(st.session_state['vary_cleaning::window']), step=1, key='vary_cleaning::window'))
+            vary_cleaning_window['value'] = int(_state_bound_number_input('Covariance window', min_value=2, step=1, key='vary_cleaning::window'))
         window = vary_cleaning_window['value']
 
         vary_cleaning_backtest: dict[str, Any] = {}
@@ -3334,6 +3444,7 @@ elif usage_mode == 'Compare' and service_name == 'Vary cleaning':
                 mode='Compare',
                 service='Vary cleaning',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -3411,7 +3522,7 @@ elif usage_mode == 'Compare' and service_name == 'Vary window':
                 default_value=shrinkage_default,
             )
         with row1[2]:
-            windows = st.text_input('Covariance windows', value=str(st.session_state['vary_window::windows']), key='vary_window::windows')
+            windows = _state_bound_text_input('Covariance windows', key='vary_window::windows')
 
         vary_window_backtest: dict[str, Any] = {}
 
@@ -3464,6 +3575,7 @@ elif usage_mode == 'Compare' and service_name == 'Vary window':
                 mode='Compare',
                 service='Vary window',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -3527,7 +3639,7 @@ elif usage_mode == 'Compare' and service_name == 'Vary strategy':
         vary_strategy_window: dict[str, int] = {}
 
         def _vary_strategy_window_widget() -> None:
-            vary_strategy_window['value'] = int(st.number_input('Covariance window', min_value=2, value=int(st.session_state['vary_strategy::window']), step=1, key='vary_strategy::window'))
+            vary_strategy_window['value'] = int(_state_bound_number_input('Covariance window', min_value=2, step=1, key='vary_strategy::window'))
 
         method, linear_shrinkage = _render_compare_estimation_row(
             cleaning_default=cleaning_default,
@@ -3585,6 +3697,7 @@ elif usage_mode == 'Compare' and service_name == 'Vary strategy':
                 mode='Compare',
                 service='Vary strategy',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -3646,7 +3759,6 @@ elif usage_mode == 'Compare' and service_name == 'Vary frequency':
                 st.number_input(
                     'Covariance window',
                     min_value=2,
-                    value=int(st.session_state['vary_frequency::window']),
                     step=1,
                     key='vary_frequency::window',
                 )
@@ -3719,6 +3831,7 @@ elif usage_mode == 'Compare' and service_name == 'Vary frequency':
                 mode='Compare',
                 service='Vary frequency',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -3788,7 +3901,7 @@ elif usage_mode == 'Search' and service_name == 'Hyperparameter tuning':
                 default_value=shrinkage_default,
             )
         with row1[2]:
-            windows = st.text_input('Covariance windows', value=str(st.session_state['hyperparameter::windows']), key='hyperparameter::windows')
+            windows = _state_bound_text_input('Covariance windows', key='hyperparameter::windows')
 
         row2 = st.columns(3)
         with row2[0]:
@@ -3849,6 +3962,7 @@ elif usage_mode == 'Search' and service_name == 'Hyperparameter tuning':
                 mode='Search',
                 service='Hyperparameter tuning',
                 request=result.request,
+                result=result,
                 universe=result.universe,
                 artifacts=result.artifacts,
                 resolved={
@@ -3872,87 +3986,101 @@ elif usage_mode == 'Search' and service_name == 'Hyperparameter tuning':
 elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
     inspection_state_key = 'inspection::snapshot::result'
     st.info('Inspect at date is the static matrix diagnostic view. Use it when you want one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.')
+    cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', MATRIX_INSPECTION_CLEANING_OPTIONS[0])
+    if cleaning_default == 'rie':
+        cleaning_default = 'rie_spectral'
+    shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+    input_type_default = str(
+        st.session_state.get('inspection::snapshot::input_type')
+        or st.session_state.get('inspection::snapshot::correlation_input')
+        or 'normalized_returns'
+    )
+    matrix_type_default = str(
+        st.session_state.get('inspection::snapshot::matrix_type')
+        or st.session_state.get('inspection::snapshot::matrix_kind')
+        or 'correlation'
+    )
+    estimator_method_default = str(
+        st.session_state.get('inspection::snapshot::estimator_method')
+        or st.session_state.get('inspection::snapshot::estimator_mode')
+        or 'sample_window'
+    )
+    window_default, num_assets = _universe_covariance_window_default(universe)
+    _sync_widget_default('inspection::snapshot::estimator_window', window_default, context=(universe, 'inspection_snapshot', num_assets))
+    if 'inspection::snapshot::estimator_window' not in st.session_state and 'inspection::snapshot::covariance_window' in st.session_state:
+        st.session_state['inspection::snapshot::estimator_window'] = int(st.session_state['inspection::snapshot::covariance_window'])
+    inspection_date_default = config_defaults.get('allocation', {}).get('date')
+    output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_snapshot', key='inspection::snapshot::output_dir')
     st.markdown('### Service parameters')
+    _render_service_guidance(
+        defaults=(
+            f"matrix={MATRIX_TYPE_LABELS.get(matrix_type_default, matrix_type_default)}, "
+            f"estimator={MATRIX_ESTIMATOR_LABELS.get(estimator_method_default, estimator_method_default)}, "
+            f"input={MATRIX_INPUT_LABELS.get(input_type_default, input_type_default)}, "
+            f"estimator window={int(st.session_state['inspection::snapshot::estimator_window'])}"
+        ),
+        recommendation='Use Sample window for a straightforward rolling estimate. Switch to EWMA when you want a more reactive recent-state matrix estimate from the same window control.',
+        action='build one matrix inspection snapshot on the latest available date or one explicit inspection date.',
+    )
+    st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
     with st.form('inspection_snapshot_form'):
-        cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
-        shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        correlation_input_default = str(st.session_state.get('inspection::snapshot::correlation_input', 'normalized') or 'normalized')
-        matrix_kind_default = str(st.session_state.get('inspection::snapshot::matrix_kind', 'correlation') or 'correlation')
-        estimator_mode_default = str(st.session_state.get('inspection::snapshot::estimator_mode', 'window_sample') or 'window_sample')
-        window_default, num_assets = _universe_covariance_window_default(universe)
-        smoothing_span_default = int(st.session_state.get('inspection::snapshot::matrix_smoothing_span', int(window_default)) or int(window_default))
-        _sync_widget_default('inspection::snapshot::covariance_window', window_default, context=(universe, 'inspection_snapshot', num_assets))
-        inspection_date_default = config_defaults.get('allocation', {}).get('date')
-
-        row1 = st.columns(3)
+        row1 = st.columns(2)
         with row1[0]:
-            cleaning_method = st.selectbox(
-                'Cleaning method',
-                CLEANING_OPTIONS,
-                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
-                key='inspection::snapshot::cleaning_method',
-            )
-        with row1[1]:
-            linear_shrinkage = _linear_shrinkage_input(
-                key='inspection::snapshot::linear_shrinkage',
-                default_value=shrinkage_default,
-            )
-        with row1[2]:
-            covariance_window = int(
-                st.number_input(
-                    'Covariance window',
-                    min_value=2,
-                    value=int(st.session_state['inspection::snapshot::covariance_window']),
-                    step=1,
-                    key='inspection::snapshot::covariance_window',
-                )
-            )
-
-        row2 = st.columns(2)
-        with row2[0]:
-            correlation_input = st.selectbox(
-                'Correlation input',
-                MATRIX_INPUT_OPTIONS,
-                index=MATRIX_INPUT_OPTIONS.index(correlation_input_default) if correlation_input_default in MATRIX_INPUT_OPTIONS else 0,
-                format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value),
-                key='inspection::snapshot::correlation_input',
-                help='Choose whether the correlation matrix is estimated from volatility-normalized returns or sanitized raw returns.',
-            )
-        with row2[1]:
-            matrix_kind = st.selectbox(
+            matrix_type = st.selectbox(
                 'Matrix type',
-                MATRIX_KIND_OPTIONS,
-                index=MATRIX_KIND_OPTIONS.index(matrix_kind_default) if matrix_kind_default in MATRIX_KIND_OPTIONS else 0,
-                format_func=lambda value: MATRIX_KIND_LABELS.get(value, value),
-                key='inspection::snapshot::matrix_kind',
+                MATRIX_TYPE_OPTIONS,
+                index=MATRIX_TYPE_OPTIONS.index(matrix_type_default) if matrix_type_default in MATRIX_TYPE_OPTIONS else 0,
+                format_func=lambda value: MATRIX_TYPE_LABELS.get(value, value),
+                key='inspection::snapshot::matrix_type',
                 help='Choose whether the inspection highlights cleaned correlation matrices or covariance matrices.',
             )
+        with row1[1]:
+            input_type = st.selectbox(
+                'Input type',
+                MATRIX_INPUT_OPTIONS,
+                index=MATRIX_INPUT_OPTIONS.index(input_type_default) if input_type_default in MATRIX_INPUT_OPTIONS else 0,
+                format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value),
+                key='inspection::snapshot::input_type',
+                help='Choose whether the matrix is estimated from volatility-normalized returns or sanitized raw returns.',
+            )
 
-        row3 = st.columns(3)
-        with row3[0]:
-            estimator_mode = st.selectbox(
+        row2 = st.columns(3)
+        with row2[0]:
+            estimator_method = st.selectbox(
                 'Estimator',
                 MATRIX_ESTIMATOR_OPTIONS,
-                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_mode_default) if estimator_mode_default in MATRIX_ESTIMATOR_OPTIONS else 0,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_method_default) if estimator_method_default in MATRIX_ESTIMATOR_OPTIONS else 0,
                 format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value),
-                key='inspection::snapshot::estimator_mode',
-                help='Choose between the standard rolling sample estimator and an EWMA estimator on cross-products r_i r_j.',
+                key='inspection::snapshot::estimator_method',
+                help='Choose between a rolling sample estimator and an EWMA estimator derived from the same estimator window.',
             )
-        with row3[1]:
-            matrix_smoothing_span = int(
+        with row2[1]:
+            estimator_window = int(
                 st.number_input(
-                    'Matrix smoothing span',
+                    'Estimator window',
                     min_value=2,
-                    value=int(smoothing_span_default),
                     step=1,
-                    key='inspection::snapshot::matrix_smoothing_span',
-                    help='Used by the EWMA cross-products estimator. Higher span means slower matrix smoothing.',
+                    key='inspection::snapshot::estimator_window',
                 )
             )
-        with row3[2]:
-            smoothing_alpha = alpha_from_span(matrix_smoothing_span)
-            st.caption('EWMA alpha')
-            st.code(f'{float(smoothing_alpha):.6f}' if smoothing_alpha is not None else '-', language='text')
+        with row2[2]:
+            estimator_alpha = alpha_from_span(estimator_window)
+            st.caption('Derived EWMA alpha')
+            st.code(f'{float(estimator_alpha):.6f}' if estimator_alpha is not None else '-', language='text')
+
+        row3 = st.columns(2)
+        with row3[0]:
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                MATRIX_INSPECTION_CLEANING_OPTIONS,
+                index=MATRIX_INSPECTION_CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in MATRIX_INSPECTION_CLEANING_OPTIONS else 0,
+                key='inspection::snapshot::cleaning_method',
+            )
+        with row3[1]:
+            linear_shrinkage_intensity = _linear_shrinkage_input(
+                key='inspection::snapshot::linear_shrinkage_intensity',
+                default_value=shrinkage_default,
+            )
 
         row4 = st.columns(2)
         with row4[0]:
@@ -3969,13 +4097,6 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
                 disabled=use_latest_inspection,
             )
             inspection_date = None if use_latest_inspection else pd.Timestamp(inspection_date_selected).date().isoformat()
-        output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_snapshot', key='inspection::snapshot::output_dir')
-        _render_service_guidance(
-            defaults=f"matrix={MATRIX_KIND_LABELS.get(matrix_kind, matrix_kind)}, estimator={MATRIX_ESTIMATOR_LABELS.get(estimator_mode, estimator_mode)}, input={MATRIX_INPUT_LABELS.get(correlation_input, correlation_input)}, covariance window={covariance_window}, smoothing span={matrix_smoothing_span}",
-            recommendation='Use Window sample for the current equal-weight rolling estimate. Switch to EWMA cross-products when you want a more reactive recent-state matrix estimate.',
-            action=f'build one matrix inspection snapshot on `{inspection_date or "the latest available date"}`.',
-        )
-        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
         run_clicked = st.form_submit_button('Run inspect at date')
     if run_clicked:
         request = InspectionSnapshotRequest(
@@ -3987,17 +4108,22 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
             evaluation_end=workspace_context.evaluation_end or None,
             date=inspection_date,
             cleaning_method=cleaning_method,
-            correlation_input=correlation_input,
-            matrix_kind=matrix_kind,
-            estimator_mode=estimator_mode,
-            matrix_smoothing_span=matrix_smoothing_span,
-            linear_shrinkage=linear_shrinkage,
-            covariance_window=int(covariance_window),
+            input_type=input_type,
+            matrix_type=matrix_type,
+            estimator_method=estimator_method,
+            linear_shrinkage_intensity=linear_shrinkage_intensity,
+            estimator_window=int(estimator_window),
             output_dir=output_dir or None,
         )
         st.session_state[inspection_state_key] = run_inspection_snapshot(request)
     result = st.session_state.get(inspection_state_key)
     if result is not None:
+        inspection_spec = _resolve_inspection_result_spec(result)
+        result_cleaning_method = inspection_spec['cleaning_method']
+        result_input_type = inspection_spec['input_type']
+        result_matrix_type = inspection_spec['matrix_type']
+        result_estimator_method = inspection_spec['estimator_method']
+        result_estimator_window = inspection_spec['estimator_window']
         results_tab, config_tab, artifacts_tab = _run_result_tabs(include_nav=False)
         with results_tab:
             run_summary_tab, overview_tab, matrices_tab, sectors_tab, sub_sectors_tab, spectrum_tab, eigenvectors_tab, features_tab = st.tabs([
@@ -4015,29 +4141,29 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
                     mode='Matrix Inspection',
                     service='Inspect at date',
                     request=result.request,
+                    result=result,
                     universe=result.universe,
                     artifacts=result.artifacts,
                     resolved={
-                        'cleaning_method': result.cleaning_method,
-                        'matrix_kind': result.matrix_kind,
-                        'estimator_mode': result.estimator_mode,
-                        'covariance_window': result.covariance_window,
+                        'cleaning_method': result_cleaning_method,
+                        'matrix_type': result_matrix_type,
+                        'estimator_method': result_estimator_method,
+                        'estimator_window': result_estimator_window,
                     },
                 )
             with overview_tab:
                 st.subheader('Snapshot summary')
                 _render_compact_table(pd.DataFrame([{
                     'universe': result.universe,
-                    'cleaning_method': result.cleaning_method,
-                    'matrix_kind': MATRIX_KIND_LABELS.get(result.matrix_kind, result.matrix_kind),
-                    'estimator_mode': MATRIX_ESTIMATOR_LABELS.get(result.estimator_mode, result.estimator_mode),
-                    'correlation_input': MATRIX_INPUT_LABELS.get(result.correlation_input, result.correlation_input),
-                    'matrix_smoothing_span': int(result.request.matrix_smoothing_span or result.covariance_window),
-                    'covariance_window': result.covariance_window,
+                    'cleaning_method': result_cleaning_method,
+                    'matrix_type': MATRIX_TYPE_LABELS.get(result_matrix_type, result_matrix_type),
+                    'estimator_method': MATRIX_ESTIMATOR_LABELS.get(result_estimator_method, result_estimator_method),
+                    'input_type': MATRIX_INPUT_LABELS.get(result_input_type, result_input_type),
+                    'estimator_window': result_estimator_window,
                     'allocation_date': str(result.allocation_date.date()),
                     'num_assets': result.num_assets,
                     'sample_size': result.sample_size,
-                }]), priority=['universe', 'matrix_kind', 'estimator_mode', 'cleaning_method', 'correlation_input', 'covariance_window', 'matrix_smoothing_span', 'allocation_date', 'num_assets', 'sample_size'])
+                }]), priority=['universe', 'matrix_type', 'estimator_method', 'cleaning_method', 'input_type', 'estimator_window', 'allocation_date', 'num_assets', 'sample_size'])
                 st.subheader('Cleaner diagnostic vs empirical')
                 _render_compact_table(
                     result.cleaner_comparison_frame,
@@ -4051,8 +4177,8 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
                     ],
                 )
             with matrices_tab:
-                primary_label = MATRIX_KIND_LABELS.get(result.matrix_kind, result.matrix_kind)
-                if result.matrix_kind == 'covariance':
+                primary_label = MATRIX_TYPE_LABELS.get(result_matrix_type, result_matrix_type)
+                if result_matrix_type == 'covariance':
                     sample_matrix = result.sample_covariance
                     baseline_matrix = result.empirical_cleaned_covariance
                     cleaned_matrix = result.cleaned_covariance
@@ -4139,11 +4265,11 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
                     primary_label=primary_label,
                 )
             with spectrum_tab:
-                spectrum_frame = result.covariance_spectrum if result.matrix_kind == 'covariance' else result.correlation_spectrum
+                spectrum_frame = result.covariance_spectrum if result_matrix_type == 'covariance' else result.correlation_spectrum
                 st.subheader(f'{primary_label} scree plot')
                 st.line_chart(spectrum_frame.set_index('rank')['eigenvalue'])
                 _render_compact_table(spectrum_frame, priority=['rank', 'eigenvalue', 'variance_share', 'cumulative_variance_share'], max_rows=40)
-                if result.matrix_kind == 'correlation':
+                if result_matrix_type == 'correlation':
                     st.subheader('Correlation eigenvalue distribution vs Marchenko-Pastur')
                     _render_eigenvalue_distribution_with_mp(
                         result.correlation_spectrum,
@@ -4173,12 +4299,11 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
         with config_tab:
             _request_block(result.request, config_defaults, {
                 'universe': result.universe,
-                'cleaning_method': result.cleaning_method,
-                'matrix_kind': result.matrix_kind,
-                'estimator_mode': result.estimator_mode,
-                'correlation_input': result.correlation_input,
-                'covariance_window': result.covariance_window,
-                'matrix_smoothing_span': int(result.request.matrix_smoothing_span or result.covariance_window),
+                'cleaning_method': result_cleaning_method,
+                'matrix_type': result_matrix_type,
+                'estimator_method': result_estimator_method,
+                'input_type': result_input_type,
+                'estimator_window': result_estimator_window,
                 'allocation_date': result.allocation_date,
                 'sample_size': result.sample_size,
                 'num_assets': result.num_assets,
@@ -4189,92 +4314,99 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
 elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect over interval':
     inspection_interval_state_key = 'inspection::interval::result'
     st.info('Inspect over interval is the dynamic matrix diagnostic view. Use it when you want to study how spectra and leading eigenmodes evolve over a rebalance interval.')
+    cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', MATRIX_INSPECTION_CLEANING_OPTIONS[0])
+    if cleaning_default == 'rie':
+        cleaning_default = 'rie_spectral'
+    shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+    freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+    input_type_default = str(
+        st.session_state.get('inspection::interval::input_type')
+        or st.session_state.get('inspection::interval::correlation_input')
+        or 'normalized_returns'
+    )
+    matrix_type_default = str(
+        st.session_state.get('inspection::interval::matrix_type')
+        or st.session_state.get('inspection::interval::matrix_kind')
+        or 'correlation'
+    )
+    estimator_method_default = str(
+        st.session_state.get('inspection::interval::estimator_method')
+        or st.session_state.get('inspection::interval::estimator_mode')
+        or 'sample_window'
+    )
+    window_default, num_assets = _universe_covariance_window_default(universe)
+    leading_default = int(st.session_state.get('inspection::interval::leading_eigenvectors', 3) or 3)
+    _sync_widget_default('inspection::interval::estimator_window', window_default, context=(universe, 'inspection_interval', num_assets))
+    if 'inspection::interval::estimator_window' not in st.session_state and 'inspection::interval::covariance_window' in st.session_state:
+        st.session_state['inspection::interval::estimator_window'] = int(st.session_state['inspection::interval::covariance_window'])
+    output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_interval', key='inspection::interval::output_dir')
     st.markdown('### Service parameters')
+    _render_service_guidance(
+        defaults=(
+            f"matrix={MATRIX_TYPE_LABELS.get(matrix_type_default, matrix_type_default)}, "
+            f"estimator={MATRIX_ESTIMATOR_LABELS.get(estimator_method_default, estimator_method_default)}, "
+            f"input={MATRIX_INPUT_LABELS.get(input_type_default, input_type_default)}, "
+            f"estimator window={int(st.session_state['inspection::interval::estimator_window'])}, "
+            f"inspection frequency={freq_default}, leading eigenvectors={leading_default}"
+        ),
+        recommendation='Start with monthly or quarterly inspection dates if you want a readable first picture of spectral evolution.',
+        action=f'inspect matrix evolution from `{workspace_context.evaluation_start or "config start"}` to `{workspace_context.evaluation_end or "config end"}` on `{freq_default}` dates.',
+    )
+    st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
     with st.form('inspection_interval_form'):
-        cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
-        shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-        correlation_input_default = str(st.session_state.get('inspection::interval::correlation_input', 'normalized') or 'normalized')
-        matrix_kind_default = str(st.session_state.get('inspection::interval::matrix_kind', 'correlation') or 'correlation')
-        estimator_mode_default = str(st.session_state.get('inspection::interval::estimator_mode', 'window_sample') or 'window_sample')
-        window_default, num_assets = _universe_covariance_window_default(universe)
-        smoothing_span_default = int(st.session_state.get('inspection::interval::matrix_smoothing_span', int(window_default)) or int(window_default))
-        leading_default = int(st.session_state.get('inspection::interval::leading_eigenvectors', 3) or 3)
-        _sync_widget_default('inspection::interval::covariance_window', window_default, context=(universe, 'inspection_interval', num_assets))
-
-        row1 = st.columns(3)
+        row1 = st.columns(2)
         with row1[0]:
-            cleaning_method = st.selectbox(
-                'Cleaning method',
-                CLEANING_OPTIONS,
-                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
-                key='inspection::interval::cleaning_method',
+            matrix_type = st.selectbox(
+                'Matrix type',
+                MATRIX_TYPE_OPTIONS,
+                index=MATRIX_TYPE_OPTIONS.index(matrix_type_default) if matrix_type_default in MATRIX_TYPE_OPTIONS else 0,
+                format_func=lambda value: MATRIX_TYPE_LABELS.get(value, value),
+                key='inspection::interval::matrix_type',
             )
         with row1[1]:
-            linear_shrinkage = _linear_shrinkage_input(
-                key='inspection::interval::linear_shrinkage',
-                default_value=shrinkage_default,
-            )
-        with row1[2]:
-            covariance_window = int(
-                st.number_input(
-                    'Covariance window',
-                    min_value=2,
-                    value=int(st.session_state['inspection::interval::covariance_window']),
-                    step=1,
-                    key='inspection::interval::covariance_window',
-                )
-            )
-
-        row2 = st.columns(2)
-        with row2[0]:
-            correlation_input = st.selectbox(
-                'Correlation input',
+            input_type = st.selectbox(
+                'Input type',
                 MATRIX_INPUT_OPTIONS,
-                index=MATRIX_INPUT_OPTIONS.index(correlation_input_default) if correlation_input_default in MATRIX_INPUT_OPTIONS else 0,
+                index=MATRIX_INPUT_OPTIONS.index(input_type_default) if input_type_default in MATRIX_INPUT_OPTIONS else 0,
                 format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value),
-                key='inspection::interval::correlation_input',
-            )
-        with row2[1]:
-            matrix_kind = st.selectbox(
-                'Matrix type',
-                MATRIX_KIND_OPTIONS,
-                index=MATRIX_KIND_OPTIONS.index(matrix_kind_default) if matrix_kind_default in MATRIX_KIND_OPTIONS else 0,
-                format_func=lambda value: MATRIX_KIND_LABELS.get(value, value),
-                key='inspection::interval::matrix_kind',
+                key='inspection::interval::input_type',
             )
 
-        row3 = st.columns(3)
-        with row3[0]:
-            estimator_mode = st.selectbox(
+        row2 = st.columns(3)
+        with row2[0]:
+            estimator_method = st.selectbox(
                 'Estimator',
                 MATRIX_ESTIMATOR_OPTIONS,
-                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_mode_default) if estimator_mode_default in MATRIX_ESTIMATOR_OPTIONS else 0,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_method_default) if estimator_method_default in MATRIX_ESTIMATOR_OPTIONS else 0,
                 format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value),
-                key='inspection::interval::estimator_mode',
+                key='inspection::interval::estimator_method',
+            )
+        with row2[1]:
+            estimator_window = int(
+                st.number_input(
+                    'Estimator window',
+                    min_value=2,
+                    step=1,
+                    key='inspection::interval::estimator_window',
+                )
+            )
+        with row2[2]:
+            estimator_alpha = alpha_from_span(estimator_window)
+            st.caption('Derived EWMA alpha')
+            st.code(f'{float(estimator_alpha):.6f}' if estimator_alpha is not None else '-', language='text')
+
+        row3 = st.columns(2)
+        with row3[0]:
+            cleaning_method = st.selectbox(
+                'Cleaning method',
+                MATRIX_INSPECTION_CLEANING_OPTIONS,
+                index=MATRIX_INSPECTION_CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in MATRIX_INSPECTION_CLEANING_OPTIONS else 0,
+                key='inspection::interval::cleaning_method',
             )
         with row3[1]:
-            matrix_smoothing_span = int(
-                st.number_input(
-                    'Matrix smoothing span',
-                    min_value=2,
-                    value=int(smoothing_span_default),
-                    step=1,
-                    key='inspection::interval::matrix_smoothing_span',
-                    help='Used by the EWMA cross-products estimator. Higher span means slower matrix smoothing.',
-                )
-            )
-        with row3[2]:
-            leading_eigenvectors = int(
-                st.number_input(
-                    'Leading eigenvectors',
-                    min_value=1,
-                    max_value=12,
-                    value=int(leading_default),
-                    step=1,
-                    key='inspection::interval::leading_eigenvectors',
-                    help='Number of leading eigenvectors tracked through time via absolute alignment.',
-                )
+            linear_shrinkage_intensity = _linear_shrinkage_input(
+                key='inspection::interval::linear_shrinkage_intensity',
+                default_value=shrinkage_default,
             )
 
         row4 = st.columns(2)
@@ -4286,18 +4418,17 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect over interva
                 key='inspection::interval::rebalance_frequency',
             )
         with row4[1]:
-            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/inspection_interval', key='inspection::interval::output_dir')
-
-        _render_service_guidance(
-            defaults=(
-                f"matrix={MATRIX_KIND_LABELS.get(matrix_kind, matrix_kind)}, estimator={MATRIX_ESTIMATOR_LABELS.get(estimator_mode, estimator_mode)}, "
-                f"input={MATRIX_INPUT_LABELS.get(correlation_input, correlation_input)}, covariance window={covariance_window}, "
-                f"inspection frequency={rebalance_frequency}, leading eigenvectors={leading_eigenvectors}"
-            ),
-            recommendation='Start with monthly or quarterly inspection dates if you want a readable first picture of spectral evolution.',
-            action=f'inspect matrix evolution from `{workspace_context.evaluation_start or "config start"}` to `{workspace_context.evaluation_end or "config end"}` on `{rebalance_frequency}` dates.',
-        )
-        st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
+            leading_eigenvectors = int(
+                st.number_input(
+                    'Leading eigenvectors',
+                    min_value=1,
+                    max_value=12,
+                    value=int(leading_default),
+                    step=1,
+                    key='inspection::interval::leading_eigenvectors',
+                    help='Number of leading eigenvectors tracked through time via absolute alignment.',
+                )
+            )
         run_clicked = st.form_submit_button('Run inspect over interval')
     if run_clicked:
         request = InspectionIntervalRequest(
@@ -4309,18 +4440,23 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect over interva
             evaluation_end=workspace_context.evaluation_end or None,
             rebalance_frequency=rebalance_frequency,
             cleaning_method=cleaning_method,
-            correlation_input=correlation_input,
-            matrix_kind=matrix_kind,
-            estimator_mode=estimator_mode,
-            matrix_smoothing_span=matrix_smoothing_span,
-            linear_shrinkage=linear_shrinkage,
-            covariance_window=int(covariance_window),
+            input_type=input_type,
+            matrix_type=matrix_type,
+            estimator_method=estimator_method,
+            linear_shrinkage_intensity=linear_shrinkage_intensity,
+            estimator_window=int(estimator_window),
             leading_eigenvectors=leading_eigenvectors,
             output_dir=output_dir or None,
         )
         st.session_state[inspection_interval_state_key] = run_inspection_interval(request)
     result = st.session_state.get(inspection_interval_state_key)
     if result is not None:
+        inspection_spec = _resolve_inspection_result_spec(result)
+        result_cleaning_method = inspection_spec['cleaning_method']
+        result_input_type = inspection_spec['input_type']
+        result_matrix_type = inspection_spec['matrix_type']
+        result_estimator_method = inspection_spec['estimator_method']
+        result_estimator_window = inspection_spec['estimator_window']
         results_tab, config_tab, artifacts_tab = _run_result_tabs(include_nav=False)
         with results_tab:
             run_summary_tab, overview_tab, trends_tab, eigenvectors_tab = st.tabs([
@@ -4334,13 +4470,14 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect over interva
                     mode='Matrix Inspection',
                     service='Inspect over interval',
                     request=result.request,
+                    result=result,
                     universe=result.universe,
                     artifacts=result.artifacts,
                     resolved={
-                        'cleaning_method': result.cleaning_method,
-                        'matrix_kind': result.matrix_kind,
-                        'estimator_mode': result.estimator_mode,
-                        'covariance_window': result.covariance_window,
+                        'cleaning_method': result_cleaning_method,
+                        'matrix_type': result_matrix_type,
+                        'estimator_method': result_estimator_method,
+                        'estimator_window': result_estimator_window,
                         'rebalance_frequency': result.request.rebalance_frequency,
                     },
                 )
@@ -4351,7 +4488,7 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect over interva
                     priority=['date', 'sample_size', 'num_assets', 'leading_eigenvalue', 'second_eigenvalue', 'third_eigenvalue', 'bulk_outlier_count', 'mp_lambda_plus'],
                 )
             with trends_tab:
-                st.subheader(f'{MATRIX_KIND_LABELS.get(result.matrix_kind, result.matrix_kind)} leading eigenvalues over time')
+                st.subheader(f'{MATRIX_TYPE_LABELS.get(result_matrix_type, result_matrix_type)} leading eigenvalues over time')
                 spectrum_top = result.spectrum_frame[
                     result.spectrum_frame['rank'] <= max(1, int(result.request.leading_eigenvectors))
                 ].copy()
@@ -4390,12 +4527,11 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect over interva
         with config_tab:
             _request_block(result.request, config_defaults, {
                 'universe': result.universe,
-                'cleaning_method': result.cleaning_method,
-                'matrix_kind': result.matrix_kind,
-                'estimator_mode': result.estimator_mode,
-                'correlation_input': result.correlation_input,
-                'covariance_window': result.covariance_window,
-                'matrix_smoothing_span': int(result.request.matrix_smoothing_span or result.covariance_window),
+                'cleaning_method': result_cleaning_method,
+                'matrix_type': result_matrix_type,
+                'estimator_method': result_estimator_method,
+                'input_type': result_input_type,
+                'estimator_window': result_estimator_window,
                 'evaluation_start': result.request.evaluation_start,
                 'evaluation_end': result.request.evaluation_end,
                 'rebalance_frequency': result.request.rebalance_frequency,

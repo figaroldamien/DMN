@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from optimal_tf.config_io import load_config
-from optimal_tf.data import load_prices_for_universe
+from optimal_tf.data_quality import load_filtered_prices_for_universe
 from optimal_tf.scripts.common import (
     eigenvalue_rows,
     matrix_sample,
@@ -22,7 +22,7 @@ from optimal_tf.scripts.common import (
 from trading_core.risk import clean_correlation_matrix
 from trading_core.reporting.plots import plt
 
-from .io import ensure_output_dir, write_request_json
+from .io import ensure_output_dir, write_quality_artifacts, write_request_json
 from .models import (
     RunArtifacts,
     SpectrumByCleanerRequest,
@@ -121,7 +121,12 @@ def run_spectrum_by_cleaner(request: SpectrumByCleanerRequest) -> SpectrumByClea
     methods = request.methods or [estimation.cleaning_method]
     validate_methods(methods)
 
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report_obj = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
+    quality_report = asdict(quality_report_obj)
     target_dates = resolve_target_dates(prices, evaluation)
     if len(target_dates) == 0:
         raise ValueError("No evaluation rebalance dates available for the scree plot window.")
@@ -143,6 +148,7 @@ def run_spectrum_by_cleaner(request: SpectrumByCleanerRequest) -> SpectrumByClea
             "num_assets": int(empirical_corr.shape[0]),
             "sample_size": int(sample_size),
             "log_scale": bool(request.log_scale),
+            "quality_report": quality_report,
         }
         (outdir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         req = write_request_json(outdir, request)
@@ -153,6 +159,7 @@ def run_spectrum_by_cleaner(request: SpectrumByCleanerRequest) -> SpectrumByClea
         }
         if req is not None:
             files["request"] = req
+        files.update(write_quality_artifacts(outdir, quality_report))
 
     return SpectrumByCleanerResult(
         request=request,
@@ -162,6 +169,7 @@ def run_spectrum_by_cleaner(request: SpectrumByCleanerRequest) -> SpectrumByClea
         eigenvalue_frame=frame,
         num_assets=int(empirical_corr.shape[0]),
         sample_size=int(sample_size),
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )
 
@@ -183,7 +191,12 @@ def run_spectrum_by_window(request: SpectrumByWindowRequest) -> SpectrumByWindow
     windows = request.windows or [estimation.covariance_window or estimation.corr_span]
     windows = parse_windows(",".join(str(item) for item in windows))
 
-    prices = load_prices_for_universe(universe.name, start=universe.start, refresh_policy=request.refresh_policy)
+    prices, quality_report_obj = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
+    quality_report = asdict(quality_report_obj)
     target_dates = resolve_target_dates(prices, evaluation)
     if len(target_dates) == 0:
         raise ValueError("No evaluation rebalance dates available for the spectral comparison window.")
@@ -218,6 +231,7 @@ def run_spectrum_by_window(request: SpectrumByWindowRequest) -> SpectrumByWindow
             "windows": windows,
             "log_scale": bool(request.log_scale),
             "min_periods_mode": request.min_periods_mode,
+            "quality_report": quality_report,
         }
         (outdir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         req = write_request_json(outdir, request)
@@ -228,6 +242,7 @@ def run_spectrum_by_window(request: SpectrumByWindowRequest) -> SpectrumByWindow
         }
         if req is not None:
             files["request"] = req
+        files.update(write_quality_artifacts(outdir, quality_report))
 
     return SpectrumByWindowResult(
         request=request,
@@ -236,5 +251,6 @@ def run_spectrum_by_window(request: SpectrumByWindowRequest) -> SpectrumByWindow
         method=method,
         windows=windows,
         scree_frame=frame,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )

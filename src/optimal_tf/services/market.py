@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import numpy as np
@@ -19,10 +20,10 @@ from market_tickers_data.universes import (
     WORLD_INDEX_COMPONENTS,
 )
 from optimal_tf.config_io import load_config
-from optimal_tf.data import load_prices_for_universe
+from optimal_tf.data_quality import load_filtered_prices_for_universe
 from optimal_tf.strategies.common import resolve_allocation_date
 
-from .io import ensure_output_dir, write_json, write_request_json
+from .io import ensure_output_dir, write_json, write_quality_artifacts, write_request_json
 from .models import MarketSynthesisRequest, MarketSynthesisResult, RunArtifacts
 
 MOMENTUM_WINDOWS = {
@@ -196,7 +197,9 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
     universe_name = request.universe or universe_cfg.name
     start = request.start or universe_cfg.start
 
-    prices = load_prices_for_universe(universe_name, start=start, refresh_policy=request.refresh_policy)
+    universe_cfg = replace(universe_cfg, name=universe_name, start=start)
+    prices, quality_report_obj = load_filtered_prices_for_universe(universe_cfg, refresh_policy=request.refresh_policy)
+    quality_report = asdict(quality_report_obj)
     as_of_date = resolve_allocation_date(prices.index, as_of_date=request.as_of_date)
     history = prices.loc[prices.index <= as_of_date].ffill()
     if history.empty:
@@ -347,9 +350,11 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
                 'num_category_unclassified_tickers': int((~category_mask).sum()),
                 'momentum_windows': MOMENTUM_WINDOWS,
                 'monthly_columns': list(monthly_ticker_returns.columns),
+                'quality_report': quality_report,
             },
         )
         files['summary'] = outdir / 'summary.json'
+        files.update(write_quality_artifacts(outdir, quality_report))
 
     return MarketSynthesisResult(
         request=request,
@@ -364,5 +369,6 @@ def run_market_synthesis(request: MarketSynthesisRequest) -> MarketSynthesisResu
         ticker_nav_frame=ticker_nav_frame,
         monthly_consolidated_frame=monthly_consolidated_frame,
         monthly_ticker_frame=monthly_ticker_frame,
+        quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )

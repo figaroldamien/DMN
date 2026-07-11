@@ -24,6 +24,11 @@ class DashboardRunSummary:
     artifact_root: str | None
     artifact_count: int
     artifact_names: tuple[str, ...]
+    quality_enabled: bool | None
+    quality_reference_start: str | None
+    quality_kept_count: int | None
+    quality_excluded_count: int | None
+    quality_excluded_tickers: tuple[str, ...]
     highlights_count: int
     warning_count: int
 
@@ -38,12 +43,14 @@ def build_dashboard_run_summary(
     resolved: dict[str, Any] | None = None,
     highlights: dict[str, Any] | None = None,
     warnings: list[str] | tuple[str, ...] | None = None,
+    result: Any = None,
 ) -> DashboardRunSummary:
     payload = _request_payload(request)
     resolved_payload = dict(resolved or {})
     strategies = _resolve_strategies(payload, resolved_payload)
     primary_subject = _resolve_primary_subject(service=service, strategies=strategies, resolved=resolved_payload)
     artifact_root, artifact_names = _resolve_artifacts(artifacts)
+    quality_payload = _resolve_quality_payload(result)
     return DashboardRunSummary(
         mode=mode,
         service=service,
@@ -64,6 +71,11 @@ def build_dashboard_run_summary(
         artifact_root=artifact_root,
         artifact_count=len(artifact_names),
         artifact_names=tuple(artifact_names),
+        quality_enabled=_optional_bool(quality_payload.get("enabled")),
+        quality_reference_start=_optional_str(quality_payload.get("reference_start")),
+        quality_kept_count=_optional_int(quality_payload.get("kept_count")),
+        quality_excluded_count=_optional_int(quality_payload.get("excluded_count")),
+        quality_excluded_tickers=tuple(str(item) for item in (quality_payload.get("excluded_tickers") or ()) if str(item)),
         highlights_count=len(highlights or {}),
         warning_count=len(warnings or []),
     )
@@ -152,6 +164,21 @@ def _resolve_artifacts(artifacts: Any) -> tuple[str | None, list[str]]:
     return _optional_str(root_dir), artifact_names
 
 
+def _resolve_quality_payload(result: Any) -> dict[str, Any]:
+    report = getattr(result, "quality_report", None)
+    if not isinstance(report, dict):
+        return {}
+    kept = report.get("kept_tickers") or ()
+    excluded = report.get("excluded_tickers") or ()
+    return {
+        "enabled": report.get("enabled"),
+        "reference_start": report.get("reference_start"),
+        "kept_count": len(kept),
+        "excluded_count": len(excluded),
+        "excluded_tickers": excluded,
+    }
+
+
 def _format_summary_value(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
@@ -176,3 +203,9 @@ def _optional_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
     return float(value)
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value in (None, ""):
+        return None
+    return bool(value)

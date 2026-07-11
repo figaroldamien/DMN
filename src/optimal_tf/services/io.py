@@ -43,3 +43,18 @@ def write_json(outdir: Path | None, name: str, payload: dict[str, Any]) -> Path 
     path = outdir / name
     path.write_text(json.dumps(_json_safe(payload), indent=2), encoding='utf-8')
     return path
+
+
+def write_quality_artifacts(outdir: Path | None, quality_report: dict[str, Any] | None) -> dict[str, Path]:
+    if outdir is None or quality_report is None:
+        return {}
+    files: dict[str, Path] = {}
+    summary_path = write_json(outdir, "quality_filter_summary.json", quality_report)
+    if summary_path is not None:
+        files["quality_summary"] = summary_path
+    excluded = list(quality_report.get("excluded_tickers") or [])
+    if excluded:
+        excluded_path = outdir / "excluded_tickers.csv"
+        excluded_path.write_text("ticker\n" + "\n".join(str(item) for item in excluded) + "\n", encoding="utf-8")
+        files["excluded_tickers"] = excluded_path
+    return files

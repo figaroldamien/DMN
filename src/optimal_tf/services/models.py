@@ -42,6 +42,7 @@ class AllocationResult:
     weights: pd.Series
     base_weights: pd.Series
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,7 @@ class StandardEvaluationResult:
     buy_hold_returns: pd.Series
     buy_hold_label: str
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -126,6 +128,7 @@ class StrategyTestbedResult:
     buy_hold_returns: pd.Series
     buy_hold_label: str
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -162,6 +165,7 @@ class CompareResult:
     benchmark_nav: pd.Series
     benchmark_drawdown: pd.Series
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -189,6 +193,7 @@ class MarketSynthesisResult:
     monthly_consolidated_frame: pd.DataFrame
     monthly_ticker_frame: pd.DataFrame
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -310,7 +315,7 @@ class EigenvectorInspectionRequest:
     evaluation_start: str | None = None
     evaluation_end: str | None = None
     rebalance_frequency: str | None = None
-    method: str = "rie_reference"
+    method: str = "rie_spectral"
     linear_shrinkage: float | None = None
     windows: list[int] = field(default_factory=list)
     matrix_date: str | None = None
@@ -338,6 +343,7 @@ class ScenarioEvaluationResult:
     benchmark_drawdown: pd.Series
     highlights: dict[str, str]
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -389,6 +395,7 @@ class HyperparameterTuningResult:
     skipped_configs: pd.DataFrame
     highlights: dict[str, str]
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -401,6 +408,7 @@ class SpectrumByCleanerResult:
     num_assets: int
     sample_size: int
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -412,6 +420,7 @@ class SpectrumByWindowResult:
     windows: list[int]
     scree_frame: pd.DataFrame
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -428,6 +437,7 @@ class EigenvectorInspectionResult:
     sub_sector_signed: pd.DataFrame
     loadings: pd.DataFrame
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -441,12 +451,11 @@ class InspectionSnapshotRequest:
     strategy: str | None = None
     date: str | None = None
     cleaning_method: str | None = None
-    correlation_input: str | None = None
-    matrix_kind: str | None = None
-    estimator_mode: str | None = None
-    matrix_smoothing_span: int | None = None
-    linear_shrinkage: float | None = None
-    covariance_window: int | None = None
+    input_type: str | None = None
+    matrix_type: str | None = None
+    estimator_method: str | None = None
+    linear_shrinkage_intensity: float | None = None
+    estimator_window: int | None = None
     weight_smoothing_alpha: float | None = None
     long_only: bool | None = None
     refresh_policy: str = 'auto'
@@ -458,10 +467,10 @@ class InspectionSnapshotResult:
     request: InspectionSnapshotRequest
     universe: str
     cleaning_method: str
-    correlation_input: str
-    matrix_kind: str
-    estimator_mode: str
-    covariance_window: int
+    input_type: str
+    matrix_type: str
+    estimator_method: str
+    estimator_window: int
     allocation_date: pd.Timestamp
     sample_size: int
     num_assets: int
@@ -488,6 +497,7 @@ class InspectionSnapshotResult:
     feature_frame: pd.DataFrame
     cleaner_comparison_frame: pd.DataFrame
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -499,12 +509,11 @@ class InspectionIntervalRequest:
     evaluation_end: str | None = None
     rebalance_frequency: str | None = None
     cleaning_method: str | None = None
-    correlation_input: str | None = None
-    matrix_kind: str | None = None
-    estimator_mode: str | None = None
-    matrix_smoothing_span: int | None = None
-    linear_shrinkage: float | None = None
-    covariance_window: int | None = None
+    input_type: str | None = None
+    matrix_type: str | None = None
+    estimator_method: str | None = None
+    linear_shrinkage_intensity: float | None = None
+    estimator_window: int | None = None
     leading_eigenvectors: int = 3
     refresh_policy: str = 'auto'
     output_dir: str | None = None
@@ -515,10 +524,10 @@ class InspectionIntervalResult:
     request: InspectionIntervalRequest
     universe: str
     cleaning_method: str
-    correlation_input: str
-    matrix_kind: str
-    estimator_mode: str
-    covariance_window: int
+    input_type: str
+    matrix_type: str
+    estimator_method: str
+    estimator_window: int
     observation_dates: tuple[pd.Timestamp, ...]
     num_assets: int
     summary_frame: pd.DataFrame
@@ -526,3 +535,4 @@ class InspectionIntervalResult:
     variogram_frame: pd.DataFrame
     eigenvector_similarity_frame: pd.DataFrame
     artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
