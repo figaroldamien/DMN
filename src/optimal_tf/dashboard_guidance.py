@@ -37,11 +37,6 @@ def guide_service_choices() -> list[dict[str, str]]:
             "best_for": "Allocation snapshot and packaged evaluation.",
         },
         {
-            "service_family": "Matrix Inspection",
-            "when_to_use": "You want to understand cleaned matrices and eigen-structure rather than portfolio outputs.",
-            "best_for": "One-date matrix diagnosis or interval-based eigenmode evolution.",
-        },
-        {
             "service_family": "Compare",
             "when_to_use": "You want to hold most assumptions fixed and vary one dimension.",
             "best_for": "Strategies, cleaning methods, covariance windows, rebalance frequencies.",
@@ -68,12 +63,12 @@ def guide_next_step_rows() -> list[dict[str, str]]:
         },
         {
             "goal": "I want to inspect one dated state in depth",
-            "recommended_service": "Matrix Inspection / Inspect at date",
-            "why": "Best when you need cleaned matrices, eigen-structure and cross-asset diagnostics.",
+            "recommended_service": "Dedicated app / matrix inspection dashboard / Inspect at date",
+            "why": "Best when you need cleaned matrices, eigen-structure and cross-asset diagnostics outside the main portfolio app.",
         },
         {
             "goal": "I want to see how eigenmodes evolve over time",
-            "recommended_service": "Matrix Inspection / Inspect over interval",
+            "recommended_service": "Dedicated app / matrix inspection dashboard / Inspect over interval",
             "why": "Best when you want the spectrum and leading eigenvector stability across a rebalance interval.",
         },
         {
