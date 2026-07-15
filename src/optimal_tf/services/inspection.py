@@ -38,6 +38,7 @@ from trading_core.risk import (
     marchenko_pastur_law,
     supported_cleaning_methods,
 )
+from trading_core.reporting import cumulative_nav, evaluation_metrics
 from trading_core.reporting.plots import plt
 
 from optimal_tf.strategies.common import resolve_allocation_date, sanitized_normalized_returns
@@ -795,6 +796,38 @@ def _aggregate_matrix_by_groups(
     return aggregated, pair_counts, membership
 
 
+def _equal_weight_group_correlation(
+    returns_frame: pd.DataFrame,
+    metadata: pd.DataFrame,
+    *,
+    level: str,
+) -> pd.DataFrame:
+    tickers = [ticker for ticker in metadata.index if ticker in returns_frame.columns]
+    if not tickers:
+        return pd.DataFrame()
+
+    metadata_slice = metadata.loc[tickers].copy()
+    if level == "sector":
+        metadata_slice["group_label"] = metadata_slice["sector"].astype(str)
+    elif level == "sub_sector":
+        metadata_slice["group_label"] = (
+            metadata_slice["sector"].astype(str) + " | " + metadata_slice["sub_sector"].astype(str)
+        ).astype(str)
+    else:
+        raise ValueError(f"Unknown aggregation level {level!r}.")
+
+    group_labels = pd.Index(pd.unique(metadata_slice["group_label"]), dtype=object).tolist()
+    ew_returns: dict[str, pd.Series] = {}
+    for group_label in group_labels:
+        group_tickers = metadata_slice.index[metadata_slice["group_label"] == group_label].tolist()
+        group_frame = returns_frame.loc[:, group_tickers]
+        ew_returns[str(group_label)] = group_frame.mean(axis=1, skipna=True)
+    ew_frame = pd.DataFrame(ew_returns).dropna(axis=1, how="all")
+    if ew_frame.empty:
+        return pd.DataFrame()
+    return ew_frame.corr()
+
+
 def _spectrum_frame(eigenvalues: np.ndarray, *, label: str) -> pd.DataFrame:
     total = float(np.sum(eigenvalues))
     cumulative = np.cumsum(eigenvalues)
@@ -856,6 +889,129 @@ def _spectral_frame_from_decomposition(
     columns = [f"{prefix}{rank}" for rank in range(1, len(eigenvalues) + 1)]
     vectors = pd.DataFrame(eigenvectors[reorder, :], index=index, columns=columns)
     return _spectrum_frame(eigenvalues, label=prefix.rstrip("_")), vectors
+
+
+_EIGENPORTFOLIO_MIN_WEIGHT_SUM = 1e-8
+_EIGENPORTFOLIO_EXTRA_RANKS_AFTER_MP = 2
+
+
+def _normalize_eigenportfolio_matrix_by_weight_sum(
+    eigenvector_frame: pd.DataFrame,
+    *,
+    min_abs_weight_sum: float = _EIGENPORTFOLIO_MIN_WEIGHT_SUM,
+) -> pd.DataFrame:
+    if eigenvector_frame.empty:
+        return eigenvector_frame.copy()
+    weights = eigenvector_frame.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
+    weight_sums = weights.sum(axis=0)
+    valid_columns = weight_sums.index[weight_sums.abs() > float(min_abs_weight_sum)]
+    if len(valid_columns) == 0:
+        return weights.iloc[:, 0:0].copy()
+    normalized = weights.loc[:, valid_columns].divide(weight_sums.loc[valid_columns], axis=1)
+    return normalized.fillna(0.0)
+
+
+def _selected_eigenportfolio_columns(
+    normalized_weight_matrix: pd.DataFrame,
+    spectrum_frame: pd.DataFrame,
+    *,
+    num_assets: int,
+    sample_size: int,
+    extra_ranks_after_mp: int = _EIGENPORTFOLIO_EXTRA_RANKS_AFTER_MP,
+) -> list[str]:
+    if normalized_weight_matrix.empty or spectrum_frame.empty:
+        return []
+    try:
+        mp_law = marchenko_pastur_law(num_assets=num_assets, sample_size=sample_size, variance=1.0)
+    except ValueError:
+        return []
+    ordered = spectrum_frame.copy()
+    ordered["rank"] = pd.to_numeric(ordered["rank"], errors="coerce")
+    ordered["eigenvalue"] = pd.to_numeric(ordered["eigenvalue"], errors="coerce")
+    ordered = ordered.dropna(subset=["rank", "eigenvalue"]).sort_values("rank").reset_index(drop=True)
+    if ordered.empty:
+        return []
+    outlier_mask = ordered["eigenvalue"] > float(mp_law.lambda_plus)
+    outlier_count = int(outlier_mask.sum())
+    selection_count = min(len(ordered), outlier_count + max(0, int(extra_ranks_after_mp)))
+    if selection_count <= 0:
+        selection_count = min(len(ordered), max(1, int(extra_ranks_after_mp)))
+    selected: list[str] = []
+    for _, spectrum_row in ordered.iloc[:selection_count].iterrows():
+        column_name = f"corr_ev{int(spectrum_row['rank'])}"
+        if column_name in normalized_weight_matrix.columns:
+            selected.append(column_name)
+    return selected
+
+
+def _build_eigenportfolio_outputs(
+    returns_frame: pd.DataFrame,
+    eigenvector_frame: pd.DataFrame,
+    spectrum_frame: pd.DataFrame,
+    *,
+    num_assets: int,
+    sample_size: int,
+    extra_ranks_after_mp: int = _EIGENPORTFOLIO_EXTRA_RANKS_AFTER_MP,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if returns_frame.empty or eigenvector_frame.empty or spectrum_frame.empty:
+        empty = pd.DataFrame(index=returns_frame.index.copy())
+        return eigenvector_frame.iloc[:, 0:0].copy(), empty, pd.DataFrame()
+    tickers = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in eigenvector_frame.index]
+    aligned_returns = returns_frame.reindex(columns=tickers).fillna(0.0)
+    normalized_weight_matrix = _normalize_eigenportfolio_matrix_by_weight_sum(eigenvector_frame)
+    if normalized_weight_matrix.empty:
+        return normalized_weight_matrix, pd.DataFrame(index=returns_frame.index.copy()), pd.DataFrame()
+    all_component_returns = aligned_returns.to_numpy(dtype=float) @ normalized_weight_matrix.to_numpy(dtype=float)
+    all_component_returns = pd.DataFrame(
+        all_component_returns,
+        index=aligned_returns.index,
+        columns=list(normalized_weight_matrix.columns),
+    )
+    selected_column_names = _selected_eigenportfolio_columns(
+        normalized_weight_matrix,
+        spectrum_frame,
+        num_assets=num_assets,
+        sample_size=sample_size,
+        extra_ranks_after_mp=extra_ranks_after_mp,
+    )
+    if not selected_column_names:
+        return normalized_weight_matrix.iloc[:, 0:0].copy(), pd.DataFrame(index=aligned_returns.index), pd.DataFrame()
+
+    selected_weights = normalized_weight_matrix.loc[:, selected_column_names].copy()
+    selected_returns = all_component_returns.loc[:, selected_column_names].copy()
+    selected_nav = pd.DataFrame(
+        {column_name: cumulative_nav(selected_returns[column_name]).rename(column_name) for column_name in selected_column_names},
+        index=selected_returns.index,
+    )
+
+    summary_rows: list[dict[str, float | str | int]] = []
+    for column_name in selected_column_names:
+        returns_series = selected_returns[column_name]
+        metrics = evaluation_metrics(
+            returns_series,
+            pd.Series(0.0, index=returns_series.index, dtype=float),
+            pd.Series(0.0, index=returns_series.index, dtype=float),
+            num_rebalances=0,
+        )
+        rank = int(str(column_name).removeprefix("corr_ev"))
+        spectrum_match = spectrum_frame.loc[pd.to_numeric(spectrum_frame["rank"], errors="coerce") == rank]
+        eigenvalue = float(pd.to_numeric(spectrum_match["eigenvalue"].iloc[0], errors="coerce")) if not spectrum_match.empty else float("nan")
+        variance_share = float(pd.to_numeric(spectrum_match["variance_share"].iloc[0], errors="coerce")) if not spectrum_match.empty else float("nan")
+        cumulative_share = float(pd.to_numeric(spectrum_match["cumulative_variance_share"].iloc[0], errors="coerce")) if not spectrum_match.empty else float("nan")
+        summary_rows.append(
+            {
+                "eigenportfolio": column_name,
+                "rank": rank,
+                "eigenvalue": eigenvalue,
+                "variance_share": variance_share,
+                "cumulative_variance_share": cumulative_share,
+                "cagr": float(metrics.cagr),
+                "ann_vol": float(metrics.ann_vol),
+                "sharpe": float(metrics.sharpe),
+            }
+        )
+    summary_frame = pd.DataFrame(summary_rows)
+    return selected_weights, selected_nav, summary_frame
 
 
 def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSnapshotResult:
@@ -955,6 +1111,11 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         metadata,
         level="sector",
     )
+    sample_sector_ew_correlation = _equal_weight_group_correlation(
+        sample_frame.reindex(columns=sorted_tickers),
+        metadata,
+        level="sector",
+    )
     sample_sub_sector_matrix, sub_sector_pair_counts, sub_sector_membership = _aggregate_matrix_by_groups(
         sorted_sample_cov if matrix_type == "covariance" else sorted_sample_corr,
         metadata,
@@ -1011,6 +1172,19 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             }
         ]
     )
+    sorted_component_input_frame = returns.loc[:allocation_date].reindex(columns=sorted_tickers).fillna(0.0)
+    if evaluation.evaluation_start is not None:
+        evaluation_start_ts = pd.Timestamp(evaluation.evaluation_start)
+        sorted_component_input_frame = sorted_component_input_frame.loc[
+            sorted_component_input_frame.index >= evaluation_start_ts
+        ]
+    correlation_eigenportfolios, correlation_component_nav, correlation_component_summary = _build_eigenportfolio_outputs(
+        sorted_component_input_frame,
+        corr_eigenvectors,
+        corr_spectrum,
+        num_assets=int(len(sorted_tickers)),
+        sample_size=int(sample_size),
+    )
     outdir = ensure_output_dir(request.output_dir or "output/optimal_tf/inspection/snapshot")
     files: dict[str, Path] = {}
     if outdir is not None:
@@ -1023,6 +1197,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         sector_matrix_path = outdir / "cleaned_sector_matrix.csv"
         sector_baseline_path = outdir / "empirical_cleaned_sector_matrix.csv"
         sector_sample_path = outdir / "sample_sector_matrix.csv"
+        sector_ew_corr_path = outdir / "sample_sector_ew_correlation.csv"
         sector_counts_path = outdir / "sector_pair_counts.csv"
         sector_membership_path = outdir / "sector_membership.csv"
         sub_sector_matrix_path = outdir / "cleaned_sub_sector_matrix.csv"
@@ -1034,6 +1209,9 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         cov_spectrum_path = outdir / "covariance_spectrum.csv"
         corr_vectors_path = outdir / "correlation_eigenvectors.csv"
         cov_vectors_path = outdir / "covariance_eigenvectors.csv"
+        corr_portfolios_path = outdir / "correlation_eigenportfolios.csv"
+        corr_component_nav_path = outdir / "correlation_component_nav.csv"
+        corr_component_summary_path = outdir / "correlation_component_summary.csv"
         features_path = outdir / "features.csv"
         cleaner_comparison_path = outdir / "cleaner_comparison.csv"
         sorted_sample_corr.to_csv(sample_corr_path)
@@ -1045,6 +1223,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         cleaned_sector_matrix.to_csv(sector_matrix_path)
         empirical_cleaned_sector_matrix.to_csv(sector_baseline_path)
         sample_sector_matrix.to_csv(sector_sample_path)
+        sample_sector_ew_correlation.to_csv(sector_ew_corr_path)
         sector_pair_counts.to_csv(sector_counts_path)
         sector_membership.to_csv(sector_membership_path, index=False)
         cleaned_sub_sector_matrix.to_csv(sub_sector_matrix_path)
@@ -1056,6 +1235,9 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         cov_spectrum.to_csv(cov_spectrum_path, index=False)
         corr_eigenvectors.to_csv(corr_vectors_path)
         cov_eigenvectors.to_csv(cov_vectors_path)
+        correlation_eigenportfolios.to_csv(corr_portfolios_path)
+        correlation_component_nav.to_csv(corr_component_nav_path)
+        correlation_component_summary.to_csv(corr_component_summary_path, index=False)
         feature_frame.to_csv(features_path)
         cleaner_comparison_frame.to_csv(cleaner_comparison_path, index=False)
         request_path = write_request_json(outdir, request)
@@ -1087,6 +1269,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             "sample_sector_matrix": sector_sample_path,
             "empirical_cleaned_sector_matrix": sector_baseline_path,
             "cleaned_sector_matrix": sector_matrix_path,
+            "sample_sector_ew_correlation": sector_ew_corr_path,
             "sector_pair_counts": sector_counts_path,
             "sector_membership": sector_membership_path,
             "sample_sub_sector_matrix": sub_sector_sample_path,
@@ -1098,6 +1281,9 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             "covariance_spectrum": cov_spectrum_path,
             "correlation_eigenvectors": corr_vectors_path,
             "covariance_eigenvectors": cov_vectors_path,
+            "correlation_eigenportfolios": corr_portfolios_path,
+            "correlation_component_nav": corr_component_nav_path,
+            "correlation_component_summary": corr_component_summary_path,
             "features": features_path,
             "cleaner_comparison": cleaner_comparison_path,
         })
@@ -1126,6 +1312,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         sample_sector_matrix=sample_sector_matrix,
         empirical_cleaned_sector_matrix=empirical_cleaned_sector_matrix,
         cleaned_sector_matrix=cleaned_sector_matrix,
+        sample_sector_ew_correlation=sample_sector_ew_correlation,
         sector_pair_counts=sector_pair_counts,
         sector_membership=sector_membership,
         sample_sub_sector_matrix=sample_sub_sector_matrix,
@@ -1137,6 +1324,9 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         covariance_spectrum=cov_spectrum,
         correlation_eigenvectors=corr_eigenvectors,
         covariance_eigenvectors=cov_eigenvectors,
+        correlation_eigenportfolios=correlation_eigenportfolios,
+        correlation_component_nav=correlation_component_nav,
+        correlation_component_summary=correlation_component_summary,
         feature_frame=feature_frame,
         cleaner_comparison_frame=cleaner_comparison_frame,
         quality_report=quality_report,

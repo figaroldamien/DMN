@@ -194,7 +194,7 @@ class InspectionTests(unittest.TestCase):
             EstimationConfig(covariance_window=60, covariance_min_periods=2, cleaning_method="empirical"),
             BacktestConfig(),
             object(),
-            EvaluationConfig(rebalance_frequency="monthly", evaluation_start="2015-01-01", evaluation_end="2015-03-31"),
+            EvaluationConfig(rebalance_frequency="monthly", evaluation_start="2015-02-27", evaluation_end="2015-03-31"),
             object(),
             OutputConfig(),
         )
@@ -253,7 +253,7 @@ class InspectionTests(unittest.TestCase):
             EstimationConfig(covariance_window=60, covariance_min_periods=2, cleaning_method="empirical"),
             BacktestConfig(),
             object(),
-            EvaluationConfig(rebalance_frequency="monthly", evaluation_start="2015-01-01", evaluation_end="2015-03-31"),
+            EvaluationConfig(rebalance_frequency="monthly", evaluation_start="2015-02-27", evaluation_end="2015-03-31"),
             object(),
             OutputConfig(),
         )
@@ -327,6 +327,231 @@ class InspectionTests(unittest.TestCase):
         np.testing.assert_allclose(
             result.correlation_spectrum["eigenvalue"].to_numpy(dtype=float)[:2],
             np.array([1.05, 0.95]),
+        )
+
+    def test_run_inspection_snapshot_builds_eigen_portfolio_nav_for_mp_outlier_eigenvectors(self) -> None:
+        prices = pd.DataFrame(
+            {"A": [100.0, 101.0, 102.0], "B": [100.0, 99.0, 98.0]},
+            index=pd.DatetimeIndex(["2015-01-30", "2015-02-27", "2015-03-31"]),
+        )
+        corr = pd.DataFrame(
+            [[1.0, 0.1], [0.1, 1.0]],
+            index=["A", "B"],
+            columns=["A", "B"],
+        )
+        cov = pd.DataFrame(
+            [[0.01, 0.001], [0.001, 0.04]],
+            index=["A", "B"],
+            columns=["A", "B"],
+        )
+        sample_frame = pd.DataFrame(
+            {"A": [0.01, 0.02], "B": [0.03, -0.01]},
+            index=pd.DatetimeIndex(["2015-03-30", "2015-03-31"]),
+        )
+        returns = pd.DataFrame(
+            {"A": [0.0, 0.01, 0.02], "B": [0.0, -0.01, -0.02]},
+            index=prices.index,
+        )
+        vol = pd.DataFrame({"A": [0.1, 0.1, 0.1], "B": [0.2, 0.2, 0.2]}, index=prices.index)
+        z_returns = pd.DataFrame({"A": [0.0, 0.1, 0.2], "B": [0.0, 0.05, -0.1]}, index=prices.index)
+        trend = pd.DataFrame(0.0, index=prices.index, columns=prices.columns)
+        request = InspectionSnapshotRequest(
+            cleaning_method="rie_spectral",
+            estimator_window=40,
+            output_dir=None,
+        )
+        config = (
+            UniverseConfig(name="cac40", start="2015-01-01"),
+            EstimationConfig(covariance_window=60, covariance_min_periods=2, cleaning_method="empirical"),
+            BacktestConfig(),
+            object(),
+            EvaluationConfig(rebalance_frequency="monthly", evaluation_start="2015-02-27", evaluation_end="2015-03-31"),
+            object(),
+            OutputConfig(),
+        )
+        empirical_vectors = pd.DataFrame(
+            [[1.0, 0.0], [0.0, 1.0]],
+            index=["A", "B"],
+            columns=["rank_1", "rank_2"],
+        )
+        selected_vectors = pd.DataFrame(
+            [[-1.0, 0.0], [0.0, 1.0]],
+            index=["A", "B"],
+            columns=["rank_1", "rank_2"],
+        )
+        empirical_result = CorrelationCleanerResult(
+            method="empirical",
+            matrix_type="correlation",
+            sample_size=100,
+            input_matrix=corr,
+            empirical=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.5]),
+                eigenvectors=empirical_vectors,
+                rank_order=(0, 1),
+            ),
+            cleaned_eigenvalues_by_input_order=np.array([1.5, 0.5]),
+            cleaned=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.5]),
+                eigenvectors=empirical_vectors,
+                rank_order=(0, 1),
+            ),
+            cleaned_matrix_pre_projection=corr,
+            cleaned_matrix=corr,
+            postprocess_applied=False,
+            postprocess_steps=(),
+            spectral_source="matrix_diagonalization",
+        )
+        selected_result = CorrelationCleanerResult(
+            method="rie_spectral",
+            matrix_type="correlation",
+            sample_size=100,
+            input_matrix=corr,
+            empirical=empirical_result.empirical,
+            cleaned_eigenvalues_by_input_order=np.array([1.5, 0.5]),
+            cleaned=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.5]),
+                eigenvectors=selected_vectors,
+                rank_order=(0, 1),
+            ),
+            cleaned_matrix_pre_projection=corr,
+            cleaned_matrix=corr,
+            postprocess_applied=False,
+            postprocess_steps=(),
+            spectral_source="empirical_vectors_plus_xi_hat",
+        )
+
+        with (
+            patch("optimal_tf.services.inspection.load_config", return_value=config),
+            patch(
+                "optimal_tf.services.inspection.load_filtered_prices_for_universe",
+                return_value=(prices, self._quality_report(prices, universe="cac40", start="2015-01-01", reference_start="2015-01-01")),
+            ),
+            patch("optimal_tf.services.inspection.matrix_sample_bundle", return_value=(corr, cov, 100, sample_frame)),
+            patch("optimal_tf.services.inspection.sanitized_normalized_returns", return_value=(returns, vol, z_returns)),
+            patch("optimal_tf.services.inspection.trend_ema_signal", return_value=trend),
+            patch("optimal_tf.services.inspection.clean_correlation_matrix_rich", side_effect=[empirical_result, selected_result]),
+        ):
+            result = run_inspection_snapshot(request)
+
+        self.assertEqual(list(result.correlation_eigenportfolios.columns), ["corr_ev1", "corr_ev2"])
+        self.assertEqual(list(result.correlation_component_nav.columns), ["corr_ev1", "corr_ev2"])
+        np.testing.assert_allclose(
+            result.correlation_component_nav["corr_ev1"].to_numpy(dtype=float),
+            np.array([1.01, 1.0302]),
+            atol=1e-8,
+        )
+        np.testing.assert_allclose(
+            result.correlation_component_nav["corr_ev2"].to_numpy(dtype=float),
+            np.array([0.99, 0.9702]),
+            atol=1e-8,
+        )
+        self.assertEqual(list(result.correlation_component_summary["eigenportfolio"]), ["corr_ev1", "corr_ev2"])
+
+    def test_run_inspection_snapshot_excludes_neutral_eigen_portfolios_with_near_zero_weight_sum(self) -> None:
+        prices = pd.DataFrame(
+            {"A": [100.0, 101.0, 102.0], "B": [100.0, 99.0, 98.0]},
+            index=pd.DatetimeIndex(["2015-01-30", "2015-02-27", "2015-03-31"]),
+        )
+        corr = pd.DataFrame(
+            [[1.0, 0.1], [0.1, 1.0]],
+            index=["A", "B"],
+            columns=["A", "B"],
+        )
+        cov = pd.DataFrame(
+            [[0.01, 0.001], [0.001, 0.04]],
+            index=["A", "B"],
+            columns=["A", "B"],
+        )
+        sample_frame = pd.DataFrame(
+            {"A": [0.01, 0.02], "B": [0.03, -0.01]},
+            index=pd.DatetimeIndex(["2015-03-30", "2015-03-31"]),
+        )
+        returns = pd.DataFrame(
+            {"A": [0.0, 0.01, 0.02], "B": [0.0, -0.01, -0.02]},
+            index=prices.index,
+        )
+        vol = pd.DataFrame({"A": [0.1, 0.1, 0.1], "B": [0.2, 0.2, 0.2]}, index=prices.index)
+        z_returns = pd.DataFrame({"A": [0.0, 0.1, 0.2], "B": [0.0, 0.05, -0.1]}, index=prices.index)
+        trend = pd.DataFrame(0.0, index=prices.index, columns=prices.columns)
+        request = InspectionSnapshotRequest(
+            cleaning_method="rie_spectral",
+            estimator_window=40,
+            output_dir=None,
+        )
+        config = (
+            UniverseConfig(name="cac40", start="2015-01-01"),
+            EstimationConfig(covariance_window=60, covariance_min_periods=2, cleaning_method="empirical"),
+            BacktestConfig(),
+            object(),
+            EvaluationConfig(rebalance_frequency="monthly", evaluation_start="2015-02-27", evaluation_end="2015-03-31"),
+            object(),
+            OutputConfig(),
+        )
+        neutral_vectors = pd.DataFrame(
+            [[1.0, 1.0], [-1.0, 0.0]],
+            index=["A", "B"],
+            columns=["rank_1", "rank_2"],
+        )
+        empirical_result = CorrelationCleanerResult(
+            method="empirical",
+            matrix_type="correlation",
+            sample_size=100,
+            input_matrix=corr,
+            empirical=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.5]),
+                eigenvectors=neutral_vectors,
+                rank_order=(0, 1),
+            ),
+            cleaned_eigenvalues_by_input_order=np.array([1.5, 0.5]),
+            cleaned=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.5]),
+                eigenvectors=neutral_vectors,
+                rank_order=(0, 1),
+            ),
+            cleaned_matrix_pre_projection=corr,
+            cleaned_matrix=corr,
+            postprocess_applied=False,
+            postprocess_steps=(),
+            spectral_source="matrix_diagonalization",
+        )
+        selected_result = CorrelationCleanerResult(
+            method="rie_spectral",
+            matrix_type="correlation",
+            sample_size=100,
+            input_matrix=corr,
+            empirical=empirical_result.empirical,
+            cleaned_eigenvalues_by_input_order=np.array([1.5, 0.5]),
+            cleaned=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.5]),
+                eigenvectors=neutral_vectors,
+                rank_order=(0, 1),
+            ),
+            cleaned_matrix_pre_projection=corr,
+            cleaned_matrix=corr,
+            postprocess_applied=False,
+            postprocess_steps=(),
+            spectral_source="empirical_vectors_plus_xi_hat",
+        )
+
+        with (
+            patch("optimal_tf.services.inspection.load_config", return_value=config),
+            patch(
+                "optimal_tf.services.inspection.load_filtered_prices_for_universe",
+                return_value=(prices, self._quality_report(prices, universe="cac40", start="2015-01-01", reference_start="2015-01-01")),
+            ),
+            patch("optimal_tf.services.inspection.matrix_sample_bundle", return_value=(corr, cov, 100, sample_frame)),
+            patch("optimal_tf.services.inspection.sanitized_normalized_returns", return_value=(returns, vol, z_returns)),
+            patch("optimal_tf.services.inspection.trend_ema_signal", return_value=trend),
+            patch("optimal_tf.services.inspection.clean_correlation_matrix_rich", side_effect=[empirical_result, selected_result]),
+        ):
+            result = run_inspection_snapshot(request)
+
+        self.assertEqual(list(result.correlation_eigenportfolios.columns), ["corr_ev2"])
+        self.assertEqual(list(result.correlation_component_nav.columns), ["corr_ev2"])
+        np.testing.assert_allclose(
+            result.correlation_component_nav["corr_ev2"].to_numpy(dtype=float),
+            np.array([1.01, 1.0302]),
+            atol=1e-8,
         )
 
 

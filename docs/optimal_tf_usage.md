@@ -1,6 +1,6 @@
 # `optimal_tf` User Manual
 
-Last updated: 2026-05-27
+Last updated: 2026-07-15
 
 ## Purpose
 
@@ -26,6 +26,15 @@ Package location:
 
 Shared infrastructure location:
 - `src/trading_core`
+
+## Git Workflow Rule For Market Cache
+
+The files under `data/market_prices_cache/` are local working cache inputs and must not be part of normal branch management, status review, or commits.
+
+Operational rule:
+- do not stage or commit cache refreshes from `data/market_prices_cache/`,
+- keep that path locally marked with `git update-index --skip-worktree` when working in this repository,
+- if a cache file appears in `git status`, treat it as noise unless there is an explicit maintenance task on the cache itself.
 
 ## Installation
 

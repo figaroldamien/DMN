@@ -18,3 +18,9 @@ venv/
 # Generated artifacts and outputs
 artifacts/
 output/
+
+# Market price cache policy
+# `data/market_prices_cache/` is currently versioned historically, but local cache refreshes
+# must not be part of ordinary branch / status / commit workflows.
+# On active worktrees, keep those files excluded from day-to-day git management with
+# `git update-index --skip-worktree` on that path set.

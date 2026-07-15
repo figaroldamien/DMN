@@ -483,6 +483,7 @@ class InspectionSnapshotResult:
     sample_sector_matrix: pd.DataFrame
     empirical_cleaned_sector_matrix: pd.DataFrame
     cleaned_sector_matrix: pd.DataFrame
+    sample_sector_ew_correlation: pd.DataFrame
     sector_pair_counts: pd.DataFrame
     sector_membership: pd.DataFrame
     sample_sub_sector_matrix: pd.DataFrame
@@ -494,6 +495,9 @@ class InspectionSnapshotResult:
     covariance_spectrum: pd.DataFrame
     correlation_eigenvectors: pd.DataFrame
     covariance_eigenvectors: pd.DataFrame
+    correlation_eigenportfolios: pd.DataFrame
+    correlation_component_nav: pd.DataFrame
+    correlation_component_summary: pd.DataFrame
     feature_frame: pd.DataFrame
     cleaner_comparison_frame: pd.DataFrame
     artifacts: RunArtifacts

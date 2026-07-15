@@ -227,6 +227,7 @@ COMMON_COLUMN_CONFIG = {
     'matrix_date': st.column_config.TextColumn('Matrix\ndate', width='small'),
     'rank': st.column_config.NumberColumn('Rank', width='small', format='%d'),
     'eigenvalue': st.column_config.NumberColumn('Eigen\nvalue', width='small', format='%.4f'),
+    'empirical_eigenvalue': st.column_config.NumberColumn('Empirical\neigenvalue', width='small', format='%.4f'),
     'variance_share': st.column_config.NumberColumn('Var.\nshare', width='small', format='%.4f'),
     'cumulative_variance_share': st.column_config.NumberColumn('Cum.\nvar', width='small', format='%.4f'),
     'num_assets': st.column_config.NumberColumn('Num\nassets', width='small', format='%d'),
@@ -1363,6 +1364,40 @@ def _load_benchmark_summary_row(
         return None
 
 
+def _load_universe_benchmark_nav(
+    *,
+    config_path: str,
+    universe_name: str,
+    request_start: str | None,
+    target_index: pd.Index,
+    refresh_policy: str = 'auto',
+) -> tuple[str, pd.Series] | None:
+    if len(target_index) == 0:
+        return None
+    try:
+        universe_cfg, estimation, *_ = load_config(config_path)
+        effective_start = request_start or universe_cfg.start
+        prices = load_prices_for_universe(universe_name, start=effective_start, refresh_policy=refresh_policy)
+        benchmark = get_universe_benchmark(universe_name)
+        if benchmark and benchmark.get('ticker'):
+            benchmark_prices = load_prices_yf([str(benchmark['ticker'])], start=effective_start)
+            benchmark_returns = single_asset_buy_and_hold_benchmark(
+                benchmark_prices,
+                max_abs_return=getattr(estimation, 'max_abs_return', None),
+            )
+            benchmark_label = str(benchmark.get('name') or benchmark.get('ticker'))
+        else:
+            benchmark_returns = equal_weight_rebalanced_benchmark(
+                prices,
+                max_abs_return=getattr(estimation, 'max_abs_return', None),
+            )
+            benchmark_label = 'universe equal-weight index'
+        aligned_returns = benchmark_returns.reindex(pd.Index(target_index)).ffill().fillna(0.0)
+        return benchmark_label, cumulative_nav(aligned_returns)
+    except Exception:
+        return None
+
+
 def _append_market_benchmark_row(
     frame: pd.DataFrame,
     *,
@@ -1820,9 +1855,11 @@ def _render_mp_outlier_eigenvectors(
         st.info("No correlation eigenvalue is outside the Marchenko-Pastur bulk on this date.")
         return
 
-    ticker_labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in eigenvector_frame.index]
-    sector_labels = [str(item[0]) if isinstance(item, tuple) else "" for item in eigenvector_frame.index]
-    sub_sector_labels = [str(item[1]) if isinstance(item, tuple) and len(item) > 1 else "" for item in eigenvector_frame.index]
+    display_eigenvector_frame = eigenvector_frame.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
+
+    ticker_labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in display_eigenvector_frame.index]
+    sector_labels = [str(item[0]) if isinstance(item, tuple) else "" for item in display_eigenvector_frame.index]
+    sub_sector_labels = [str(item[1]) if isinstance(item, tuple) and len(item) > 1 else "" for item in display_eigenvector_frame.index]
     positions = np.arange(len(ticker_labels))
 
     sector_boundaries: list[int] = []
@@ -1859,9 +1896,9 @@ def _render_mp_outlier_eigenvectors(
         rank = int(pd.to_numeric(spectrum_row["rank"], errors="coerce"))
         eigenvalue = float(pd.to_numeric(spectrum_row["eigenvalue"], errors="coerce"))
         column_name = f"corr_ev{rank}"
-        if column_name not in eigenvector_frame.columns:
+        if column_name not in display_eigenvector_frame.columns:
             continue
-        weights = pd.to_numeric(eigenvector_frame[column_name], errors="coerce").to_numpy(dtype=float)
+        weights = pd.to_numeric(display_eigenvector_frame[column_name], errors="coerce").to_numpy(dtype=float)
         ax.axhline(0.0, color="#666666", linewidth=0.9, alpha=0.7)
         ax.plot(positions, weights, color="#2C6E91", linewidth=0.45, alpha=0.9, zorder=1)
         positive_mask = np.isfinite(weights) & (weights >= 0.0)
@@ -1891,8 +1928,98 @@ def _render_mp_outlier_eigenvectors(
     st.pyplot(fig, clear_figure=True)
     st.caption(
         f"Shown eigenvectors correspond to correlation eigenvalues above MP lambda+ = {float(mp_law.lambda_plus):.4f}. "
-        "Sector boundaries are dark; sub-sector boundaries are lighter."
+        "They are displayed exactly as returned by the diagonalization; sector boundaries are dark and sub-sector boundaries are lighter."
     )
+
+
+def _render_weight_subplots(
+    weight_frame: pd.DataFrame,
+    spectrum_frame: pd.DataFrame,
+    *,
+    title_prefix: str,
+) -> None:
+    if weight_frame.empty:
+        st.info("No portfolio weight data available.")
+        return
+
+    ticker_font_size = 12
+    sector_font_size = 13
+    title_font_size = 14
+    axis_label_font_size = 12
+    y_tick_font_size = 11
+
+    display_frame = weight_frame.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
+    ticker_labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in display_frame.index]
+    sector_labels = [str(item[0]) if isinstance(item, tuple) else "" for item in display_frame.index]
+    sub_sector_labels = [str(item[1]) if isinstance(item, tuple) and len(item) > 1 else "" for item in display_frame.index]
+    positions = np.arange(len(ticker_labels))
+
+    sector_boundaries: list[int] = []
+    sub_sector_boundaries: list[int] = []
+    sector_centers: list[float] = []
+    sector_names: list[str] = []
+    if ticker_labels:
+        start = 0
+        current_sector = sector_labels[0]
+        for idx in range(1, len(ticker_labels) + 1):
+            if idx == len(ticker_labels) or sector_labels[idx] != current_sector:
+                sector_centers.append(start + (idx - start - 1) / 2.0)
+                sector_names.append(current_sector)
+                if idx < len(ticker_labels):
+                    start = idx
+                    current_sector = sector_labels[idx]
+    for idx in range(1, len(ticker_labels)):
+        if sector_labels[idx] != sector_labels[idx - 1]:
+            sector_boundaries.append(idx)
+        if sector_labels[idx] != sector_labels[idx - 1] or sub_sector_labels[idx] != sub_sector_labels[idx - 1]:
+            sub_sector_boundaries.append(idx)
+
+    spectrum_lookup = spectrum_frame.copy()
+    if "rank" in spectrum_lookup.columns:
+        spectrum_lookup["rank"] = pd.to_numeric(spectrum_lookup["rank"], errors="coerce")
+        spectrum_lookup = spectrum_lookup.dropna(subset=["rank"]).set_index("rank")
+
+    subplot_count = display_frame.shape[1]
+    fig_width = 18.0
+    fig_height = max(3.0 * subplot_count, 3.8)
+    fig, axes = plt.subplots(subplot_count, 1, sharex=True, figsize=(fig_width, fig_height), dpi=180)
+    if subplot_count == 1:
+        axes = [axes]
+
+    for ax, column_name in zip(axes, display_frame.columns):
+        weights = pd.to_numeric(display_frame[column_name], errors="coerce").to_numpy(dtype=float)
+        rank = int(str(column_name).removeprefix("corr_ev")) if str(column_name).startswith("corr_ev") else None
+        title = str(column_name)
+        if rank is not None and rank in spectrum_lookup.index:
+            eigenvalue = float(pd.to_numeric(spectrum_lookup.loc[rank, "eigenvalue"], errors="coerce"))
+            title = f"{title_prefix} {rank} | eigenvalue={eigenvalue:.4f}"
+        ax.axhline(0.0, color="#666666", linewidth=0.9, alpha=0.7)
+        ax.plot(positions, weights, color="#2C6E91", linewidth=0.45, alpha=0.9, zorder=1)
+        positive_mask = np.isfinite(weights) & (weights >= 0.0)
+        negative_mask = np.isfinite(weights) & (weights < 0.0)
+        ax.vlines(positions[positive_mask], 0.0, weights[positive_mask], color="#2E8B57", linewidth=1.2, alpha=0.9)
+        ax.vlines(positions[negative_mask], 0.0, weights[negative_mask], color="#C44E52", linewidth=1.2, alpha=0.9)
+        ax.scatter(positions[positive_mask], weights[positive_mask], color="#2E8B57", s=16, marker="s", zorder=3)
+        ax.scatter(positions[negative_mask], weights[negative_mask], color="#C44E52", s=16, marker="s", zorder=3)
+        for boundary in sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=1.1, alpha=0.9)
+        for boundary in sub_sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=0.6, alpha=0.28)
+        ax.set_ylabel("Weight", fontsize=axis_label_font_size)
+        ax.tick_params(axis="y", labelsize=y_tick_font_size)
+        ax.set_title(title, loc="left", fontsize=title_font_size)
+        ax.grid(True, axis="y", alpha=0.18)
+        if sector_centers:
+            top_ax = ax.secondary_xaxis("top")
+            top_ax.set_xticks(sector_centers)
+            top_ax.set_xticklabels(sector_names, fontsize=sector_font_size)
+            top_ax.tick_params(length=0, pad=2)
+
+    axes[-1].set_xticks(positions)
+    axes[-1].set_xticklabels(ticker_labels, rotation=90, fontsize=ticker_font_size)
+    axes[-1].set_xlabel("Tickers sorted by sector, sub-sector, then alphabetical order", fontsize=axis_label_font_size)
+    fig.tight_layout()
+    st.pyplot(fig, clear_figure=True)
 
 
 def _render_eigenvalue_distribution_with_mp(
@@ -2181,6 +2308,14 @@ def _search_result_tabs(*, include_nav: bool) -> tuple[Any, ...]:
     return st.tabs(["Summary", "Config", "Artifacts"])
 
 
+def _service_parameter_tabs() -> tuple[Any, Any]:
+    return st.tabs(['Inputs', 'Config guide'])
+
+
+def _result_detail_tabs(*labels: str) -> tuple[Any, ...]:
+    return st.tabs(['Run summary', *labels])
+
+
 def _render_compare_single_strategy_section(
     *,
     default_value: str,
@@ -2461,7 +2596,7 @@ def _render_run_rebalance_row(
 
 
 def _render_service_guidance(*, defaults: str, action: str, recommendation: str | None = None) -> None:
-    with st.container(border=True):
+    with st.expander('Config guide', expanded=False):
         st.caption(f'Config defaults: {defaults}')
         if recommendation:
             st.caption(f'Recommendation: {recommendation}')
@@ -2584,51 +2719,53 @@ elif usage_mode == 'Run' and service_name == 'Allocation':
         caption='Pick one strategy and compute one dated allocation snapshot under the current workspace context.',
     )
     st.markdown('### Service parameters')
-    with st.form('standard_allocation_form'):
-        allocation_date_default = config_defaults.get('allocation', {}).get('date')
-        long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
-        cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
-        shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        window_default, num_assets = _universe_covariance_window_default(universe)
-        _sync_widget_default('standard::allocation::covariance_window', window_default, context=(universe, 'allocation', num_assets))
-
-        cleaning_method, linear_shrinkage, covariance_window = _render_run_estimation_row(
-            cleaning_default=cleaning_default,
-            shrinkage_default=shrinkage_default,
-            cleaning_key='standard::allocation::cleaning_method',
-            shrinkage_key='standard::allocation::linear_shrinkage',
-            window_key='standard::allocation::covariance_window',
-        )
-
-        row2 = st.columns(3)
-        with row2[0]:
-            use_latest_allocation = st.checkbox(
-                'Use latest available allocation date',
-                value=allocation_date_default in (None, '', 'None'),
-                key='standard::allocation::latest_date',
-            )
-        with row2[1]:
-            allocation_date_selected = st.date_input(
-                'Allocation date',
-                value=_parse_default_date(allocation_date_default).date(),
-                key='standard::allocation::date',
-                disabled=use_latest_allocation,
-            )
-            as_of_date = None if use_latest_allocation else pd.Timestamp(allocation_date_selected).date().isoformat()
-        with row2[2]:
-            long_only = st.checkbox('Long only', value=long_only_default, key='standard::allocation::long_only')
-
-        output_dir = _render_compare_output_dir_row(
-            key='standard::allocation::output_dir',
-            default_value='output/optimal_tf/dashboard/allocation',
-        )
+    allocation_date_default = config_defaults.get('allocation', {}).get('date')
+    long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
+    cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+    shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+    window_default, num_assets = _universe_covariance_window_default(universe)
+    _sync_widget_default('standard::allocation::covariance_window', window_default, context=(universe, 'allocation', num_assets))
+    parameter_inputs_tab, parameter_guide_tab = _service_parameter_tabs()
+    with parameter_guide_tab:
         _render_service_guidance(
             defaults=f"strategy={allocation_default}, cleaning={cleaning_default}, covariance window={window_default}",
             recommendation='Prefer the latest available date for an operational snapshot, and switch to a manual date only when you want to inspect a historical allocation.',
-            action=f'compute one allocation snapshot for strategy `{strategy}` on `{as_of_date or "the latest available date"}`.',
+            action='compute one allocation snapshot under the current workspace context.',
         )
         st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
-        run_clicked = st.form_submit_button('Run allocation')
+    with parameter_inputs_tab:
+        with st.form('standard_allocation_form'):
+            cleaning_method, linear_shrinkage, covariance_window = _render_run_estimation_row(
+                cleaning_default=cleaning_default,
+                shrinkage_default=shrinkage_default,
+                cleaning_key='standard::allocation::cleaning_method',
+                shrinkage_key='standard::allocation::linear_shrinkage',
+                window_key='standard::allocation::covariance_window',
+            )
+
+            row2 = st.columns(3)
+            with row2[0]:
+                use_latest_allocation = st.checkbox(
+                    'Use latest available allocation date',
+                    value=allocation_date_default in (None, '', 'None'),
+                    key='standard::allocation::latest_date',
+                )
+            with row2[1]:
+                allocation_date_selected = st.date_input(
+                    'Allocation date',
+                    value=_parse_default_date(allocation_date_default).date(),
+                    key='standard::allocation::date',
+                    disabled=use_latest_allocation,
+                )
+                as_of_date = None if use_latest_allocation else pd.Timestamp(allocation_date_selected).date().isoformat()
+            with row2[2]:
+                long_only = st.checkbox('Long only', value=long_only_default, key='standard::allocation::long_only')
+
+            output_dir = _render_compare_output_dir_row(
+                key='standard::allocation::output_dir',
+                default_value='output/optimal_tf/dashboard/allocation',
+            )
+            run_clicked = st.form_submit_button('Run allocation')
     if run_clicked:
         request = AllocationRequest(
             config_path=workspace_context.config_path,
@@ -2666,30 +2803,33 @@ elif usage_mode == 'Run' and service_name == 'Allocation':
         )
         summary_tab, config_tab, artifacts_tab = _run_result_tabs(include_nav=False)
         with summary_tab:
-            _render_result_summary_block(
-                mode='Run',
-                service='Allocation',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
+            run_summary_tab, allocation_results_tab = _result_detail_tabs('Allocation results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Run',
+                    service='Allocation',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategy': result.strategy,
+                        'cleaning_method': result.cleaning_method,
+                        'covariance_window': result.covariance_window,
+                    },
+                )
+            with allocation_results_tab:
+                st.subheader('Allocation summary')
+                _render_compact_table(pd.DataFrame([{
+                    'universe': result.universe,
                     'strategy': result.strategy,
                     'cleaning_method': result.cleaning_method,
                     'covariance_window': result.covariance_window,
-                },
-            )
-            st.subheader('Allocation summary')
-            _render_compact_table(pd.DataFrame([{
-                'universe': result.universe,
-                'strategy': result.strategy,
-                'cleaning_method': result.cleaning_method,
-                'covariance_window': result.covariance_window,
-                'allocation_date': str(result.allocation_date.date()),
-                'signal_scale': result.signal_scale,
-            }]), priority=['universe', 'strategy', 'cleaning_method', 'covariance_window', 'allocation_date', 'signal_scale'])
-            st.subheader('Weights')
-            _render_compact_table(result.weights.rename('weight').reset_index().rename(columns={'index': 'ticker'}), priority=['ticker', 'weight'])
+                    'allocation_date': str(result.allocation_date.date()),
+                    'signal_scale': result.signal_scale,
+                }]), priority=['universe', 'strategy', 'cleaning_method', 'covariance_window', 'allocation_date', 'signal_scale'])
+                st.subheader('Weights')
+                _render_compact_table(result.weights.rename('weight').reset_index().rename(columns={'index': 'ticker'}), priority=['ticker', 'weight'])
         with config_tab:
             _request_block(result.request, config_defaults, {'universe': result.universe, 'strategy': result.strategy, 'cleaning_method': result.cleaning_method, 'covariance_window': result.covariance_window, 'allocation_date': result.allocation_date, 'signal_scale': result.signal_scale})
         with artifacts_tab:
@@ -2706,44 +2846,46 @@ elif usage_mode == 'Run' and service_name == 'Evaluation':
         caption='Run one packaged backtest for one strategy under the current workspace context.',
     )
     st.markdown('### Service parameters')
-    with st.form('standard_evaluation_form'):
-        cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
-        shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        window_default, num_assets = _universe_covariance_window_default(universe)
-        _sync_widget_default('standard::evaluation::covariance_window', window_default, context=(universe, 'evaluation', num_assets))
-        freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-        long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
-        smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
-
-        cleaning_method, linear_shrinkage, covariance_window = _render_run_estimation_row(
-            cleaning_default=cleaning_default,
-            shrinkage_default=shrinkage_default,
-            cleaning_key='standard::evaluation::cleaning_method',
-            shrinkage_key='standard::evaluation::linear_shrinkage',
-            window_key='standard::evaluation::covariance_window',
-        )
-        rebalance_frequency, weight_smoothing_alpha, long_only = _render_run_rebalance_row(
-            freq_default=freq_default,
-            smoothing_default=smoothing_default,
-            long_only_default=long_only_default,
-            frequency_key='standard::evaluation::rebalance_frequency',
-            smoothing_key='standard::evaluation::weight_smoothing_alpha',
-            long_only_key='standard::evaluation::long_only',
-        )
-        output_dir = _render_compare_output_dir_row(
-            key='standard::evaluation::output_dir',
-            default_value='output/optimal_tf/dashboard/evaluation',
-        )
+    cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+    shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+    window_default, num_assets = _universe_covariance_window_default(universe)
+    _sync_widget_default('standard::evaluation::covariance_window', window_default, context=(universe, 'evaluation', num_assets))
+    freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+    long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
+    smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
+    parameter_inputs_tab, parameter_guide_tab = _service_parameter_tabs()
+    with parameter_guide_tab:
         _render_service_guidance(
             defaults=(
                 f"strategy={strategy_default}, cleaning={cleaning_default}, covariance window={window_default}, "
                 f"rebalance frequency={freq_default}, weight smoothing alpha={smoothing_default}"
             ),
             recommendation='Keep weight smoothing alpha near 1.0 for reference backtests. Lower values mainly help when you want to study turnover and slower reallocation.',
-            action=f'run a backtest for strategy `{strategy}` from `{workspace_context.evaluation_start or "config start"}` to `{workspace_context.evaluation_end or "config end"}`.',
+            action='run one packaged backtest under the current workspace context.',
         )
         st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
-        run_clicked = st.form_submit_button('Run evaluation')
+    with parameter_inputs_tab:
+        with st.form('standard_evaluation_form'):
+            cleaning_method, linear_shrinkage, covariance_window = _render_run_estimation_row(
+                cleaning_default=cleaning_default,
+                shrinkage_default=shrinkage_default,
+                cleaning_key='standard::evaluation::cleaning_method',
+                shrinkage_key='standard::evaluation::linear_shrinkage',
+                window_key='standard::evaluation::covariance_window',
+            )
+            rebalance_frequency, weight_smoothing_alpha, long_only = _render_run_rebalance_row(
+                freq_default=freq_default,
+                smoothing_default=smoothing_default,
+                long_only_default=long_only_default,
+                frequency_key='standard::evaluation::rebalance_frequency',
+                smoothing_key='standard::evaluation::weight_smoothing_alpha',
+                long_only_key='standard::evaluation::long_only',
+            )
+            output_dir = _render_compare_output_dir_row(
+                key='standard::evaluation::output_dir',
+                default_value='output/optimal_tf/dashboard/evaluation',
+            )
+            run_clicked = st.form_submit_button('Run evaluation')
     if run_clicked:
         request = StandardEvaluationRequest(
             config_path=workspace_context.config_path,
@@ -2798,23 +2940,26 @@ elif usage_mode == 'Run' and service_name == 'Evaluation':
         )
         summary_tab, nav_tab, config_tab, artifacts_tab = _run_result_tabs(include_nav=True)
         with summary_tab:
-            _render_result_summary_block(
-                mode='Run',
-                service='Evaluation',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategy': result.strategy,
-                    'cleaning_method': result.cleaning_method,
-                    'covariance_window': result.covariance_window,
-                    'rebalance_frequency': result.rebalance_frequency,
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-            )
-            st.subheader('Summary')
-            _render_performance_summary_table(pd.DataFrame(summary_rows), lead_columns=['strategy'])
+            run_summary_tab, evaluation_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Run',
+                    service='Evaluation',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategy': result.strategy,
+                        'cleaning_method': result.cleaning_method,
+                        'covariance_window': result.covariance_window,
+                        'rebalance_frequency': result.rebalance_frequency,
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                )
+            with evaluation_results_tab:
+                st.subheader('Summary')
+                _render_performance_summary_table(pd.DataFrame(summary_rows), lead_columns=['strategy'])
         with nav_tab:
             nav = (1.0 + result.evaluation_result.daily_returns_net.fillna(0.0)).cumprod()
             benchmark_nav = (1.0 + result.benchmark_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
@@ -2880,182 +3025,177 @@ elif usage_mode == 'Search' and service_name == 'Strategy testbed':
     }
 
     st.markdown('### Service parameters')
-    with st.form('standard_testbed_form'):
-        trend_span_default = int(estimation_defaults.get('trend_span', 252) or 252)
-        trend_alpha_default = estimation_defaults.get('trend_alpha', 0.0)
-        trend_alpha_value = 0.0 if trend_alpha_default in (None, '') else float(trend_alpha_default)
-        smoothing_default = float(backtest_defaults.get('weight_smoothing_alpha', 1.0) or 1.0)
-        cleaning_default = estimation_defaults.get('cleaning_method', CLEANING_OPTIONS[0])
-        shrinkage_default = float(estimation_defaults.get('linear_shrinkage', 0.0) or 0.0)
-        window_default, num_assets = _universe_covariance_window_default(universe)
-        _sync_widget_default('standard::testbed::covariance_window', window_default, context=(universe, 'testbed', num_assets))
-        freq_default = evaluation_defaults.get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-
-        row1 = st.columns(3)
-        with row1[0]:
-            signal_model = st.selectbox(
-                'Signal model',
-                AGNOSTIC_SIGNAL_OPTIONS,
-                index=AGNOSTIC_SIGNAL_OPTIONS.index('ones'),
-                key='standard::testbed::signal_model',
-                disabled=preset_locks['signal_model'],
-            )
-        trend_disabled = signal_model != 'trend_ema'
-        with row1[1]:
-            trend_span = int(
-                st.number_input(
-                    'Trend span',
-                    min_value=2,
-                    value=trend_span_default,
-                    step=1,
-                    key='standard::testbed::trend_span',
-                    disabled=trend_disabled,
-                    help="Used only when Signal model = trend_ema. Ignored otherwise.",
-                )
-            )
-        with row1[2]:
-            trend_alpha = float(
-                st.number_input(
-                    'Trend alpha',
-                    min_value=0.0,
-                    value=trend_alpha_value,
-                    step=0.001,
-                    format='%.6f',
-                    key='standard::testbed::trend_alpha',
-                    disabled=trend_disabled,
-                    help="Used only when Signal model = trend_ema. Ignored otherwise.",
-                )
-            )
-        if trend_disabled:
-            effective_trend_span = None
-            effective_trend_alpha = None
-        else:
-            base_trend_span = trend_span_default
-            base_trend_alpha = trend_alpha_value
-            alpha_changed = trend_alpha != base_trend_alpha
-            span_changed = trend_span != base_trend_span
-            if span_changed and not alpha_changed:
-                effective_trend_span = trend_span
-                effective_trend_alpha = alpha_from_span(trend_span)
-            elif alpha_changed:
-                effective_trend_alpha = trend_alpha
-                effective_trend_span = effective_span_from_alpha(trend_alpha)
-            else:
-                effective_trend_span = trend_span
-                effective_trend_alpha = trend_alpha
-
-        row2 = st.columns(2)
-        with row2[0]:
-            q_model = st.selectbox(
-                'Q model',
-                AGNOSTIC_Q_OPTIONS,
-                index=AGNOSTIC_Q_OPTIONS.index('identity'),
-                key='standard::testbed::q_model',
-                disabled=preset_locks['q_model'],
-            )
-        with row2[1]:
-            phi = float(
-                st.number_input(
-                    'Phi',
-                    min_value=0.0,
-                    max_value=1.0,
-                    value=0.0,
-                    step=0.05,
-                    key='standard::testbed::phi',
-                    disabled=preset_locks['phi'],
-                    help="Used only when Q model = phi_shrink_correlation. Ignored otherwise.",
-                )
-            )
-
-        row3 = st.columns(3)
-        with row3[0]:
-            cleaning_method = st.selectbox(
-                'Cleaning method',
-                CLEANING_OPTIONS,
-                index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
-                key='standard::testbed::cleaning_method',
-            )
-        with row3[1]:
-            linear_shrinkage = _linear_shrinkage_input(
-                key='standard::testbed::linear_shrinkage',
-                default_value=shrinkage_default,
-            )
-        with row3[2]:
-            covariance_window = int(
-                st.number_input(
-                    'Covariance window',
-                    min_value=2,
-                    step=1,
-                    key='standard::testbed::covariance_window',
-                )
-            )
-
-        row4 = st.columns(2)
-        with row4[0]:
-            normalization = st.selectbox(
-                'Normalization',
-                AGNOSTIC_NORMALIZATION_OPTIONS,
-                index=AGNOSTIC_NORMALIZATION_OPTIONS.index('gross'),
-                key='standard::testbed::normalization',
-                disabled=preset_locks['normalization'],
-            )
-        with row4[1]:
-            omega = float(
-                st.number_input(
-                    'Omega',
-                    value=1.0,
-                    step=0.1,
-                    key='standard::testbed::omega',
-                    disabled=preset_locks['omega'],
-                )
-            )
-
-        row5 = st.columns(2)
-        with row5[0]:
-            rebalance_frequency = st.selectbox(
-                'Rebalance frequency',
-                FREQUENCY_OPTIONS,
-                index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
-                key='standard::testbed::rebalance_frequency',
-            )
-        with row5[1]:
-            weight_smoothing_alpha = float(
-                st.number_input(
-                    'Weight smoothing alpha',
-                    min_value=0.0,
-                    max_value=1.0,
-                    value=smoothing_default,
-                    step=0.05,
-                    key='standard::testbed::weight_smoothing_alpha',
-                    help='1.0 = no smoothing. Lower values reduce turnover and slow reallocation.',
-                )
-            )
-
-        row6 = st.columns(2)
-        with row6[0]:
-            output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/testbed', key='standard::testbed::output_dir')
-        with row6[1]:
-            long_only = st.checkbox(
-                'Long only',
-                value=bool(backtest_defaults.get('long_only', False)),
-                key='standard::testbed::long_only',
-            )
+    trend_span_default = int(estimation_defaults.get('trend_span', 252) or 252)
+    trend_alpha_default = estimation_defaults.get('trend_alpha', 0.0)
+    trend_alpha_value = 0.0 if trend_alpha_default in (None, '') else float(trend_alpha_default)
+    smoothing_default = float(backtest_defaults.get('weight_smoothing_alpha', 1.0) or 1.0)
+    cleaning_default = estimation_defaults.get('cleaning_method', CLEANING_OPTIONS[0])
+    shrinkage_default = float(estimation_defaults.get('linear_shrinkage', 0.0) or 0.0)
+    window_default, num_assets = _universe_covariance_window_default(universe)
+    _sync_widget_default('standard::testbed::covariance_window', window_default, context=(universe, 'testbed', num_assets))
+    _sync_widget_default('standard::testbed::phi', float(st.session_state.get('standard::testbed::phi', 0.0) or 0.0), context=(testbed_preset, 'phi'))
+    _sync_widget_default('standard::testbed::omega', float(st.session_state.get('standard::testbed::omega', 1.0) or 1.0), context=(testbed_preset, 'omega'))
+    freq_default = evaluation_defaults.get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+    parameter_inputs_tab, parameter_guide_tab = _service_parameter_tabs()
+    with parameter_guide_tab:
         st.caption(
             f"Config defaults: cleaning={cleaning_default}, window={window_default}, "
             f"shrinkage={shrinkage_default}, frequency={freq_default}, smoothing={smoothing_default}, "
             f"long_only={bool(backtest_defaults.get('long_only', False))}"
         )
-        if trend_disabled:
-            st.caption("`trend span` and `trend alpha` are used only when `Signal model` is `trend_ema`.")
-        else:
-            st.caption(
-                f"Effective trend settings on run: span={effective_trend_span}, "
-                f"alpha={float(effective_trend_alpha):.6f}"
-            )
-        if agnostic_controls_enabled and q_model != 'phi_shrink_correlation':
-            st.caption("`phi` is ignored unless `Q model` is `phi_shrink_correlation`.")
+        st.caption("`trend span` and `trend alpha` are used only when `Signal model` is `trend_ema`.")
+        st.caption("`phi` is ignored unless `Q model` is `phi_shrink_correlation`.")
         st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
-        run_clicked = st.form_submit_button('Run strategy testbed')
+    with parameter_inputs_tab:
+        with st.form('standard_testbed_form'):
+            row1 = st.columns(3)
+            with row1[0]:
+                signal_model = st.selectbox(
+                    'Signal model',
+                    AGNOSTIC_SIGNAL_OPTIONS,
+                    index=AGNOSTIC_SIGNAL_OPTIONS.index('ones'),
+                    key='standard::testbed::signal_model',
+                    disabled=preset_locks['signal_model'],
+                )
+            trend_disabled = signal_model != 'trend_ema'
+            with row1[1]:
+                trend_span = int(
+                    st.number_input(
+                        'Trend span',
+                        min_value=2,
+                        value=trend_span_default,
+                        step=1,
+                        key='standard::testbed::trend_span',
+                        disabled=trend_disabled,
+                        help="Used only when Signal model = trend_ema. Ignored otherwise.",
+                    )
+                )
+            with row1[2]:
+                trend_alpha = float(
+                    st.number_input(
+                        'Trend alpha',
+                        min_value=0.0,
+                        value=trend_alpha_value,
+                        step=0.001,
+                        format='%.6f',
+                        key='standard::testbed::trend_alpha',
+                        disabled=trend_disabled,
+                        help="Used only when Signal model = trend_ema. Ignored otherwise.",
+                    )
+                )
+            if trend_disabled:
+                effective_trend_span = None
+                effective_trend_alpha = None
+            else:
+                base_trend_span = trend_span_default
+                base_trend_alpha = trend_alpha_value
+                alpha_changed = trend_alpha != base_trend_alpha
+                span_changed = trend_span != base_trend_span
+                if span_changed and not alpha_changed:
+                    effective_trend_span = trend_span
+                    effective_trend_alpha = alpha_from_span(trend_span)
+                elif alpha_changed:
+                    effective_trend_alpha = trend_alpha
+                    effective_trend_span = effective_span_from_alpha(trend_alpha)
+                else:
+                    effective_trend_span = trend_span
+                    effective_trend_alpha = trend_alpha
+
+            row2 = st.columns(2)
+            with row2[0]:
+                q_model = st.selectbox(
+                    'Q model',
+                    AGNOSTIC_Q_OPTIONS,
+                    index=AGNOSTIC_Q_OPTIONS.index('identity'),
+                    key='standard::testbed::q_model',
+                    disabled=preset_locks['q_model'],
+                )
+            with row2[1]:
+                phi = float(
+                    st.number_input(
+                        'Phi',
+                        min_value=0.0,
+                        max_value=1.0,
+                        step=0.05,
+                        key='standard::testbed::phi',
+                        disabled=preset_locks['phi'],
+                        help="Used only when Q model = phi_shrink_correlation. Ignored otherwise.",
+                    )
+                )
+
+            row3 = st.columns(3)
+            with row3[0]:
+                cleaning_method = st.selectbox(
+                    'Cleaning method',
+                    CLEANING_OPTIONS,
+                    index=CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in CLEANING_OPTIONS else 0,
+                    key='standard::testbed::cleaning_method',
+                )
+            with row3[1]:
+                linear_shrinkage = _linear_shrinkage_input(
+                    key='standard::testbed::linear_shrinkage',
+                    default_value=shrinkage_default,
+                )
+            with row3[2]:
+                covariance_window = int(
+                    st.number_input(
+                        'Covariance window',
+                        min_value=2,
+                        step=1,
+                        key='standard::testbed::covariance_window',
+                    )
+                )
+
+            row4 = st.columns(2)
+            with row4[0]:
+                normalization = st.selectbox(
+                    'Normalization',
+                    AGNOSTIC_NORMALIZATION_OPTIONS,
+                    index=AGNOSTIC_NORMALIZATION_OPTIONS.index('gross'),
+                    key='standard::testbed::normalization',
+                    disabled=preset_locks['normalization'],
+                )
+            with row4[1]:
+                omega = float(
+                    st.number_input(
+                        'Omega',
+                        step=0.1,
+                        key='standard::testbed::omega',
+                        disabled=preset_locks['omega'],
+                    )
+                )
+
+            row5 = st.columns(2)
+            with row5[0]:
+                rebalance_frequency = st.selectbox(
+                    'Rebalance frequency',
+                    FREQUENCY_OPTIONS,
+                    index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
+                    key='standard::testbed::rebalance_frequency',
+                )
+            with row5[1]:
+                weight_smoothing_alpha = float(
+                    st.number_input(
+                        'Weight smoothing alpha',
+                        min_value=0.0,
+                        max_value=1.0,
+                        value=smoothing_default,
+                        step=0.05,
+                        key='standard::testbed::weight_smoothing_alpha',
+                        help='1.0 = no smoothing. Lower values reduce turnover and slow reallocation.',
+                    )
+                )
+
+            row6 = st.columns(2)
+            with row6[0]:
+                output_dir = st.text_input('Output dir', value='output/optimal_tf/dashboard/testbed', key='standard::testbed::output_dir')
+            with row6[1]:
+                long_only = st.checkbox(
+                    'Long only',
+                    value=bool(backtest_defaults.get('long_only', False)),
+                    key='standard::testbed::long_only',
+                )
+            run_clicked = st.form_submit_button('Run strategy testbed')
     if run_clicked:
         request = StrategyTestbedRequest(
             config_path=workspace_context.config_path,
@@ -3143,29 +3283,32 @@ elif usage_mode == 'Search' and service_name == 'Strategy testbed':
         )
         summary_tab, nav_tab, config_tab, artifacts_tab = _search_result_tabs(include_nav=True)
         with summary_tab:
-            _render_result_summary_block(
-                mode='Search',
-                service='Strategy testbed',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategy': request_strategy,
-                    'strategy_label': result.strategy_label,
-                    'cleaning_method': result.cleaning_method,
-                    'covariance_window': result.covariance_window,
-                    'rebalance_frequency': result.rebalance_frequency,
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-            )
-            st.subheader('Summary')
-            _render_performance_summary_table(pd.DataFrame(summary_rows), lead_columns=['strategy'])
-            st.caption('Parameters used')
-            _render_compact_table(
-                pd.DataFrame(testbed_parameter_rows),
-                priority=['parameter', 'value'],
-            )
+            run_summary_tab, testbed_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Search',
+                    service='Strategy testbed',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategy': request_strategy,
+                        'strategy_label': result.strategy_label,
+                        'cleaning_method': result.cleaning_method,
+                        'covariance_window': result.covariance_window,
+                        'rebalance_frequency': result.rebalance_frequency,
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                )
+            with testbed_results_tab:
+                st.subheader('Summary')
+                _render_performance_summary_table(pd.DataFrame(summary_rows), lead_columns=['strategy'])
+                st.caption('Parameters used')
+                _render_compact_table(
+                    pd.DataFrame(testbed_parameter_rows),
+                    priority=['parameter', 'value'],
+                )
         with nav_tab:
             nav = (1.0 + result.evaluation_result.daily_returns_net.fillna(0.0)).cumprod()
             benchmark_nav = (1.0 + result.benchmark_returns.fillna(0.0)).cumprod().reindex(nav.index).ffill()
@@ -3219,63 +3362,67 @@ elif usage_mode == 'Compare' and service_name == 'Compare':
         caption='Select the strategies you want to compare under the same cleaning, window and rebalance assumptions.',
     )
     st.markdown('### Service parameters')
-    with st.form('standard_compare_form'):
-        cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
-        shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
-        freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
-        long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
-        smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
-        window_default, num_assets = _universe_covariance_window_default(universe)
-        _sync_widget_default('standard::compare::covariance_window', window_default, context=(universe, 'compare', num_assets))
-        compare_window: dict[str, int] = {}
-
-        def _compare_window_widget() -> None:
-            compare_window['value'] = int(
-                st.number_input(
-                    'Covariance window',
-                    min_value=2,
-                    step=1,
-                    key='standard::compare::covariance_window',
-                )
-            )
-        cleaning_method, linear_shrinkage = _render_compare_estimation_row(
-            cleaning_default=cleaning_default,
-            shrinkage_default=shrinkage_default,
-            cleaning_key='standard::compare::cleaning_method',
-            shrinkage_key='standard::compare::linear_shrinkage',
-            window_label='Covariance window',
-            window_widget=_compare_window_widget,
-        )
-        covariance_window = compare_window['value']
-
-        compare_backtest: dict[str, Any] = {}
-
-        def _compare_extra_widget() -> None:
-            compare_backtest['long_only'] = st.checkbox('Long only', value=long_only_default, key='standard::compare::long_only')
-
-        rebalance_frequency, weight_smoothing_alpha = _render_compare_rebalance_row(
-            freq_default=freq_default,
-            smoothing_default=smoothing_default,
-            frequency_key='standard::compare::rebalance_frequency',
-            smoothing_key='standard::compare::weight_smoothing_alpha',
-            extra_widget=_compare_extra_widget,
-        )
-        long_only = bool(compare_backtest['long_only'])
-
-        output_dir = _render_compare_output_dir_row(
-            key='standard::compare::output_dir',
-            default_value='output/optimal_tf/dashboard/compare',
-        )
+    cleaning_default = config_defaults.get('estimation', {}).get('cleaning_method', CLEANING_OPTIONS[0])
+    shrinkage_default = float(config_defaults.get('estimation', {}).get('linear_shrinkage', 0.0) or 0.0)
+    freq_default = config_defaults.get('evaluation', {}).get('rebalance_frequency', FREQUENCY_OPTIONS[0])
+    long_only_default = bool(config_defaults.get('backtest', {}).get('long_only', False))
+    smoothing_default = float(config_defaults.get('backtest', {}).get('weight_smoothing_alpha', 1.0) or 1.0)
+    window_default, num_assets = _universe_covariance_window_default(universe)
+    _sync_widget_default('standard::compare::covariance_window', window_default, context=(universe, 'compare', num_assets))
+    parameter_inputs_tab, parameter_guide_tab = _service_parameter_tabs()
+    with parameter_guide_tab:
         _render_service_guidance(
             defaults=(
                 f"strategies={', '.join(compare_defaults)}, cleaning={cleaning_default}, covariance window={window_default}, "
                 f"rebalance frequency={freq_default}, weight smoothing alpha={smoothing_default}"
             ),
             recommendation='Use a compact strategy set when you want a readable NAV comparison. Larger sets are better suited to summary-table inspection first.',
-            action=f'compare {max(1, len(strategies))} strategy selections over the shared evaluation window.',
+            action='compare several strategy selections over one shared evaluation window.',
         )
         st.caption(f'Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)')
-        run_clicked = st.form_submit_button('Run compare')
+    with parameter_inputs_tab:
+        with st.form('standard_compare_form'):
+            compare_window: dict[str, int] = {}
+
+            def _compare_window_widget() -> None:
+                compare_window['value'] = int(
+                    st.number_input(
+                        'Covariance window',
+                        min_value=2,
+                        step=1,
+                        key='standard::compare::covariance_window',
+                    )
+                )
+
+            cleaning_method, linear_shrinkage = _render_compare_estimation_row(
+                cleaning_default=cleaning_default,
+                shrinkage_default=shrinkage_default,
+                cleaning_key='standard::compare::cleaning_method',
+                shrinkage_key='standard::compare::linear_shrinkage',
+                window_label='Covariance window',
+                window_widget=_compare_window_widget,
+            )
+            covariance_window = compare_window['value']
+
+            compare_backtest: dict[str, Any] = {}
+
+            def _compare_extra_widget() -> None:
+                compare_backtest['long_only'] = st.checkbox('Long only', value=long_only_default, key='standard::compare::long_only')
+
+            rebalance_frequency, weight_smoothing_alpha = _render_compare_rebalance_row(
+                freq_default=freq_default,
+                smoothing_default=smoothing_default,
+                frequency_key='standard::compare::rebalance_frequency',
+                smoothing_key='standard::compare::weight_smoothing_alpha',
+                extra_widget=_compare_extra_widget,
+            )
+            long_only = bool(compare_backtest['long_only'])
+
+            output_dir = _render_compare_output_dir_row(
+                key='standard::compare::output_dir',
+                default_value='output/optimal_tf/dashboard/compare',
+            )
+            run_clicked = st.form_submit_button('Run compare')
     if run_clicked:
         request = CompareRequest(
             config_path=config_path_input,
@@ -3329,23 +3476,26 @@ elif usage_mode == 'Compare' and service_name == 'Compare':
         )
         summary_tab, nav_tab, config_tab, artifacts_tab = _comparison_result_tabs()
         with summary_tab:
-            _render_result_summary_block(
-                mode='Compare',
-                service='Compare',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategies': result.strategies,
-                    'cleaning_method': result.cleaning_method,
-                    'covariance_window': result.covariance_window,
-                    'rebalance_frequency': result.rebalance_frequency,
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-            )
-            st.subheader('Summary table')
-            _render_performance_summary_table(comparison_summary, lead_columns=['strategy'])
+            run_summary_tab, compare_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Compare',
+                    service='Compare',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategies': result.strategies,
+                        'cleaning_method': result.cleaning_method,
+                        'covariance_window': result.covariance_window,
+                        'rebalance_frequency': result.rebalance_frequency,
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                )
+            with compare_results_tab:
+                st.subheader('Summary table')
+                _render_performance_summary_table(comparison_summary, lead_columns=['strategy'])
         with nav_tab:
             nav_frame = result.comparison.nav_comparison.copy()
             nav_frame[result.benchmark_label] = result.benchmark_nav.reindex(nav_frame.index).ffill()
@@ -3440,42 +3590,45 @@ elif usage_mode == 'Compare' and service_name == 'Vary cleaning':
     if result is not None:
         summary_tab, nav_tab, config_tab, artifacts_tab = _comparison_result_tabs()
         with summary_tab:
-            _render_result_summary_block(
-                mode='Compare',
-                service='Vary cleaning',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategy': result.request.strategy,
-                    'covariance_window': int(window),
-                    'rebalance_frequency': result.request.rebalance_frequency,
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-                highlights=result.highlights,
-            )
-            st.subheader('Scenario summary')
-            tuning_summary = _append_market_benchmark_row(
-                result.strategy_benchmark,
-                benchmark_label=result.benchmark_label,
-                benchmark_summary=result.benchmark_summary,
-                config_path=config_path_input,
-                universe_name=result.universe,
-                request_start=result.request.start,
-                target_index=result.nav_comparison.index,
-                scenario_column='method',
-            )
-            _render_performance_summary_table(tuning_summary, lead_columns=['method'])
-            st.subheader('Highlights')
-            st.json(result.highlights)
-            st.subheader('Cleaner scree plot')
-            _render_scree_overlay(
-                result.scree_frame,
-                scenario_column='method',
-                title=f'Cleaner scree plot ({strategy}, window={int(window)})',
-                log_scale=result.request.log_scale,
-            )
+            run_summary_tab, vary_cleaning_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Compare',
+                    service='Vary cleaning',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategy': result.request.strategy,
+                        'covariance_window': int(window),
+                        'rebalance_frequency': result.request.rebalance_frequency,
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                    highlights=result.highlights,
+                )
+            with vary_cleaning_results_tab:
+                st.subheader('Scenario summary')
+                tuning_summary = _append_market_benchmark_row(
+                    result.strategy_benchmark,
+                    benchmark_label=result.benchmark_label,
+                    benchmark_summary=result.benchmark_summary,
+                    config_path=config_path_input,
+                    universe_name=result.universe,
+                    request_start=result.request.start,
+                    target_index=result.nav_comparison.index,
+                    scenario_column='method',
+                )
+                _render_performance_summary_table(tuning_summary, lead_columns=['method'])
+                st.subheader('Highlights')
+                st.json(result.highlights)
+                st.subheader('Cleaner scree plot')
+                _render_scree_overlay(
+                    result.scree_frame,
+                    scenario_column='method',
+                    title=f'Cleaner scree plot ({strategy}, window={int(window)})',
+                    log_scale=result.request.log_scale,
+                )
         with nav_tab:
             nav_frame = result.nav_comparison.copy()
             if result.benchmark_label and not result.benchmark_nav.empty:
@@ -3571,40 +3724,43 @@ elif usage_mode == 'Compare' and service_name == 'Vary window':
     if result is not None:
         summary_tab, nav_tab, config_tab, artifacts_tab = _comparison_result_tabs()
         with summary_tab:
-            _render_result_summary_block(
-                mode='Compare',
-                service='Vary window',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategy': result.request.strategy,
-                    'cleaning_method': result.request.method,
-                    'rebalance_frequency': result.request.rebalance_frequency,
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-                highlights=result.highlights,
-            )
-            st.subheader('Scenario summary')
-            tuning_summary = _append_market_benchmark_row(
-                result.strategy_benchmark,
-                benchmark_label=result.benchmark_label,
-                benchmark_summary=result.benchmark_summary,
-                config_path=config_path_input,
-                universe_name=result.universe,
-                request_start=result.request.start,
-                target_index=result.nav_comparison.index,
-                scenario_column='covariance_window',
-            )
-            _render_performance_summary_table(tuning_summary, lead_columns=['covariance_window'])
-            st.subheader('Window scree plot')
-            _render_scree_overlay(
-                result.scree_frame,
-                scenario_column='covariance_window',
-                title=f'Window scree plot ({strategy}, {method})',
-                log_scale=result.request.log_scale,
-            )
+            run_summary_tab, vary_window_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Compare',
+                    service='Vary window',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategy': result.request.strategy,
+                        'cleaning_method': result.request.method,
+                        'rebalance_frequency': result.request.rebalance_frequency,
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                    highlights=result.highlights,
+                )
+            with vary_window_results_tab:
+                st.subheader('Scenario summary')
+                tuning_summary = _append_market_benchmark_row(
+                    result.strategy_benchmark,
+                    benchmark_label=result.benchmark_label,
+                    benchmark_summary=result.benchmark_summary,
+                    config_path=config_path_input,
+                    universe_name=result.universe,
+                    request_start=result.request.start,
+                    target_index=result.nav_comparison.index,
+                    scenario_column='covariance_window',
+                )
+                _render_performance_summary_table(tuning_summary, lead_columns=['covariance_window'])
+                st.subheader('Window scree plot')
+                _render_scree_overlay(
+                    result.scree_frame,
+                    scenario_column='covariance_window',
+                    title=f'Window scree plot ({strategy}, {method})',
+                    log_scale=result.request.log_scale,
+                )
         with nav_tab:
             nav_frame = result.nav_comparison.copy()
             if result.benchmark_label and not result.benchmark_nav.empty:
@@ -3693,34 +3849,37 @@ elif usage_mode == 'Compare' and service_name == 'Vary strategy':
     if result is not None:
         summary_tab, nav_tab, config_tab, artifacts_tab = _comparison_result_tabs()
         with summary_tab:
-            _render_result_summary_block(
-                mode='Compare',
-                service='Vary strategy',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategies': result.request.strategies,
-                    'cleaning_method': result.request.method,
-                    'covariance_window': int(window),
-                    'rebalance_frequency': result.request.rebalance_frequency,
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-                highlights=result.highlights,
-            )
-            st.subheader('Scenario summary')
-            tuning_summary = _append_market_benchmark_row(
-                result.strategy_benchmark,
-                benchmark_label=result.benchmark_label,
-                benchmark_summary=result.benchmark_summary,
-                config_path=config_path_input,
-                universe_name=result.universe,
-                request_start=result.request.start,
-                target_index=result.nav_comparison.index,
-                scenario_column='strategy',
-            )
-            _render_performance_summary_table(tuning_summary, lead_columns=['strategy'])
+            run_summary_tab, vary_strategy_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Compare',
+                    service='Vary strategy',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategies': result.request.strategies,
+                        'cleaning_method': result.request.method,
+                        'covariance_window': int(window),
+                        'rebalance_frequency': result.request.rebalance_frequency,
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                    highlights=result.highlights,
+                )
+            with vary_strategy_results_tab:
+                st.subheader('Scenario summary')
+                tuning_summary = _append_market_benchmark_row(
+                    result.strategy_benchmark,
+                    benchmark_label=result.benchmark_label,
+                    benchmark_summary=result.benchmark_summary,
+                    config_path=config_path_input,
+                    universe_name=result.universe,
+                    request_start=result.request.start,
+                    target_index=result.nav_comparison.index,
+                    scenario_column='strategy',
+                )
+                _render_performance_summary_table(tuning_summary, lead_columns=['strategy'])
         with nav_tab:
             nav_frame = result.nav_comparison.copy()
             if result.benchmark_label and not result.benchmark_nav.empty:
@@ -3827,33 +3986,36 @@ elif usage_mode == 'Compare' and service_name == 'Vary frequency':
     if result is not None:
         summary_tab, nav_tab, config_tab, artifacts_tab = _comparison_result_tabs()
         with summary_tab:
-            _render_result_summary_block(
-                mode='Compare',
-                service='Vary frequency',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategy': result.request.strategy,
-                    'cleaning_method': result.request.method,
-                    'covariance_window': int(window),
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-                highlights=result.highlights,
-            )
-            st.subheader('Scenario summary')
-            tuning_summary = _append_market_benchmark_row(
-                result.strategy_benchmark,
-                benchmark_label=result.benchmark_label,
-                benchmark_summary=result.benchmark_summary,
-                config_path=config_path_input,
-                universe_name=result.universe,
-                request_start=result.request.start,
-                target_index=result.nav_comparison.index,
-                scenario_column='rebalance_frequency',
-            )
-            _render_performance_summary_table(tuning_summary, lead_columns=['rebalance_frequency'])
+            run_summary_tab, vary_frequency_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Compare',
+                    service='Vary frequency',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategy': result.request.strategy,
+                        'cleaning_method': result.request.method,
+                        'covariance_window': int(window),
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                    highlights=result.highlights,
+                )
+            with vary_frequency_results_tab:
+                st.subheader('Scenario summary')
+                tuning_summary = _append_market_benchmark_row(
+                    result.strategy_benchmark,
+                    benchmark_label=result.benchmark_label,
+                    benchmark_summary=result.benchmark_summary,
+                    config_path=config_path_input,
+                    universe_name=result.universe,
+                    request_start=result.request.start,
+                    target_index=result.nav_comparison.index,
+                    scenario_column='rebalance_frequency',
+                )
+                _render_performance_summary_table(tuning_summary, lead_columns=['rebalance_frequency'])
         with nav_tab:
             nav_frame = result.nav_comparison.copy()
             if result.benchmark_label and not result.benchmark_nav.empty:
@@ -3958,26 +4120,29 @@ elif usage_mode == 'Search' and service_name == 'Hyperparameter tuning':
         summary_tab, config_tab, artifacts_tab = _search_result_tabs(include_nav=False)
         with summary_tab:
             skipped_count = int(len(result.skipped_configs))
-            _render_result_summary_block(
-                mode='Search',
-                service='Hyperparameter tuning',
-                request=result.request,
-                result=result,
-                universe=result.universe,
-                artifacts=result.artifacts,
-                resolved={
-                    'strategies': result.request.strategies,
-                    'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
-                },
-                highlights=result.highlights,
-                warnings=[f'{skipped_count} skipped configs'] if skipped_count else None,
-            )
-            st.subheader('Results table')
-            _render_hyperparameter_results_table(result.results_table)
-            st.subheader('Skipped configs')
-            _render_compact_table(result.skipped_configs, priority=['strategy', 'method', 'covariance_window', 'rebalance_frequency', 'num_assets', 'reason'], empty_message='No skipped configurations.')
-            st.subheader('Highlights')
-            st.json(result.highlights)
+            run_summary_tab, hyperparameter_results_tab = _result_detail_tabs('Results')
+            with run_summary_tab:
+                _render_result_summary_block(
+                    mode='Search',
+                    service='Hyperparameter tuning',
+                    request=result.request,
+                    result=result,
+                    universe=result.universe,
+                    artifacts=result.artifacts,
+                    resolved={
+                        'strategies': result.request.strategies,
+                        'weight_smoothing_alpha': result.request.weight_smoothing_alpha,
+                    },
+                    highlights=result.highlights,
+                    warnings=[f'{skipped_count} skipped configs'] if skipped_count else None,
+                )
+            with hyperparameter_results_tab:
+                st.subheader('Results table')
+                _render_hyperparameter_results_table(result.results_table)
+                st.subheader('Skipped configs')
+                _render_compact_table(result.skipped_configs, priority=['strategy', 'method', 'covariance_window', 'rebalance_frequency', 'num_assets', 'reason'], empty_message='No skipped configurations.')
+                st.subheader('Highlights')
+                st.json(result.highlights)
         with config_tab:
             _request_block(result.request, config_defaults, {'universe': result.universe, 'num_scenarios': int(len(result.results_table)), 'skipped_configs': int(len(result.skipped_configs)), 'weight_smoothing_alpha': result.request.weight_smoothing_alpha, 'visible_columns': list(_prepare_table(result.results_table, priority=['strategy', 'method', 'covariance_window', 'rebalance_frequency']).columns), 'highlights': result.highlights})
         with artifacts_tab:
@@ -4126,14 +4291,15 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
         result_estimator_window = inspection_spec['estimator_window']
         results_tab, config_tab, artifacts_tab = _run_result_tabs(include_nav=False)
         with results_tab:
-            run_summary_tab, overview_tab, matrices_tab, sectors_tab, sub_sectors_tab, spectrum_tab, eigenvectors_tab, features_tab = st.tabs([
+            run_summary_tab, overview_tab, matrices_tab, sector_ew_tab, spectrum_tab, eigenvectors_tab, eigenportfolios_tab, eigenportfolio_nav_tab, features_tab = st.tabs([
                 'Run summary',
                 'Overview',
                 'Matrices',
-                'Sector matrix',
-                'Sub-sector matrix',
+                'Sector EW corr',
                 'Spectrum',
                 'Correlation eigenvectors',
+                'Eigenportfolios',
+                'Eigenportfolio NAV',
                 'Features',
             ])
             with run_summary_tab:
@@ -4244,31 +4410,71 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
                     with right:
                         st.caption(f'Sample {primary_label.lower()} preview')
                         _render_colored_frame(sample_matrix, max_rows=30, max_cols=30)
-            with sectors_tab:
-                _render_grouped_matrix_view(
-                    label='Sector matrix',
-                    cleaned_matrix=result.cleaned_sector_matrix,
-                    baseline_matrix=result.empirical_cleaned_sector_matrix,
-                    sample_matrix=result.sample_sector_matrix,
-                    pair_counts=result.sector_pair_counts,
-                    membership=result.sector_membership,
-                    primary_label=primary_label,
+            with sector_ew_tab:
+                st.caption(
+                    "Alternative sector aggregation: for each sector, build an equal-weight portfolio from the "
+                    "underlying tickers in the inspection sample, then compute the correlation matrix across those sector portfolios."
                 )
-            with sub_sectors_tab:
-                _render_grouped_matrix_view(
-                    label='Sub-sector matrix',
-                    cleaned_matrix=result.cleaned_sub_sector_matrix,
-                    baseline_matrix=result.empirical_cleaned_sub_sector_matrix,
-                    sample_matrix=result.sample_sub_sector_matrix,
-                    pair_counts=result.sub_sector_pair_counts,
-                    membership=result.sub_sector_membership,
-                    primary_label=primary_label,
+                st.caption(
+                    f"This uses the same inspection sample input as the snapshot estimator: "
+                    f"{MATRIX_INPUT_LABELS.get(result_input_type, result_input_type)}."
                 )
+                st.subheader('Sector equal-weight portfolio correlation')
+                _render_matrix_heatmap(
+                    result.sample_sector_ew_correlation,
+                    title='Sector EW portfolio correlation',
+                    annotate_values=True,
+                )
+                with st.expander('Open sector EW details', expanded=False):
+                    detail_left, detail_right = st.columns(2)
+                    with detail_left:
+                        st.caption('Group membership')
+                        _render_compact_table(
+                            result.sector_membership,
+                            priority=['group', 'sector', 'num_tickers', 'ticker'],
+                        )
+                    with detail_right:
+                        st.caption('Sector EW correlation preview')
+                        _render_colored_frame(
+                            result.sample_sector_ew_correlation,
+                            max_rows=40,
+                            max_cols=40,
+                            cmap='RdBu_r',
+                        )
             with spectrum_tab:
                 spectrum_frame = result.covariance_spectrum if result_matrix_type == 'covariance' else result.correlation_spectrum
+                empirical_matrix = result.sample_covariance if result_matrix_type == 'covariance' else result.sample_correlation
+                empirical_eigenvalues = np.linalg.eigvalsh(empirical_matrix.to_numpy(dtype=float))[::-1]
+                spectrum_table = spectrum_frame.copy()
+                spectrum_table['empirical_eigenvalue'] = empirical_eigenvalues[: len(spectrum_table)]
                 st.subheader(f'{primary_label} scree plot')
-                st.line_chart(spectrum_frame.set_index('rank')['eigenvalue'])
-                _render_compact_table(spectrum_frame, priority=['rank', 'eigenvalue', 'variance_share', 'cumulative_variance_share'], max_rows=40)
+                spectrum_scale = st.radio(
+                    'Eigenvalue scale',
+                    ['Linear', 'Log'],
+                    horizontal=True,
+                    key='inspection::snapshot::spectrum_scale',
+                )
+                scree_chart = alt.Chart(spectrum_table).mark_line(point=True).encode(
+                    x=alt.X('rank:Q', title='Rank'),
+                    y=alt.Y(
+                        'eigenvalue:Q',
+                        title='Eigenvalue',
+                        scale=alt.Scale(type='log') if spectrum_scale == 'Log' else alt.Scale(type='linear'),
+                    ),
+                    tooltip=[
+                        alt.Tooltip('rank:Q', title='Rank'),
+                        alt.Tooltip('eigenvalue:Q', title='Eigenvalue', format='.6f'),
+                        alt.Tooltip('empirical_eigenvalue:Q', title='Empirical eigenvalue', format='.6f'),
+                        alt.Tooltip('variance_share:Q', title='Variance share', format='.4f'),
+                        alt.Tooltip('cumulative_variance_share:Q', title='Cum. variance', format='.4f'),
+                    ],
+                ).properties(height=320)
+                st.altair_chart(scree_chart, width='stretch')
+                _render_compact_table(
+                    spectrum_table,
+                    priority=['rank', 'eigenvalue', 'empirical_eigenvalue', 'variance_share', 'cumulative_variance_share'],
+                    max_rows=40,
+                )
                 if result_matrix_type == 'correlation':
                     st.subheader('Correlation eigenvalue distribution vs Marchenko-Pastur')
                     _render_eigenvalue_distribution_with_mp(
@@ -4290,9 +4496,67 @@ elif usage_mode == 'Matrix Inspection' and service_name == 'Inspect at date':
                     num_assets=result.num_assets,
                     sample_size=result.sample_size,
                 )
-                with st.expander('Open eigenvector table preview', expanded=False):
-                    leading_cols = result.correlation_eigenvectors.iloc[:, : min(12, result.correlation_eigenvectors.shape[1])]
-                    _render_colored_frame(leading_cols, max_rows=160, max_cols=min(12, leading_cols.shape[1]))
+            with eigenportfolios_tab:
+                st.subheader('Eigenportfolios normalized to sum(weights)=1')
+                st.caption(
+                    'Selected eigenportfolios use the same ranked ordering as the spectrum: all EV outside the MP bulk, '
+                    'plus the next 2 EV. Components with weight sums too close to 0 are excluded.'
+                )
+                if result.correlation_eigenportfolios.empty:
+                    st.info('No investable eigenportfolio could be built under the sum(weights)=1 convention.')
+                else:
+                    _render_weight_subplots(
+                        result.correlation_eigenportfolios,
+                        result.correlation_spectrum,
+                        title_prefix='Eigenportfolio',
+                    )
+            with eigenportfolio_nav_tab:
+                st.subheader('NAV of selected eigenportfolios')
+                st.caption(
+                    'Curves start at evaluation start. Only the selected eigenportfolios are shown: all EV outside the MP bulk, plus the next 2 EV when investable. '
+                    'The table below reports CAGR, annualized volatility, and Sharpe for each selected portfolio.'
+                )
+                if result.correlation_component_nav.empty or result.correlation_component_nav.shape[1] == 0:
+                    st.info('No selected eigenportfolio is available on this date.')
+                else:
+                    nav_frame = result.correlation_component_nav
+                    benchmark_bundle = _load_universe_benchmark_nav(
+                        config_path=result.request.config_path,
+                        universe_name=result.universe,
+                        request_start=result.request.start,
+                        target_index=nav_frame.index,
+                        refresh_policy=result.request.refresh_policy,
+                    )
+                    subplot_count = nav_frame.shape[1]
+                    fig_height = max(3.2 * subplot_count, 3.8)
+                    fig, axes = plt.subplots(subplot_count, 1, sharex=True, figsize=(11, fig_height), dpi=180)
+                    if subplot_count == 1:
+                        axes = [axes]
+                    for idx, (ax, column_name) in enumerate(zip(axes, nav_frame.columns)):
+                        series = pd.to_numeric(nav_frame[column_name], errors='coerce')
+                        ax.plot(series.index, series.to_numpy(dtype=float), color='#2C6E91', linewidth=1.8)
+                        if idx == 0 and benchmark_bundle is not None:
+                            benchmark_label, benchmark_nav = benchmark_bundle
+                            ax.plot(
+                                benchmark_nav.index,
+                                pd.to_numeric(benchmark_nav, errors='coerce').to_numpy(dtype=float),
+                                color='#C44E52',
+                                linewidth=1.6,
+                                alpha=0.9,
+                                label=benchmark_label,
+                            )
+                            ax.legend(loc='best')
+                        ax.set_ylabel('NAV')
+                        ax.set_title(str(column_name), loc='left', fontsize=12)
+                        ax.grid(True, alpha=0.22)
+                    axes[-1].set_xlabel('Date')
+                    fig.tight_layout()
+                    st.pyplot(fig, clear_figure=True)
+                    st.subheader('Eigenportfolio summary')
+                    _render_compact_table(
+                        result.correlation_component_summary,
+                        priority=['eigenportfolio', 'rank', 'variance_share', 'cumulative_variance_share', 'cagr', 'ann_vol', 'sharpe'],
+                    )
             with features_tab:
                 st.subheader('Features at inspection date')
                 _render_colored_frame(result.feature_frame, max_rows=200, max_cols=result.feature_frame.shape[1], cmap='RdYlBu_r')
