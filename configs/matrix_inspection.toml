@@ -16,33 +16,20 @@ max_abs_return = 1.0
 cleaning_method = "rie_spectral"
 linear_shrinkage = 0.0
 rie_bandwidth = 0.001
-trend_alpha = 0.01575
-lltf_l2_reg = 0.0001
-
-[backtest]
-sigma_target_annual = 0.15
-portfolio_vol_target = true
-portfolio_vol_span = 60
-cost_bps = 15.0
-weight_smoothing_alpha = 0.05
-long_only = false
-
-[allocation]
-strategy = "ARP"
 
 [evaluation]
-strategy = "ARP"
 rebalance_frequency = "monthly"
 evaluation_start = "2010-01-01"
 
-[compare]
-strategies = ["ARP", "EW", "NM", "RP"]
-
-[output]
-allocation_csv = "output/matrix_inspection/weights.csv"
-allocation_json = "output/matrix_inspection/weights.json"
-evaluation_dir = "output/matrix_inspection/evaluation_run"
-evaluation_plot = true
-compare_dir = "output/matrix_inspection/compare_run"
-compare_clean_dir = true
-compare_plot = true
+[inspection]
+default_service = "Inspect at date"
+snapshot_date = ""
+snapshot_matrix_type = "correlation"
+snapshot_input_type = "normalized_returns"
+snapshot_estimator_method = "sample_window"
+snapshot_output_dir = "output/matrix_inspection/snapshot"
+interval_matrix_type = "correlation"
+interval_input_type = "normalized_returns"
+interval_estimator_method = "sample_window"
+interval_output_dir = "output/matrix_inspection/interval"
+leading_eigenvectors = 3

@@ -143,7 +143,7 @@ def _toml_array(values: list[Any]) -> str:
 
 def _build_config_toml(payload: dict[str, dict[str, Any]]) -> str:
     lines: list[str] = []
-    section_order = ["universe", "estimation", "backtest", "allocation", "evaluation", "compare", "output"]
+    section_order = ["universe", "estimation", "evaluation", "inspection"]
     for section in section_order:
         values = payload.get(section, {})
         lines.append(f"[{section}]")
@@ -158,6 +158,12 @@ def _build_config_toml(payload: dict[str, dict[str, Any]]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _read_toml_mapping(path: str | Path) -> dict[str, Any]:
+    import tomllib
+
+    return tomllib.loads(Path(path).read_text(encoding="utf-8"))
+
+
 def _drop_empty_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     filtered: list[dict[str, Any]] = []
     for row in rows:
@@ -169,6 +175,7 @@ def _drop_empty_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _load_defaults(config_path: str) -> tuple[dict[str, Any], str | None]:
     try:
+        raw = _read_toml_mapping(config_path)
         universe, estimation, backtest, allocation, evaluation, compare, output = load_config(config_path)
     except Exception as exc:  # pragma: no cover
         return {}, str(exc)
@@ -180,6 +187,7 @@ def _load_defaults(config_path: str) -> tuple[dict[str, Any], str | None]:
         "evaluation": asdict(evaluation),
         "compare": asdict(compare),
         "output": asdict(output),
+        "inspection": raw.get("inspection", {}) if isinstance(raw.get("inspection"), dict) else {},
     }, None
 
 
@@ -194,6 +202,8 @@ def _workspace_overview_rows(config_path: str, config_defaults: dict[str, Any]) 
         {"field": "cleaning_method", "value": str(estimation_defaults.get("cleaning_method", ""))},
         {"field": "covariance_window", "value": str(estimation_defaults.get("covariance_window", ""))},
         {"field": "rebalance_frequency", "value": str(evaluation_defaults.get("rebalance_frequency", ""))},
+        {"field": "snapshot_output_dir", "value": str(config_defaults.get("inspection", {}).get("snapshot_output_dir", ""))},
+        {"field": "interval_output_dir", "value": str(config_defaults.get("inspection", {}).get("interval_output_dir", ""))},
         {
             "field": "evaluation_window",
             "value": " -> ".join(
@@ -238,6 +248,10 @@ def _mode_service_selector() -> tuple[str, str]:
     )
     catalog = MODE_SERVICES[usage_mode]
     service_options = list(catalog.keys())
+    if usage_mode == "Inspection":
+        preferred_service = st.session_state.get("matrix_inspection::default_service_from_config")
+        if preferred_service in service_options and st.session_state.get("matrix_inspection::service_name") not in service_options:
+            st.session_state["matrix_inspection::service_name"] = preferred_service
     current_service = st.session_state.get("matrix_inspection::service_name")
     if current_service not in service_options:
         st.session_state["matrix_inspection::service_name"] = service_options[0]
@@ -249,6 +263,11 @@ def _mode_service_selector() -> tuple[str, str]:
     )
     st.sidebar.caption(catalog[service_name])
     return usage_mode, service_name
+
+
+def _inspection_defaults(config_defaults: dict[str, Any]) -> dict[str, Any]:
+    defaults = config_defaults.get("inspection", {})
+    return defaults if isinstance(defaults, dict) else {}
 
 
 def _parse_default_date(default_value: Any) -> pd.Timestamp:
@@ -296,11 +315,8 @@ def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> 
 
     universe_defaults = config_defaults.get("universe", {})
     estimation_defaults = config_defaults.get("estimation", {})
-    backtest_defaults = config_defaults.get("backtest", {})
-    allocation_defaults = config_defaults.get("allocation", {})
     evaluation_defaults = config_defaults.get("evaluation", {})
-    compare_defaults = config_defaults.get("compare", {})
-    output_defaults = config_defaults.get("output", {})
+    inspection_defaults = config_defaults.get("inspection", {})
 
     with st.form("matrix_inspection_config_editor_form"):
         st.markdown("### Essential defaults")
@@ -346,7 +362,100 @@ def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> 
         with essential_row3[2]:
             evaluation_end = st.text_input("Evaluation end", value=str(evaluation_defaults.get("evaluation_end", "") or ""))
 
-        with st.expander("Advanced defaults", expanded=False):
+        st.markdown("### App defaults")
+        app_row1 = st.columns(3)
+        with app_row1[0]:
+            snapshot_matrix_type = st.selectbox(
+                "Snapshot matrix type",
+                MATRIX_TYPE_OPTIONS,
+                index=MATRIX_TYPE_OPTIONS.index(str(inspection_defaults.get("snapshot_matrix_type", "correlation")))
+                if str(inspection_defaults.get("snapshot_matrix_type", "correlation")) in MATRIX_TYPE_OPTIONS
+                else 0,
+            )
+        with app_row1[1]:
+            snapshot_input_type = st.selectbox(
+                "Snapshot input type",
+                MATRIX_INPUT_OPTIONS,
+                index=MATRIX_INPUT_OPTIONS.index(str(inspection_defaults.get("snapshot_input_type", "normalized_returns")))
+                if str(inspection_defaults.get("snapshot_input_type", "normalized_returns")) in MATRIX_INPUT_OPTIONS
+                else 0,
+            )
+        with app_row1[2]:
+            snapshot_estimator_method = st.selectbox(
+                "Snapshot estimator",
+                MATRIX_ESTIMATOR_OPTIONS,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(str(inspection_defaults.get("snapshot_estimator_method", "sample_window")))
+                if str(inspection_defaults.get("snapshot_estimator_method", "sample_window")) in MATRIX_ESTIMATOR_OPTIONS
+                else 0,
+            )
+
+        app_row2 = st.columns(3)
+        with app_row2[0]:
+            interval_matrix_type = st.selectbox(
+                "Interval matrix type",
+                MATRIX_TYPE_OPTIONS,
+                index=MATRIX_TYPE_OPTIONS.index(str(inspection_defaults.get("interval_matrix_type", "correlation")))
+                if str(inspection_defaults.get("interval_matrix_type", "correlation")) in MATRIX_TYPE_OPTIONS
+                else 0,
+            )
+        with app_row2[1]:
+            interval_input_type = st.selectbox(
+                "Interval input type",
+                MATRIX_INPUT_OPTIONS,
+                index=MATRIX_INPUT_OPTIONS.index(str(inspection_defaults.get("interval_input_type", "normalized_returns")))
+                if str(inspection_defaults.get("interval_input_type", "normalized_returns")) in MATRIX_INPUT_OPTIONS
+                else 0,
+            )
+        with app_row2[2]:
+            interval_estimator_method = st.selectbox(
+                "Interval estimator",
+                MATRIX_ESTIMATOR_OPTIONS,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(str(inspection_defaults.get("interval_estimator_method", "sample_window")))
+                if str(inspection_defaults.get("interval_estimator_method", "sample_window")) in MATRIX_ESTIMATOR_OPTIONS
+                else 0,
+            )
+
+        app_row3 = st.columns(3)
+        with app_row3[0]:
+            default_snapshot_date = st.text_input(
+                "Default snapshot date",
+                value=str(inspection_defaults.get("snapshot_date", "") or ""),
+                help="Leave empty to default to latest available date.",
+            )
+        with app_row3[1]:
+            snapshot_output_dir = st.text_input(
+                "Snapshot output dir",
+                value=str(inspection_defaults.get("snapshot_output_dir", "output/matrix_inspection/snapshot") or ""),
+            )
+        with app_row3[2]:
+            interval_output_dir = st.text_input(
+                "Interval output dir",
+                value=str(inspection_defaults.get("interval_output_dir", "output/matrix_inspection/interval") or ""),
+            )
+
+        app_row4 = st.columns(2)
+        with app_row4[0]:
+            interval_leading_eigenvectors = int(
+                st.number_input(
+                    "Default leading eigenvectors",
+                    min_value=1,
+                    max_value=12,
+                    value=int(inspection_defaults.get("leading_eigenvectors", 3) or 3),
+                    step=1,
+                )
+            )
+        with app_row4[1]:
+            default_service = st.selectbox(
+                "Default inspection service",
+                ["Inspect at date", "Inspect over interval"],
+                index=["Inspect at date", "Inspect over interval"].index(
+                    str(inspection_defaults.get("default_service", "Inspect at date"))
+                )
+                if str(inspection_defaults.get("default_service", "Inspect at date")) in {"Inspect at date", "Inspect over interval"}
+                else 0,
+            )
+
+        with st.expander("Advanced engine defaults", expanded=False):
             adv_left, adv_right = st.columns(2)
             with adv_left:
                 vol_span = int(st.number_input("Vol span", min_value=2, value=int(estimation_defaults.get("vol_span", 60) or 60), step=1))
@@ -371,17 +480,6 @@ def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> 
                     "Quality require latest price",
                     value=bool(universe_defaults.get("quality_require_latest_price", True)),
                 )
-
-        with st.expander("Output defaults", expanded=False):
-            out_left, out_right = st.columns(2)
-            with out_left:
-                allocation_csv = st.text_input("Allocation CSV", value=str(output_defaults.get("allocation_csv", "output/matrix_inspection/weights.csv") or ""))
-                allocation_json = st.text_input("Allocation JSON", value=str(output_defaults.get("allocation_json", "output/matrix_inspection/weights.json") or ""))
-                evaluation_dir = st.text_input("Evaluation dir", value=str(output_defaults.get("evaluation_dir", "output/matrix_inspection/evaluation_run") or ""))
-            with out_right:
-                compare_dir = st.text_input("Compare dir", value=str(output_defaults.get("compare_dir", "output/matrix_inspection/compare_run") or ""))
-                compare_clean_dir = st.checkbox("Clean compare dir", value=bool(output_defaults.get("compare_clean_dir", True)))
-                compare_plot = st.checkbox("Compare plot", value=bool(output_defaults.get("compare_plot", True)))
 
         save_col, path_col = st.columns([1, 3])
         with save_col:
@@ -413,34 +511,23 @@ def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> 
                 "trend_alpha": float(estimation_defaults.get("trend_alpha", 0.01575) or 0.01575),
                 "lltf_l2_reg": float(estimation_defaults.get("lltf_l2_reg", 0.0001) or 0.0001),
             },
-            "backtest": {
-                "sigma_target_annual": float(backtest_defaults.get("sigma_target_annual", 0.15) or 0.15),
-                "portfolio_vol_target": bool(backtest_defaults.get("portfolio_vol_target", True)),
-                "portfolio_vol_span": int(backtest_defaults.get("portfolio_vol_span", 60) or 60),
-                "cost_bps": float(backtest_defaults.get("cost_bps", 15.0) or 15.0),
-                "weight_smoothing_alpha": float(backtest_defaults.get("weight_smoothing_alpha", 0.05) or 0.05),
-                "long_only": bool(backtest_defaults.get("long_only", False)),
-            },
-            "allocation": {
-                "strategy": str(allocation_defaults.get("strategy", "ARP") or "ARP"),
-            },
             "evaluation": {
-                "strategy": str(evaluation_defaults.get("strategy", "ARP") or "ARP"),
                 "rebalance_frequency": rebalance_frequency,
                 "evaluation_start": evaluation_start,
                 "evaluation_end": evaluation_end,
             },
-            "compare": {
-                "strategies": list(compare_defaults.get("strategies") or ["ARP", "EW", "NM", "RP"]),
-            },
-            "output": {
-                "allocation_csv": allocation_csv,
-                "allocation_json": allocation_json,
-                "evaluation_dir": evaluation_dir,
-                "evaluation_plot": bool(output_defaults.get("evaluation_plot", True)),
-                "compare_dir": compare_dir,
-                "compare_clean_dir": compare_clean_dir,
-                "compare_plot": compare_plot,
+            "inspection": {
+                "default_service": default_service,
+                "snapshot_date": default_snapshot_date,
+                "snapshot_matrix_type": snapshot_matrix_type,
+                "snapshot_input_type": snapshot_input_type,
+                "snapshot_estimator_method": snapshot_estimator_method,
+                "snapshot_output_dir": snapshot_output_dir,
+                "interval_matrix_type": interval_matrix_type,
+                "interval_input_type": interval_input_type,
+                "interval_estimator_method": interval_estimator_method,
+                "interval_output_dir": interval_output_dir,
+                "leading_eigenvectors": interval_leading_eigenvectors,
             },
         }
         destination = Path(save_path).expanduser()
@@ -1125,6 +1212,15 @@ config_defaults, config_error = _load_defaults(config_path_input)
 if config_error:
     st.warning(f"Unable to load config defaults from {config_path_input}: {config_error}")
     config_defaults = {}
+inspection_defaults = _inspection_defaults(config_defaults)
+st.session_state["matrix_inspection::default_service_from_config"] = str(
+    inspection_defaults.get("default_service", "Inspect at date") or "Inspect at date"
+)
+if (
+    usage_mode == "Inspection"
+    and st.session_state.get("matrix_inspection::service_name") not in MODE_SERVICES["Inspection"]
+):
+    st.session_state["matrix_inspection::service_name"] = st.session_state["matrix_inspection::default_service_from_config"]
 
 workspace_defaults = workspace_defaults_from_config(
     config_defaults,
@@ -1190,18 +1286,36 @@ elif usage_mode == "Inspection" and service_name == "Inspect at date":
     if cleaning_default == "rie":
         cleaning_default = "rie_spectral"
     shrinkage_default = float(config_defaults.get("estimation", {}).get("linear_shrinkage", 0.0) or 0.0)
-    inspection_date_default = config_defaults.get("allocation", {}).get("date")
+    inspection_date_default = inspection_defaults.get("snapshot_date")
+    matrix_type_default = str(inspection_defaults.get("snapshot_matrix_type", "correlation") or "correlation")
+    input_type_default = str(inspection_defaults.get("snapshot_input_type", "normalized_returns") or "normalized_returns")
+    estimator_method_default = str(inspection_defaults.get("snapshot_estimator_method", "sample_window") or "sample_window")
     window_default, num_assets = _universe_covariance_window_default(universe)
     st.caption(f"Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)")
     with st.form("matrix_inspection_snapshot_form"):
         row1 = st.columns(2)
         with row1[0]:
-            matrix_type = st.selectbox("Matrix type", MATRIX_TYPE_OPTIONS, format_func=lambda value: MATRIX_TYPE_LABELS.get(value, value))
+            matrix_type = st.selectbox(
+                "Matrix type",
+                MATRIX_TYPE_OPTIONS,
+                index=MATRIX_TYPE_OPTIONS.index(matrix_type_default) if matrix_type_default in MATRIX_TYPE_OPTIONS else 0,
+                format_func=lambda value: MATRIX_TYPE_LABELS.get(value, value),
+            )
         with row1[1]:
-            input_type = st.selectbox("Input type", MATRIX_INPUT_OPTIONS, format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value))
+            input_type = st.selectbox(
+                "Input type",
+                MATRIX_INPUT_OPTIONS,
+                index=MATRIX_INPUT_OPTIONS.index(input_type_default) if input_type_default in MATRIX_INPUT_OPTIONS else 0,
+                format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value),
+            )
         row2 = st.columns(3)
         with row2[0]:
-            estimator_method = st.selectbox("Estimator", MATRIX_ESTIMATOR_OPTIONS, format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value))
+            estimator_method = st.selectbox(
+                "Estimator",
+                MATRIX_ESTIMATOR_OPTIONS,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_method_default) if estimator_method_default in MATRIX_ESTIMATOR_OPTIONS else 0,
+                format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value),
+            )
         with row2[1]:
             estimator_window = int(st.number_input("Estimator window", min_value=2, value=int(window_default), step=1))
         with row2[2]:
@@ -1225,7 +1339,10 @@ elif usage_mode == "Inspection" and service_name == "Inspect at date":
             use_latest = st.checkbox("Use latest available inspection date", value=inspection_date_default in (None, "", "None"))
         with row4[1]:
             inspection_date_selected = st.date_input("Inspection date", value=_parse_default_date(inspection_date_default).date(), disabled=use_latest)
-        output_dir = st.text_input("Output dir", value="output/optimal_tf/dashboard/inspection_snapshot")
+        output_dir = st.text_input(
+            "Output dir",
+            value=str(inspection_defaults.get("snapshot_output_dir", "output/matrix_inspection/snapshot") or "output/matrix_inspection/snapshot"),
+        )
         run_clicked = st.form_submit_button("Run inspect at date")
     if run_clicked:
         request = InspectionSnapshotRequest(
@@ -1256,17 +1373,36 @@ elif usage_mode == "Inspection" and service_name == "Inspect over interval":
         cleaning_default = "rie_spectral"
     shrinkage_default = float(config_defaults.get("estimation", {}).get("linear_shrinkage", 0.0) or 0.0)
     freq_default = config_defaults.get("evaluation", {}).get("rebalance_frequency", FREQUENCY_OPTIONS[0])
+    matrix_type_default = str(inspection_defaults.get("interval_matrix_type", "correlation") or "correlation")
+    input_type_default = str(inspection_defaults.get("interval_input_type", "normalized_returns") or "normalized_returns")
+    estimator_method_default = str(inspection_defaults.get("interval_estimator_method", "sample_window") or "sample_window")
+    leading_default = int(inspection_defaults.get("leading_eigenvectors", 3) or 3)
     window_default, num_assets = _universe_covariance_window_default(universe)
     st.caption(f"Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)")
     with st.form("matrix_inspection_interval_form"):
         row1 = st.columns(2)
         with row1[0]:
-            matrix_type = st.selectbox("Matrix type", MATRIX_TYPE_OPTIONS, format_func=lambda value: MATRIX_TYPE_LABELS.get(value, value))
+            matrix_type = st.selectbox(
+                "Matrix type",
+                MATRIX_TYPE_OPTIONS,
+                index=MATRIX_TYPE_OPTIONS.index(matrix_type_default) if matrix_type_default in MATRIX_TYPE_OPTIONS else 0,
+                format_func=lambda value: MATRIX_TYPE_LABELS.get(value, value),
+            )
         with row1[1]:
-            input_type = st.selectbox("Input type", MATRIX_INPUT_OPTIONS, format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value))
+            input_type = st.selectbox(
+                "Input type",
+                MATRIX_INPUT_OPTIONS,
+                index=MATRIX_INPUT_OPTIONS.index(input_type_default) if input_type_default in MATRIX_INPUT_OPTIONS else 0,
+                format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value),
+            )
         row2 = st.columns(3)
         with row2[0]:
-            estimator_method = st.selectbox("Estimator", MATRIX_ESTIMATOR_OPTIONS, format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value))
+            estimator_method = st.selectbox(
+                "Estimator",
+                MATRIX_ESTIMATOR_OPTIONS,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_method_default) if estimator_method_default in MATRIX_ESTIMATOR_OPTIONS else 0,
+                format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value),
+            )
         with row2[1]:
             estimator_window = int(st.number_input("Estimator window", min_value=2, value=int(window_default), step=1))
         with row2[2]:
@@ -1293,8 +1429,11 @@ elif usage_mode == "Inspection" and service_name == "Inspect over interval":
                 index=FREQUENCY_OPTIONS.index(freq_default) if freq_default in FREQUENCY_OPTIONS else 0,
             )
         with row4[1]:
-            leading_eigenvectors = int(st.number_input("Leading eigenvectors", min_value=1, max_value=12, value=3, step=1))
-        output_dir = st.text_input("Output dir", value="output/optimal_tf/dashboard/inspection_interval")
+            leading_eigenvectors = int(st.number_input("Leading eigenvectors", min_value=1, max_value=12, value=leading_default, step=1))
+        output_dir = st.text_input(
+            "Output dir",
+            value=str(inspection_defaults.get("interval_output_dir", "output/matrix_inspection/interval") or "output/matrix_inspection/interval"),
+        )
         run_clicked = st.form_submit_button("Run inspect over interval")
     if run_clicked:
         request = InspectionIntervalRequest(
