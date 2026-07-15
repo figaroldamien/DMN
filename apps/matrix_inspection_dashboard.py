@@ -46,7 +46,17 @@ from trading_core.reporting import (
 from trading_core.reporting.plots import plt
 from trading_core.risk import marchenko_pastur_law
 
-DEFAULT_CONFIG = "configs/optimal_tf.example.toml"
+DEFAULT_CONFIG = "configs/matrix_inspection.toml"
+PRODUCT_MODES = ("Workspace", "Inspection")
+MODE_SERVICES = {
+    "Workspace": {
+        "Config editor": "Edit the TOML configuration used by the matrix inspection app.",
+    },
+    "Inspection": {
+        "Inspect at date": "Inspect one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.",
+        "Inspect over interval": "Inspect how cleaned matrices and leading eigenmodes evolve over an interval of rebalance dates.",
+    },
+}
 UNIVERSE_OPTIONS = sorted(MARKET_TICKERS)
 MARKET_UNIVERSES = ["cac40", "dji", "eurostoxx50", "eurostoxx600", "nasdaq100", "sbf120", "sp500"]
 INDEX_UNIVERSES = ["dataset_all", "futures", "index", "table8_all", "world_index", "test"]
@@ -116,6 +126,47 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _toml_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        raise ValueError("None values must be handled before TOML serialization.")
+    if isinstance(value, (int, float)):
+        return repr(value)
+    escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _toml_array(values: list[Any]) -> str:
+    return "[" + ", ".join(_toml_scalar(value) for value in values) + "]"
+
+
+def _build_config_toml(payload: dict[str, dict[str, Any]]) -> str:
+    lines: list[str] = []
+    section_order = ["universe", "estimation", "backtest", "allocation", "evaluation", "compare", "output"]
+    for section in section_order:
+        values = payload.get(section, {})
+        lines.append(f"[{section}]")
+        for key, value in values.items():
+            if value is None or value == "":
+                continue
+            if isinstance(value, (list, tuple)):
+                lines.append(f"{key} = {_toml_array(list(value))}")
+            else:
+                lines.append(f"{key} = {_toml_scalar(value)}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _drop_empty_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for row in rows:
+        values = [value for value in row.values() if value not in (None, "")]
+        if values:
+            filtered.append(row)
+    return filtered
+
+
 def _load_defaults(config_path: str) -> tuple[dict[str, Any], str | None]:
     try:
         universe, estimation, backtest, allocation, evaluation, compare, output = load_config(config_path)
@@ -130,6 +181,26 @@ def _load_defaults(config_path: str) -> tuple[dict[str, Any], str | None]:
         "compare": asdict(compare),
         "output": asdict(output),
     }, None
+
+
+def _workspace_overview_rows(config_path: str, config_defaults: dict[str, Any]) -> list[dict[str, str]]:
+    universe_defaults = config_defaults.get("universe", {})
+    evaluation_defaults = config_defaults.get("evaluation", {})
+    estimation_defaults = config_defaults.get("estimation", {})
+    return [
+        {"field": "config_path", "value": str(config_path)},
+        {"field": "universe", "value": str(universe_defaults.get("name", ""))},
+        {"field": "start", "value": str(universe_defaults.get("start", ""))},
+        {"field": "cleaning_method", "value": str(estimation_defaults.get("cleaning_method", ""))},
+        {"field": "covariance_window", "value": str(estimation_defaults.get("covariance_window", ""))},
+        {"field": "rebalance_frequency", "value": str(evaluation_defaults.get("rebalance_frequency", ""))},
+        {
+            "field": "evaluation_window",
+            "value": " -> ".join(
+                [item for item in [str(evaluation_defaults.get("evaluation_start", "") or ""), str(evaluation_defaults.get("evaluation_end", "") or "")] if item]
+            ),
+        },
+    ]
 
 
 def _format_universe_label(value: str) -> str:
@@ -149,6 +220,35 @@ def _format_universe_label(value: str) -> str:
         "test": "Test",
     }
     return labels.get(value, value)
+
+
+def _handle_navigation_change() -> None:
+    st.session_state["matrix_inspection::pending_signature"] = (
+        st.session_state.get("matrix_inspection::usage_mode", "Workspace"),
+        st.session_state.get("matrix_inspection::service_name", "Config editor"),
+    )
+
+
+def _mode_service_selector() -> tuple[str, str]:
+    usage_mode = st.sidebar.radio(
+        "Usage mode",
+        PRODUCT_MODES,
+        key="matrix_inspection::usage_mode",
+        on_change=_handle_navigation_change,
+    )
+    catalog = MODE_SERVICES[usage_mode]
+    service_options = list(catalog.keys())
+    current_service = st.session_state.get("matrix_inspection::service_name")
+    if current_service not in service_options:
+        st.session_state["matrix_inspection::service_name"] = service_options[0]
+    service_name = st.sidebar.selectbox(
+        "Service",
+        service_options,
+        key="matrix_inspection::service_name",
+        on_change=_handle_navigation_change,
+    )
+    st.sidebar.caption(catalog[service_name])
+    return usage_mode, service_name
 
 
 def _parse_default_date(default_value: Any) -> pd.Timestamp:
@@ -173,6 +273,183 @@ def _linear_shrinkage_input(*, key: str, default_value: float) -> float:
             key=key,
         )
     )
+
+
+def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> None:
+    st.markdown(
+        "This workspace page defines the shared defaults used by the matrix inspection services. "
+        "Use it when you want to change the default market context or persistent inspection assumptions."
+    )
+    st.info(
+        "Use this page when you want to change persistent defaults. "
+        "Use `Inspection` when you want one-off execution under the current workspace."
+    )
+    with st.container(border=True):
+        st.caption("Current workspace")
+        _render_compact_table(
+            pd.DataFrame(_drop_empty_rows(_workspace_overview_rows(config_path, config_defaults))),
+            priority=["field", "value"],
+            empty_message="No workspace defaults available.",
+        )
+    st.caption(f"Editing: `{config_path}`")
+    default_save_path = st.session_state.get("matrix_inspection::config::save_path", config_path)
+
+    universe_defaults = config_defaults.get("universe", {})
+    estimation_defaults = config_defaults.get("estimation", {})
+    backtest_defaults = config_defaults.get("backtest", {})
+    allocation_defaults = config_defaults.get("allocation", {})
+    evaluation_defaults = config_defaults.get("evaluation", {})
+    compare_defaults = config_defaults.get("compare", {})
+    output_defaults = config_defaults.get("output", {})
+
+    with st.form("matrix_inspection_config_editor_form"):
+        st.markdown("### Essential defaults")
+        essential_row1 = st.columns(2)
+        with essential_row1[0]:
+            universe_name = st.selectbox(
+                "Universe",
+                UNIVERSE_OPTIONS,
+                index=UNIVERSE_OPTIONS.index(universe_defaults.get("name", UNIVERSE_OPTIONS[0])) if universe_defaults.get("name") in UNIVERSE_OPTIONS else 0,
+            )
+        with essential_row1[1]:
+            universe_start = st.text_input("Start date", value=str(universe_defaults.get("start", "2000-01-01") or "2000-01-01"))
+
+        essential_row2 = st.columns(3)
+        with essential_row2[0]:
+            cleaning_method = st.selectbox(
+                "Cleaning method",
+                MATRIX_INSPECTION_CLEANING_OPTIONS,
+                index=MATRIX_INSPECTION_CLEANING_OPTIONS.index(estimation_defaults.get("cleaning_method", MATRIX_INSPECTION_CLEANING_OPTIONS[0]))
+                if estimation_defaults.get("cleaning_method") in MATRIX_INSPECTION_CLEANING_OPTIONS
+                else 0,
+            )
+        with essential_row2[1]:
+            covariance_window = int(
+                st.number_input("Covariance window", min_value=2, value=int(estimation_defaults.get("covariance_window", 150) or 150), step=1)
+            )
+        with essential_row2[2]:
+            linear_shrinkage = float(
+                st.number_input("Linear shrinkage", min_value=0.0, max_value=1.0, value=float(estimation_defaults.get("linear_shrinkage", 0.0) or 0.0), step=0.05)
+            )
+
+        essential_row3 = st.columns(3)
+        with essential_row3[0]:
+            rebalance_frequency = st.selectbox(
+                "Rebalance frequency",
+                FREQUENCY_OPTIONS,
+                index=FREQUENCY_OPTIONS.index(evaluation_defaults.get("rebalance_frequency", FREQUENCY_OPTIONS[0]))
+                if evaluation_defaults.get("rebalance_frequency") in FREQUENCY_OPTIONS
+                else 0,
+            )
+        with essential_row3[1]:
+            evaluation_start = st.text_input("Evaluation start", value=str(evaluation_defaults.get("evaluation_start", "") or ""))
+        with essential_row3[2]:
+            evaluation_end = st.text_input("Evaluation end", value=str(evaluation_defaults.get("evaluation_end", "") or ""))
+
+        with st.expander("Advanced defaults", expanded=False):
+            adv_left, adv_right = st.columns(2)
+            with adv_left:
+                vol_span = int(st.number_input("Vol span", min_value=2, value=int(estimation_defaults.get("vol_span", 60) or 60), step=1))
+                covariance_min_periods = int(
+                    st.number_input("Covariance min periods", min_value=1, value=int(estimation_defaults.get("covariance_min_periods", 60) or 60), step=1)
+                )
+                max_abs_return = float(st.number_input("Max abs return", min_value=0.0, value=float(estimation_defaults.get("max_abs_return", 1.0) or 1.0), step=0.1))
+                rie_bandwidth = float(
+                    st.number_input("RIE bandwidth", min_value=0.0, value=float(estimation_defaults.get("rie_bandwidth", 0.001) or 0.001), step=0.0005, format="%.6f")
+                )
+            with adv_right:
+                quality_min_history_days = int(
+                    st.number_input("Quality min history days", min_value=1, value=int(universe_defaults.get("quality_min_history_days", 756) or 756), step=1)
+                )
+                quality_min_coverage_ratio = float(
+                    st.number_input("Quality min coverage ratio", min_value=0.0, max_value=1.0, value=float(universe_defaults.get("quality_min_coverage_ratio", 0.9) or 0.9), step=0.05)
+                )
+                quality_max_internal_missing = int(
+                    st.number_input("Quality max internal missing", min_value=0, value=int(universe_defaults.get("quality_max_internal_missing", 0) or 0), step=1)
+                )
+                quality_require_latest_price = st.checkbox(
+                    "Quality require latest price",
+                    value=bool(universe_defaults.get("quality_require_latest_price", True)),
+                )
+
+        with st.expander("Output defaults", expanded=False):
+            out_left, out_right = st.columns(2)
+            with out_left:
+                allocation_csv = st.text_input("Allocation CSV", value=str(output_defaults.get("allocation_csv", "output/matrix_inspection/weights.csv") or ""))
+                allocation_json = st.text_input("Allocation JSON", value=str(output_defaults.get("allocation_json", "output/matrix_inspection/weights.json") or ""))
+                evaluation_dir = st.text_input("Evaluation dir", value=str(output_defaults.get("evaluation_dir", "output/matrix_inspection/evaluation_run") or ""))
+            with out_right:
+                compare_dir = st.text_input("Compare dir", value=str(output_defaults.get("compare_dir", "output/matrix_inspection/compare_run") or ""))
+                compare_clean_dir = st.checkbox("Clean compare dir", value=bool(output_defaults.get("compare_clean_dir", True)))
+                compare_plot = st.checkbox("Compare plot", value=bool(output_defaults.get("compare_plot", True)))
+
+        save_col, path_col = st.columns([1, 3])
+        with save_col:
+            save_clicked = st.form_submit_button("Save config")
+        with path_col:
+            save_path = st.text_input("Save config as", value=str(default_save_path))
+
+    if save_clicked:
+        st.session_state["matrix_inspection::config::save_path"] = save_path
+        payload = {
+            "universe": {
+                "name": universe_name,
+                "start": universe_start,
+                "quality_filter_enabled": bool(universe_defaults.get("quality_filter_enabled", True)),
+                "quality_min_history_days": quality_min_history_days,
+                "quality_min_coverage_ratio": quality_min_coverage_ratio,
+                "quality_max_internal_missing": quality_max_internal_missing,
+                "quality_max_abs_return": max_abs_return,
+                "quality_require_latest_price": quality_require_latest_price,
+            },
+            "estimation": {
+                "vol_span": vol_span,
+                "covariance_window": covariance_window,
+                "covariance_min_periods": covariance_min_periods,
+                "max_abs_return": max_abs_return,
+                "cleaning_method": cleaning_method,
+                "linear_shrinkage": linear_shrinkage,
+                "rie_bandwidth": rie_bandwidth,
+                "trend_alpha": float(estimation_defaults.get("trend_alpha", 0.01575) or 0.01575),
+                "lltf_l2_reg": float(estimation_defaults.get("lltf_l2_reg", 0.0001) or 0.0001),
+            },
+            "backtest": {
+                "sigma_target_annual": float(backtest_defaults.get("sigma_target_annual", 0.15) or 0.15),
+                "portfolio_vol_target": bool(backtest_defaults.get("portfolio_vol_target", True)),
+                "portfolio_vol_span": int(backtest_defaults.get("portfolio_vol_span", 60) or 60),
+                "cost_bps": float(backtest_defaults.get("cost_bps", 15.0) or 15.0),
+                "weight_smoothing_alpha": float(backtest_defaults.get("weight_smoothing_alpha", 0.05) or 0.05),
+                "long_only": bool(backtest_defaults.get("long_only", False)),
+            },
+            "allocation": {
+                "strategy": str(allocation_defaults.get("strategy", "ARP") or "ARP"),
+            },
+            "evaluation": {
+                "strategy": str(evaluation_defaults.get("strategy", "ARP") or "ARP"),
+                "rebalance_frequency": rebalance_frequency,
+                "evaluation_start": evaluation_start,
+                "evaluation_end": evaluation_end,
+            },
+            "compare": {
+                "strategies": list(compare_defaults.get("strategies") or ["ARP", "EW", "NM", "RP"]),
+            },
+            "output": {
+                "allocation_csv": allocation_csv,
+                "allocation_json": allocation_json,
+                "evaluation_dir": evaluation_dir,
+                "evaluation_plot": bool(output_defaults.get("evaluation_plot", True)),
+                "compare_dir": compare_dir,
+                "compare_clean_dir": compare_clean_dir,
+                "compare_plot": compare_plot,
+            },
+        }
+        destination = Path(save_path).expanduser()
+        if not destination.suffix:
+            destination = destination.with_suffix(".toml")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(_build_config_toml(payload), encoding="utf-8")
+        st.success(f"Config saved to `{destination}`.")
+        st.rerun()
 
 
 def _round_up_to_half_ten(value: float) -> int:
@@ -842,7 +1119,8 @@ def _render_interval_result(result: Any, *, config_defaults: dict[str, Any]) -> 
         _artifacts_block(result.artifacts.files)
 
 
-config_path_input = st.sidebar.text_input("Config path", value=DEFAULT_CONFIG)
+usage_mode, service_name = _mode_service_selector()
+config_path_input = st.sidebar.text_input("Config path", value=DEFAULT_CONFIG, key="matrix_inspection::config_path")
 config_defaults, config_error = _load_defaults(config_path_input)
 if config_error:
     st.warning(f"Unable to load config defaults from {config_path_input}: {config_error}")
@@ -853,41 +1131,49 @@ workspace_defaults = workspace_defaults_from_config(
     default_config_path=config_path_input,
     fallback_universe=UNIVERSE_OPTIONS[0],
 )
-stored_group, group_options, stored_universe = normalize_workspace_selection(
-    universe_groups=UNIVERSE_GROUPS,
-    fallback_universe_options=UNIVERSE_OPTIONS,
-    universe_default=workspace_defaults.universe,
-    stored_group=st.session_state.get("matrix_inspection::universe_group"),
-    stored_universe=st.session_state.get("matrix_inspection::universe"),
-)
-group_names = [name for name, options in UNIVERSE_GROUPS.items() if options]
-universe_group = st.sidebar.selectbox(
-    "Universe group",
-    group_names,
-    index=group_names.index(stored_group),
-    key="matrix_inspection::universe_group",
-)
-group_options = UNIVERSE_GROUPS.get(universe_group, UNIVERSE_OPTIONS) or UNIVERSE_OPTIONS
-universe_default = stored_universe if stored_universe in group_options else group_options[0]
-universe = st.sidebar.selectbox(
-    "Universe",
-    group_options,
-    index=group_options.index(universe_default),
-    key="matrix_inspection::universe",
-    format_func=_format_universe_label,
-)
-start = _date_input_value("Start date", workspace_defaults.start, key="matrix_inspection::start_date")
-evaluation_start = _date_input_value("Evaluation start", workspace_defaults.evaluation_start, key="matrix_inspection::evaluation_start")
-evaluation_end = _date_input_value("Evaluation end", workspace_defaults.evaluation_end, key="matrix_inspection::evaluation_end")
-if st.sidebar.button("Refresh prices now"):
-    _queue_force_refresh()
-if st.session_state.get(REFRESH_NEXT_RUN_KEY, False):
-    st.sidebar.caption("Next run will force-refresh cached prices.")
+universe = workspace_defaults.universe
+start = workspace_defaults.start
+evaluation_start = workspace_defaults.evaluation_start
+evaluation_end = workspace_defaults.evaluation_end
+workspace_universe_group: str | None = None
+
+if usage_mode != "Workspace":
+    stored_group, group_options, stored_universe = normalize_workspace_selection(
+        universe_groups=UNIVERSE_GROUPS,
+        fallback_universe_options=UNIVERSE_OPTIONS,
+        universe_default=workspace_defaults.universe,
+        stored_group=st.session_state.get("matrix_inspection::universe_group"),
+        stored_universe=st.session_state.get("matrix_inspection::universe"),
+    )
+    group_names = [name for name, options in UNIVERSE_GROUPS.items() if options]
+    universe_group = st.sidebar.selectbox(
+        "Universe group",
+        group_names,
+        index=group_names.index(stored_group),
+        key="matrix_inspection::universe_group",
+    )
+    group_options = UNIVERSE_GROUPS.get(universe_group, UNIVERSE_OPTIONS) or UNIVERSE_OPTIONS
+    universe_default = stored_universe if stored_universe in group_options else group_options[0]
+    universe = st.sidebar.selectbox(
+        "Universe",
+        group_options,
+        index=group_options.index(universe_default),
+        key="matrix_inspection::universe",
+        format_func=_format_universe_label,
+    )
+    workspace_universe_group = universe_group
+    start = _date_input_value("Start date", workspace_defaults.start, key="matrix_inspection::start_date")
+    evaluation_start = _date_input_value("Evaluation start", workspace_defaults.evaluation_start, key="matrix_inspection::evaluation_start")
+    evaluation_end = _date_input_value("Evaluation end", workspace_defaults.evaluation_end, key="matrix_inspection::evaluation_end")
+    if st.sidebar.button("Refresh prices now"):
+        _queue_force_refresh()
+    if st.session_state.get(REFRESH_NEXT_RUN_KEY, False):
+        st.sidebar.caption("Next run will force-refresh cached prices.")
 
 workspace_context = build_workspace_context(
     config_path=config_path_input,
     config_defaults=config_defaults,
-    universe_group=universe_group,
+    universe_group=workspace_universe_group,
     universe=universe,
     start=start,
     evaluation_start=evaluation_start,
@@ -895,17 +1181,9 @@ workspace_context = build_workspace_context(
     refresh_pending=bool(st.session_state.get(REFRESH_NEXT_RUN_KEY, False)),
 )
 
-service_name = st.sidebar.radio(
-    "Service",
-    ["Inspect at date", "Inspect over interval"],
-    key="matrix_inspection::service_name",
-)
-st.sidebar.caption(
-    "Diagnostic snapshot of one cleaned-matrix state." if service_name == "Inspect at date"
-    else "Time-series diagnostic view of cleaned matrices and leading eigenmodes."
-)
-
-if service_name == "Inspect at date":
+if usage_mode == "Workspace" and service_name == "Config editor":
+    _render_config_editor(config_path_input, config_defaults)
+elif usage_mode == "Inspection" and service_name == "Inspect at date":
     result_key = "matrix_inspection::snapshot::result"
     st.info("Inspect at date is the static matrix diagnostic view. Use it when you want one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.")
     cleaning_default = config_defaults.get("estimation", {}).get("cleaning_method", MATRIX_INSPECTION_CLEANING_OPTIONS[0])
@@ -970,7 +1248,7 @@ if service_name == "Inspect at date":
     result = st.session_state.get(result_key)
     if result is not None:
         _render_snapshot_result(result, config_defaults=config_defaults)
-else:
+elif usage_mode == "Inspection" and service_name == "Inspect over interval":
     result_key = "matrix_inspection::interval::result"
     st.info("Inspect over interval is the dynamic matrix diagnostic view. Use it when you want to study how spectra and leading eigenmodes evolve over a rebalance interval.")
     cleaning_default = config_defaults.get("estimation", {}).get("cleaning_method", MATRIX_INSPECTION_CLEANING_OPTIONS[0])
