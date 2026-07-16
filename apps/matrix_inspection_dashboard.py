@@ -779,7 +779,8 @@ def _render_matrix_heatmap(
                     "original_pos": original_pos,
                 }
             )
-        if metadata_rows:
+        has_grouping_metadata = any(row["primary_group"] or row["secondary_group"] for row in metadata_rows)
+        if metadata_rows and has_grouping_metadata:
             metadata_frame = pd.DataFrame(metadata_rows).sort_values(
                 by=["group_missing", "primary_group", "subgroup_missing", "secondary_group", "ticker", "original_pos"],
                 kind="stable",
@@ -1169,12 +1170,33 @@ def _sector_color_lookup(ranking_frame: pd.DataFrame) -> dict[str, str]:
     return colors
 
 
+def _blend_hex_color(left: str, right: str, ratio: float) -> str:
+    weight = max(0.0, min(1.0, float(ratio)))
+    left_rgb = tuple(int(left[idx : idx + 2], 16) for idx in (1, 3, 5))
+    right_rgb = tuple(int(right[idx : idx + 2], 16) for idx in (1, 3, 5))
+    blended = tuple(int(round((1.0 - weight) * left_rgb[idx] + weight * right_rgb[idx])) for idx in range(3))
+    return "#" + "".join(f"{channel:02X}" for channel in blended)
+
+
+def _coreness_color_lookup(ranking_frame: pd.DataFrame) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    coreness = pd.to_numeric(ranking_frame.get("coreness"), errors="coerce").fillna(0.0)
+    max_coreness = max(float(coreness.max()), 1e-12)
+    for _, row in ranking_frame.iterrows():
+        ticker = str(row.get("ticker", ""))
+        score = float(pd.to_numeric(row.get("coreness", 0.0), errors="coerce"))
+        ratio = score / max_coreness
+        lookup[ticker] = _blend_hex_color("#9EC5FE", "#D9485F", ratio)
+    return lookup
+
+
 def _build_pyvis_graph_html(
     adjacency_matrix: pd.DataFrame,
     ranking_frame: pd.DataFrame,
     *,
     max_edges: int | None = None,
     height: int = 760,
+    color_mode: str = "sector",
 ) -> tuple[str | None, str | None]:
     try:
         from pyvis.network import Network
@@ -1183,7 +1205,12 @@ def _build_pyvis_graph_html(
 
     weights = adjacency_matrix.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
     ranking_lookup = ranking_frame.set_index("ticker").copy()
-    color_lookup = _sector_color_lookup(ranking_frame)
+    if color_mode == "sector":
+        color_lookup = _sector_color_lookup(ranking_frame)
+    elif color_mode == "coreness":
+        color_lookup = _coreness_color_lookup(ranking_frame)
+    else:
+        return None, f"Unsupported graph color mode `{color_mode}`."
     coreness_series = pd.to_numeric(ranking_lookup.get("coreness"), errors="coerce").fillna(0.0)
     degree_series = pd.to_numeric(ranking_lookup.get("weighted_degree"), errors="coerce").fillna(0.0)
     max_coreness = max(float(coreness_series.max()), 1e-12)
@@ -1216,7 +1243,7 @@ def _build_pyvis_graph_html(
                 f"weighted degree: {degree:.4f}<br>"
                 f"core rank: {core_rank}"
             ),
-            color=color_lookup.get(sector, "#577590"),
+            color=color_lookup.get(ticker_key if color_mode == "coreness" else sector, "#577590"),
             size=node_size,
             borderWidth=border_width,
             x=x_position,
@@ -1487,9 +1514,14 @@ def _render_core_periphery_result(result: Any, *, config_defaults: dict[str, Any
     summary_tab, ranking_tab, graph_tab, matrices_tab, config_tab, artifacts_tab = st.tabs(
         ["Summary", "Ranking", "Graph", "Matrices", "Config", "Artifacts"]
     )
-    ordered_tickers = result.ranking_frame.sort_values(
+    ordered_tickers_desc = result.ranking_frame.sort_values(
         ["coreness", "weighted_degree", "ticker"],
         ascending=[False, False, True],
+        kind="stable",
+    )["ticker"].tolist()
+    ordered_tickers_asc = result.ranking_frame.sort_values(
+        ["coreness", "weighted_degree", "ticker"],
+        ascending=[True, True, True],
         kind="stable",
     )["ticker"].tolist()
     with summary_tab:
@@ -1545,30 +1577,51 @@ def _render_core_periphery_result(result: Any, *, config_defaults: dict[str, Any
                 step=1,
                 key="matrix_inspection::core_periphery::max_edges",
             )
+            st.caption(
+                "Default display keeps roughly 3 edges per ticker, with a floor at 60 edges, "
+                "capped by the number of available non-zero edges."
+            )
         else:
             max_edges = None
             st.caption("MST mode displays the full tree because it is already sparse by construction.")
-        graph_html, graph_error = _build_pyvis_graph_html(
-            result.adjacency_matrix,
-            result.ranking_frame,
-            max_edges=max_edges,
-        )
-        if graph_html is None:
-            st.warning(
-                f"{graph_error} Add `pyvis` to the environment to enable interactive graph rendering."
+        sector_graph_tab, coreness_graph_tab = st.tabs(["Color by sector", "Color by coreness"])
+        with sector_graph_tab:
+            graph_html, graph_error = _build_pyvis_graph_html(
+                result.adjacency_matrix,
+                result.ranking_frame,
+                max_edges=max_edges,
+                color_mode="sector",
             )
-        else:
-            components.html(graph_html, height=760, scrolling=False)
+            if graph_html is None:
+                st.warning(
+                    f"{graph_error} Add `pyvis` to the environment to enable interactive graph rendering."
+                )
+            else:
+                components.html(graph_html, height=760, scrolling=False)
+        with coreness_graph_tab:
+            st.caption("Blue is more peripheral, red is more central.")
+            graph_html, graph_error = _build_pyvis_graph_html(
+                result.adjacency_matrix,
+                result.ranking_frame,
+                max_edges=max_edges,
+                color_mode="coreness",
+            )
+            if graph_html is None:
+                st.warning(
+                    f"{graph_error} Add `pyvis` to the environment to enable interactive graph rendering."
+                )
+            else:
+                components.html(graph_html, height=760, scrolling=False)
     with matrices_tab:
         st.subheader("Filtered graph adjacency ordered by coreness")
-        ordered_adjacency = result.adjacency_matrix.reindex(index=ordered_tickers, columns=ordered_tickers)
+        ordered_adjacency = result.adjacency_matrix.reindex(index=ordered_tickers_asc, columns=ordered_tickers_asc)
         _render_matrix_heatmap(
             ordered_adjacency,
             title=f"Adjacency ({CORE_PERIPHERY_GRAPH_FILTER_LABELS.get(result.graph_filter, result.graph_filter)})",
             compact=True,
         )
         st.subheader("Cleaned correlation ordered by coreness")
-        ordered_correlation = result.cleaned_correlation.reindex(index=ordered_tickers, columns=ordered_tickers)
+        ordered_correlation = result.cleaned_correlation.reindex(index=ordered_tickers_asc, columns=ordered_tickers_asc)
         _render_matrix_heatmap(
             ordered_correlation,
             title="Cleaned correlation ordered by coreness",
