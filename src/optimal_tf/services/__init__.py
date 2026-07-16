@@ -19,6 +19,7 @@ from .evaluation import (
 )
 from .market import MarketSynthesisRequest, MarketSynthesisResult, run_market_synthesis
 from .inspection import (
+    run_core_periphery_snapshot,
     EigenvectorInspectionRequest,
     EigenvectorInspectionResult,
     run_eigenvector_inspection,

@@ -45,6 +45,8 @@ from optimal_tf.strategies.common import resolve_allocation_date, sanitized_norm
 
 from .io import ensure_output_dir, write_json, write_quality_artifacts, write_request_json
 from .models import (
+    CorePeripherySnapshotRequest,
+    CorePeripherySnapshotResult,
     EigenvectorInspectionRequest,
     EigenvectorInspectionResult,
     InspectionIntervalRequest,
@@ -78,6 +80,7 @@ INSPECTION_CLEANING_ALIASES = {
     "rie_spectral": "rie_spectral",
     "rie_reference": "rie_reference",
 }
+CORE_PERIPHERY_GRAPH_FILTER_OPTIONS = {"full_graph", "mst"}
 UNIVERSE_COMPONENTS = {
     "nasdaq100": NASDAQ100_COMPONENTS,
     "cac40": CAC40_COMPONENTS,
@@ -143,6 +146,13 @@ def _resolve_estimator_method(value: str | None, *, fallback: str = "sample_wind
     if resolved is None or resolved not in ESTIMATOR_METHOD_OPTIONS:
         raise ValueError(f"Unknown estimator_method {raw!r}.")
     return resolved
+
+
+def _resolve_core_periphery_graph_filter(value: str | None) -> str:
+    raw = str(value or "full_graph").strip().lower()
+    if raw not in CORE_PERIPHERY_GRAPH_FILTER_OPTIONS:
+        raise ValueError(f"Unsupported core-periphery graph filter {value!r}. Expected one of {sorted(CORE_PERIPHERY_GRAPH_FILTER_OPTIONS)}.")
+    return raw
 
 
 def _resolve_estimator_window(request, estimation) -> int:
@@ -828,6 +838,125 @@ def _equal_weight_group_correlation(
     return ew_frame.corr()
 
 
+def _correlation_distance_matrix(correlation: pd.DataFrame) -> pd.DataFrame:
+    clipped = correlation.apply(pd.to_numeric, errors="coerce").clip(lower=-1.0, upper=1.0)
+    distances = np.sqrt(np.clip(2.0 * (1.0 - clipped.to_numpy(dtype=float)), 0.0, None))
+    distance_frame = pd.DataFrame(distances, index=clipped.index.copy(), columns=clipped.columns.copy())
+    for idx in range(len(distance_frame.index)):
+        distance_frame.iat[idx, idx] = 0.0
+    return distance_frame
+
+
+def _minimum_spanning_tree_mask(distance_matrix: pd.DataFrame) -> pd.DataFrame:
+    labels = list(distance_matrix.index)
+    size = len(labels)
+    mask = pd.DataFrame(False, index=labels, columns=labels, dtype=bool)
+    if size <= 1:
+        return mask
+    distances = distance_matrix.to_numpy(dtype=float)
+    visited = {0}
+    while len(visited) < size:
+        best_edge: tuple[int, int] | None = None
+        best_value = float("inf")
+        for left in visited:
+            for right in range(size):
+                if right in visited or left == right:
+                    continue
+                value = float(distances[left, right])
+                if not np.isfinite(value):
+                    continue
+                if value < best_value:
+                    best_value = value
+                    best_edge = (left, right)
+        if best_edge is None:
+            raise ValueError("Unable to build a minimum spanning tree from the distance matrix.")
+        left, right = best_edge
+        mask.iat[left, right] = True
+        mask.iat[right, left] = True
+        visited.add(right)
+    return mask
+
+
+def _build_core_periphery_adjacency(
+    correlation: pd.DataFrame,
+    *,
+    graph_filter: str,
+    min_distance: float = 1e-6,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    distance_matrix = _correlation_distance_matrix(correlation)
+    if graph_filter == "full_graph":
+        edge_mask = pd.DataFrame(True, index=distance_matrix.index, columns=distance_matrix.columns, dtype=bool)
+        for idx in range(len(edge_mask.index)):
+            edge_mask.iat[idx, idx] = False
+    elif graph_filter == "mst":
+        edge_mask = _minimum_spanning_tree_mask(distance_matrix)
+    else:  # pragma: no cover
+        raise ValueError(f"Unsupported graph filter {graph_filter!r}.")
+    safe_distance = distance_matrix.clip(lower=float(min_distance))
+    adjacency = pd.DataFrame(0.0, index=distance_matrix.index.copy(), columns=distance_matrix.columns.copy(), dtype=float)
+    adjacency = adjacency.where(~edge_mask, 1.0 / safe_distance)
+    adjacency = adjacency.where(edge_mask, 0.0)
+    for idx in range(len(adjacency.index)):
+        adjacency.iat[idx, idx] = 0.0
+    return distance_matrix, adjacency
+
+
+def _persistence_probability(adjacency: pd.DataFrame, labels: list[str]) -> float:
+    if not labels:
+        return 0.0
+    numerator = float(np.nansum(adjacency.loc[labels, labels].to_numpy(dtype=float)))
+    denominator = float(np.nansum(adjacency.loc[labels, :].to_numpy(dtype=float)))
+    if denominator <= 0.0:
+        return 0.0
+    return numerator / denominator
+
+
+def _core_periphery_coreness(adjacency: pd.DataFrame) -> pd.DataFrame:
+    if adjacency.empty:
+        return pd.DataFrame(columns=["ticker", "weighted_degree", "inclusion_order", "coreness"])
+    weights = adjacency.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
+    for idx in range(len(weights.index)):
+        weights.iat[idx, idx] = 0.0
+    weighted_degree = weights.sum(axis=1)
+    remaining = [str(label) for label in weights.index]
+    start_label = min(remaining, key=lambda label: (float(weighted_degree.loc[label]), label))
+    subset = [start_label]
+    remaining.remove(start_label)
+    rows = [{"ticker": start_label, "weighted_degree": float(weighted_degree.loc[start_label]), "inclusion_order": 1, "coreness": 0.0}]
+    current_gamma = 0.0
+    inclusion_order = 2
+    while remaining:
+        best_label: str | None = None
+        best_gamma = float("inf")
+        best_degree = float("inf")
+        for candidate in remaining:
+            candidate_gamma = _persistence_probability(weights, subset + [candidate])
+            candidate_degree = float(weighted_degree.loc[candidate])
+            if (
+                candidate_gamma < best_gamma - 1e-12
+                or (abs(candidate_gamma - best_gamma) <= 1e-12 and candidate_degree < best_degree - 1e-12)
+                or (abs(candidate_gamma - best_gamma) <= 1e-12 and abs(candidate_degree - best_degree) <= 1e-12 and (best_label is None or candidate < best_label))
+            ):
+                best_label = candidate
+                best_gamma = candidate_gamma
+                best_degree = candidate_degree
+        if best_label is None:  # pragma: no cover
+            break
+        current_gamma = max(current_gamma, float(best_gamma))
+        subset.append(best_label)
+        remaining.remove(best_label)
+        rows.append(
+            {
+                "ticker": best_label,
+                "weighted_degree": float(weighted_degree.loc[best_label]),
+                "inclusion_order": inclusion_order,
+                "coreness": current_gamma,
+            }
+        )
+        inclusion_order += 1
+    return pd.DataFrame(rows)
+
+
 def _spectrum_frame(eigenvalues: np.ndarray, *, label: str) -> pd.DataFrame:
     total = float(np.sum(eigenvalues))
     cumulative = np.cumsum(eigenvalues)
@@ -1121,6 +1250,11 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         metadata,
         level="sub_sector",
     )
+    sample_sub_sector_ew_correlation = _equal_weight_group_correlation(
+        sample_frame.reindex(columns=sorted_tickers),
+        metadata,
+        level="sub_sector",
+    )
     empirical_cleaned_sub_sector_matrix, _, _ = _aggregate_matrix_by_groups(
         sorted_empirical_cleaned_cov if matrix_type == "covariance" else sorted_empirical_cleaned_corr,
         metadata,
@@ -1203,6 +1337,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         sub_sector_matrix_path = outdir / "cleaned_sub_sector_matrix.csv"
         sub_sector_baseline_path = outdir / "empirical_cleaned_sub_sector_matrix.csv"
         sub_sector_sample_path = outdir / "sample_sub_sector_matrix.csv"
+        sub_sector_ew_corr_path = outdir / "sample_sub_sector_ew_correlation.csv"
         sub_sector_counts_path = outdir / "sub_sector_pair_counts.csv"
         sub_sector_membership_path = outdir / "sub_sector_membership.csv"
         corr_spectrum_path = outdir / "correlation_spectrum.csv"
@@ -1229,6 +1364,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         cleaned_sub_sector_matrix.to_csv(sub_sector_matrix_path)
         empirical_cleaned_sub_sector_matrix.to_csv(sub_sector_baseline_path)
         sample_sub_sector_matrix.to_csv(sub_sector_sample_path)
+        sample_sub_sector_ew_correlation.to_csv(sub_sector_ew_corr_path)
         sub_sector_pair_counts.to_csv(sub_sector_counts_path)
         sub_sector_membership.to_csv(sub_sector_membership_path, index=False)
         corr_spectrum.to_csv(corr_spectrum_path, index=False)
@@ -1275,6 +1411,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
             "sample_sub_sector_matrix": sub_sector_sample_path,
             "empirical_cleaned_sub_sector_matrix": sub_sector_baseline_path,
             "cleaned_sub_sector_matrix": sub_sector_matrix_path,
+            "sample_sub_sector_ew_correlation": sub_sector_ew_corr_path,
             "sub_sector_pair_counts": sub_sector_counts_path,
             "sub_sector_membership": sub_sector_membership_path,
             "correlation_spectrum": corr_spectrum_path,
@@ -1318,6 +1455,7 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         sample_sub_sector_matrix=sample_sub_sector_matrix,
         empirical_cleaned_sub_sector_matrix=empirical_cleaned_sub_sector_matrix,
         cleaned_sub_sector_matrix=cleaned_sub_sector_matrix,
+        sample_sub_sector_ew_correlation=sample_sub_sector_ew_correlation,
         sub_sector_pair_counts=sub_sector_pair_counts,
         sub_sector_membership=sub_sector_membership,
         correlation_spectrum=corr_spectrum,
@@ -1329,6 +1467,161 @@ def run_inspection_snapshot(request: InspectionSnapshotRequest) -> InspectionSna
         correlation_component_summary=correlation_component_summary,
         feature_frame=feature_frame,
         cleaner_comparison_frame=cleaner_comparison_frame,
+        quality_report=quality_report,
+        artifacts=RunArtifacts(root_dir=outdir, files=files),
+    )
+
+
+def run_core_periphery_snapshot(request: CorePeripherySnapshotRequest) -> CorePeripherySnapshotResult:
+    universe, estimation, backtest, allocation, evaluation, compare, output = load_config(request.config_path)
+    del allocation, compare, output
+
+    universe, estimation, backtest, evaluation = _resolve_config_overrides(
+        request,
+        default_universe=universe,
+        default_estimation=estimation,
+        default_backtest=backtest,
+        default_evaluation=evaluation,
+    )
+
+    cleaning_method = _resolve_inspection_cleaning_method(request.cleaning_method, fallback=estimation.cleaning_method)
+    input_type = _resolve_input_type(request.input_type)
+    estimator_method = _resolve_estimator_method(request.estimator_method)
+    estimator_window = _resolve_estimator_window(request, estimation)
+    graph_filter = _resolve_core_periphery_graph_filter(request.graph_filter)
+    snapshot_estimation = resolve_window_estimation_cfg(
+        estimation,
+        estimator_window,
+        min_periods_mode="clamp",
+    )
+    snapshot_estimation = snapshot_estimation.__class__(**{
+        **snapshot_estimation.__dict__,
+        "cleaning_method": cleaning_method,
+        "linear_shrinkage": _resolve_linear_shrinkage_intensity(request, snapshot_estimation),
+    })
+    prices, quality_report_obj = load_filtered_prices_for_universe(
+        universe,
+        evaluation_start=evaluation.evaluation_start,
+        refresh_policy=request.refresh_policy,
+    )
+    quality_report = asdict(quality_report_obj)
+    allocation_date = resolve_allocation_date(prices.index, as_of_date=request.date)
+    history = prices.loc[prices.index <= allocation_date]
+    if history.empty:
+        raise ValueError(f"No price history available on or before {allocation_date.date()}.")
+
+    empirical_corr, _sample_cov, sample_size, sample_frame = matrix_sample_bundle(
+        history,
+        snapshot_estimation,
+        allocation_date,
+        input_type=_matrix_sample_input_mode(input_type),
+        estimator_method=_matrix_sample_estimator_mode(estimator_method),
+        estimator_window=estimator_window,
+    )
+    selected_cleaner = clean_correlation_matrix_rich(
+        empirical_corr,
+        data=sample_frame,
+        sample_size=sample_size,
+        method=cleaning_method,
+        linear_shrinkage=snapshot_estimation.linear_shrinkage,
+        bandwidth=snapshot_estimation.rie_bandwidth,
+    )
+    cleaned_corr = selected_cleaner.cleaned_matrix
+    metadata, sorted_tickers = _sorted_metadata(universe.name, list(cleaned_corr.index))
+    sorted_cleaned_corr = _sorted_matrix(cleaned_corr, sorted_tickers)
+    distance_matrix, adjacency_matrix = _build_core_periphery_adjacency(
+        sorted_cleaned_corr,
+        graph_filter=graph_filter,
+    )
+    ranking_frame = _core_periphery_coreness(adjacency_matrix)
+    ranking_frame = ranking_frame.merge(
+        metadata.reset_index()[["ticker", "sector", "sub_sector"]],
+        on="ticker",
+        how="left",
+    )
+    ranking_frame["core_rank_desc"] = ranking_frame["coreness"].rank(method="dense", ascending=False).astype(int)
+    ranking_frame["periphery_rank_asc"] = ranking_frame["coreness"].rank(method="dense", ascending=True).astype(int)
+    ranking_frame = ranking_frame.sort_values(["coreness", "weighted_degree", "ticker"], ascending=[False, False, True], kind="stable").reset_index(drop=True)
+    summary_frame = pd.DataFrame(
+        [
+            {
+                "universe": universe.name,
+                "cleaning_method": cleaning_method,
+                "input_type": input_type,
+                "estimator_method": estimator_method,
+                "estimator_window": estimator_window,
+                "graph_filter": graph_filter,
+                "allocation_date": allocation_date.strftime("%Y-%m-%d"),
+                "sample_size": int(sample_size),
+                "num_assets": int(len(sorted_tickers)),
+                "num_edges": int(np.count_nonzero(np.triu(adjacency_matrix.to_numpy(dtype=float), k=1))),
+                "mean_coreness": float(pd.to_numeric(ranking_frame["coreness"], errors="coerce").mean()),
+                "max_coreness": float(pd.to_numeric(ranking_frame["coreness"], errors="coerce").max()),
+            }
+        ]
+    )
+
+    outdir = ensure_output_dir(request.output_dir or "output/optimal_tf/inspection/core_periphery")
+    files: dict[str, Path] = {}
+    if outdir is not None:
+        cleaned_corr_path = outdir / "cleaned_correlation.csv"
+        distance_path = outdir / "distance_matrix.csv"
+        adjacency_path = outdir / "adjacency_matrix.csv"
+        ranking_path = outdir / "core_periphery_ranking.csv"
+        summary_path = outdir / "summary_frame.csv"
+        sorted_cleaned_corr.to_csv(cleaned_corr_path)
+        distance_matrix.to_csv(distance_path)
+        adjacency_matrix.to_csv(adjacency_path)
+        ranking_frame.to_csv(ranking_path, index=False)
+        summary_frame.to_csv(summary_path, index=False)
+        request_path = write_request_json(outdir, request)
+        summary_json_path = write_json(
+            outdir,
+            "summary.json",
+            {
+                "universe": universe.name,
+                "cleaning_method": cleaning_method,
+                "input_type": input_type,
+                "estimator_method": estimator_method,
+                "estimator_window": estimator_window,
+                "graph_filter": graph_filter,
+                "allocation_date": allocation_date.strftime("%Y-%m-%d"),
+                "sample_size": int(sample_size),
+                "num_assets": int(len(sorted_tickers)),
+                "quality_report": quality_report,
+            },
+        )
+        files = write_quality_artifacts(outdir, quality_report)
+        files.update(
+            {
+                "cleaned_correlation": cleaned_corr_path,
+                "distance_matrix": distance_path,
+                "adjacency_matrix": adjacency_path,
+                "core_periphery_ranking": ranking_path,
+                "summary_frame": summary_path,
+            }
+        )
+        if request_path is not None:
+            files["request"] = request_path
+        if summary_json_path is not None:
+            files["summary"] = summary_json_path
+
+    return CorePeripherySnapshotResult(
+        request=request,
+        universe=universe.name,
+        cleaning_method=cleaning_method,
+        input_type=input_type,
+        estimator_method=estimator_method,
+        estimator_window=estimator_window,
+        graph_filter=graph_filter,
+        allocation_date=allocation_date,
+        sample_size=int(sample_size),
+        num_assets=int(len(sorted_tickers)),
+        cleaned_correlation=sorted_cleaned_corr,
+        distance_matrix=distance_matrix,
+        adjacency_matrix=adjacency_matrix,
+        ranking_frame=ranking_frame,
+        summary_frame=summary_frame,
         quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
     )

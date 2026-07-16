@@ -8,6 +8,7 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from market_tickers_data import MARKET_TICKERS
 from market_tickers_data.universes import (
     CAC40_COMPONENTS,
@@ -31,8 +32,10 @@ from optimal_tf.dashboard_workspace import (
 from optimal_tf.data import load_prices_for_universe, load_prices_yf
 from optimal_tf.rebalance import supported_rebalance_frequencies
 from optimal_tf.services import (
+    CorePeripherySnapshotRequest,
     InspectionIntervalRequest,
     InspectionSnapshotRequest,
+    run_core_periphery_snapshot,
     run_inspection_interval,
     run_inspection_snapshot,
 )
@@ -54,6 +57,7 @@ MODE_SERVICES = {
     },
     "Inspection": {
         "Inspect at date": "Inspect one dated cleaned-matrix state with spectra, eigenvectors and cross-asset features.",
+        "Core-periphery at date": "Compute per-ticker core-periphery centrality from the dated cleaned correlation graph.",
         "Inspect over interval": "Inspect how cleaned matrices and leading eigenmodes evolve over an interval of rebalance dates.",
     },
 }
@@ -96,6 +100,11 @@ MATRIX_ESTIMATOR_LABELS = {
     "sample_window": "Sample window",
     "ewma": "EWMA",
 }
+CORE_PERIPHERY_GRAPH_FILTER_OPTIONS = ["full_graph", "mst"]
+CORE_PERIPHERY_GRAPH_FILTER_LABELS = {
+    "full_graph": "Full graph",
+    "mst": "Minimum spanning tree",
+}
 MATRIX_INSPECTION_CLEANING_OPTIONS = [
     "empirical",
     "rie_spectral",
@@ -104,6 +113,18 @@ MATRIX_INSPECTION_CLEANING_OPTIONS = [
 ]
 MAX_CHART_POINTS = 750
 REFRESH_NEXT_RUN_KEY = "matrix_inspection::refresh_next_run"
+GRAPH_COLOR_PALETTE = [
+    "#0B6E4F",
+    "#C84C09",
+    "#3A7CA5",
+    "#7A306C",
+    "#A23E48",
+    "#3D5A80",
+    "#8D6A9F",
+    "#4C956C",
+    "#BC4749",
+    "#577590",
+]
 
 st.set_page_config(page_title="matrix inspection dashboard", layout="wide")
 st.title("matrix inspection dashboard")
@@ -433,7 +454,7 @@ def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> 
                 value=str(inspection_defaults.get("interval_output_dir", "output/matrix_inspection/interval") or ""),
             )
 
-        app_row4 = st.columns(2)
+        app_row4 = st.columns(3)
         with app_row4[0]:
             interval_leading_eigenvectors = int(
                 st.number_input(
@@ -445,13 +466,29 @@ def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> 
                 )
             )
         with app_row4[1]:
+            core_periphery_graph_filter = st.selectbox(
+                "CP graph filter",
+                CORE_PERIPHERY_GRAPH_FILTER_OPTIONS,
+                index=CORE_PERIPHERY_GRAPH_FILTER_OPTIONS.index(str(inspection_defaults.get("core_periphery_graph_filter", "full_graph")))
+                if str(inspection_defaults.get("core_periphery_graph_filter", "full_graph")) in CORE_PERIPHERY_GRAPH_FILTER_OPTIONS
+                else 0,
+                format_func=lambda value: CORE_PERIPHERY_GRAPH_FILTER_LABELS.get(value, value),
+            )
+        with app_row4[2]:
+            core_periphery_output_dir = st.text_input(
+                "CP output dir",
+                value=str(inspection_defaults.get("core_periphery_output_dir", "output/matrix_inspection/core_periphery") or ""),
+            )
+
+        app_row5 = st.columns(1)
+        with app_row5[0]:
             default_service = st.selectbox(
                 "Default inspection service",
-                ["Inspect at date", "Inspect over interval"],
-                index=["Inspect at date", "Inspect over interval"].index(
+                ["Inspect at date", "Core-periphery at date", "Inspect over interval"],
+                index=["Inspect at date", "Core-periphery at date", "Inspect over interval"].index(
                     str(inspection_defaults.get("default_service", "Inspect at date"))
                 )
-                if str(inspection_defaults.get("default_service", "Inspect at date")) in {"Inspect at date", "Inspect over interval"}
+                if str(inspection_defaults.get("default_service", "Inspect at date")) in {"Inspect at date", "Core-periphery at date", "Inspect over interval"}
                 else 0,
             )
 
@@ -528,6 +565,8 @@ def _render_config_editor(config_path: str, config_defaults: dict[str, Any]) -> 
                 "interval_estimator_method": interval_estimator_method,
                 "interval_output_dir": interval_output_dir,
                 "leading_eigenvectors": interval_leading_eigenvectors,
+                "core_periphery_graph_filter": core_periphery_graph_filter,
+                "core_periphery_output_dir": core_periphery_output_dir,
             },
         }
         destination = Path(save_path).expanduser()
@@ -696,11 +735,15 @@ def _render_matrix_heatmap(
     universe: str | None = None,
     compact: bool = False,
     annotate_values: bool = False,
+    size_scale: float = 1.0,
+    fixed_fig_size: float | None = None,
+    annotation_font_size: float | None = None,
 ) -> None:
     if frame.empty:
         st.info("No matrix available.")
         return
     ordered_frame = frame.copy()
+    display_labels = [str(label) for label in frame.index]
     group_boundaries: list[int] = []
     group_centers: list[float] = []
     group_labels: list[str] = []
@@ -709,16 +752,26 @@ def _render_matrix_heatmap(
         components = UNIVERSE_COMPONENTS.get(universe or "", {})
         metadata_rows: list[dict[str, Any]] = []
         for original_pos, ticker in enumerate(frame.index):
-            meta = components.get(str(ticker), {})
+            label = str(ticker)
+            meta = components.get(label, {})
             sector = str(meta.get("sector", "") or "").strip()
             sub_sector = str(meta.get("sub_sector", "") or "").strip()
             category = str(meta.get("category", "") or "").strip()
             sub_category = str(meta.get("sub_category", "") or "").strip()
             primary_group = sector or category
             secondary_group = sub_sector or sub_category
+            display_label = label
+            if not primary_group and " | " in label:
+                left, right = label.split(" | ", 1)
+                primary_group = left.strip()
+                secondary_group = right.strip()
+                display_label = secondary_group or label
+            elif primary_group and secondary_group:
+                display_label = secondary_group
             metadata_rows.append(
                 {
-                    "ticker": str(ticker),
+                    "ticker": label,
+                    "display_label": display_label,
                     "primary_group": primary_group,
                     "secondary_group": secondary_group,
                     "group_missing": 1 if not primary_group else 0,
@@ -732,6 +785,7 @@ def _render_matrix_heatmap(
                 kind="stable",
             )
             ordered_labels = metadata_frame["ticker"].tolist()
+            display_labels = metadata_frame["display_label"].tolist()
             ordered_frame = frame.reindex(index=ordered_labels, columns=ordered_labels)
             grouped = metadata_frame.loc[metadata_frame["primary_group"].ne("")].groupby("primary_group", sort=False).size()
             cursor = 0
@@ -753,28 +807,31 @@ def _render_matrix_heatmap(
             if subgroup_boundaries:
                 subgroup_boundaries = subgroup_boundaries[:-1]
     values = ordered_frame.to_numpy(dtype=float)
-    base_size = 0.16 if compact else 0.22
-    min_size = 4.6 if compact else 6.0
-    max_size = 8.2 if compact else 14.0
-    fig_size = max(min_size, min(max_size, base_size * len(frame) + 4.0))
+    scale = max(0.35, float(size_scale))
+    base_size = (0.16 if compact else 0.22) * scale
+    min_size = (4.6 if compact else 6.0) * scale
+    max_size = (8.2 if compact else 14.0) * scale
+    padding = (4.0 if compact else 4.8) * scale
+    fig_size = float(fixed_fig_size) if fixed_fig_size is not None else max(min_size, min(max_size, base_size * len(frame) + padding))
     fig, ax = plt.subplots(figsize=(fig_size, fig_size))
     vmax = float(np.nanmax(np.abs(values))) if values.size else 1.0
     vmax = max(vmax, 1e-12)
     image = ax.imshow(values, cmap=cmap, aspect="auto", vmin=-vmax, vmax=vmax)
     ax.set_title(title)
-    tick_target = 12 if compact else 20
+    tick_target = 10 if compact else 18
     tick_step = max(1, len(ordered_frame) // tick_target)
     positions = np.arange(0, len(ordered_frame), tick_step)
     tick_fontsize = 5.5 if compact else 7
-    group_fontsize = 5 if compact else 6
+    group_fontsize = 5.5 if compact else 6.5
     ax.set_xticks(positions)
-    ax.set_xticklabels([str(ordered_frame.columns[pos]) for pos in positions], rotation=90, fontsize=tick_fontsize)
+    ax.set_xticklabels([display_labels[pos] for pos in positions], rotation=90, fontsize=tick_fontsize)
     if group_centers:
         ax.set_yticks(group_centers)
         ax.set_yticklabels(group_labels, fontsize=group_fontsize)
     else:
         ax.set_yticks(positions)
-        ax.set_yticklabels([str(ordered_frame.index[pos]) for pos in positions], fontsize=tick_fontsize)
+        ax.set_yticklabels([display_labels[pos] for pos in positions], fontsize=tick_fontsize)
+    ax.tick_params(axis="both", length=0)
     for boundary in group_boundaries:
         ax.axhline(boundary - 0.5, color="black", linewidth=1.4, alpha=0.95)
         ax.axvline(boundary - 0.5, color="black", linewidth=1.4, alpha=0.95)
@@ -782,7 +839,7 @@ def _render_matrix_heatmap(
         ax.axhline(boundary - 0.5, color="black", linewidth=0.8, alpha=0.45)
         ax.axvline(boundary - 0.5, color="black", linewidth=0.8, alpha=0.45)
     if annotate_values:
-        font_size = 6 if compact else 8
+        font_size = float(annotation_font_size) if annotation_font_size is not None else (6 if compact else 8)
         threshold = 0.55 * vmax
         for row_idx in range(values.shape[0]):
             for col_idx in range(values.shape[1]):
@@ -796,6 +853,54 @@ def _render_matrix_heatmap(
     st.pyplot(fig, clear_figure=True)
 
 
+def _split_group_label(label: str) -> tuple[str, str]:
+    text = str(label)
+    if " | " not in text:
+        return text.strip(), text.strip()
+    left, right = text.split(" | ", 1)
+    return left.strip(), right.strip()
+
+
+def _render_sub_sector_sector_heatmaps(frame: pd.DataFrame) -> None:
+    if frame.empty:
+        st.info("No sub-sector matrix available.")
+        return
+
+    sector_groups: dict[str, list[str]] = {}
+    for label in frame.index:
+        sector, _sub_sector = _split_group_label(str(label))
+        sector_groups.setdefault(sector, []).append(str(label))
+
+    eligible_groups = [(sector, labels) for sector, labels in sector_groups.items() if len(labels) >= 2]
+    if not eligible_groups:
+        st.info("No sector contains enough sub-sectors to build an intra-sector correlation matrix.")
+        return
+
+    skipped = [sector for sector, labels in sector_groups.items() if len(labels) < 2]
+    sector_tabs = st.tabs([sector for sector, _labels in eligible_groups])
+    for sector_tab, (sector, labels) in zip(sector_tabs, eligible_groups, strict=False):
+        sub_matrix = frame.loc[labels, labels].copy()
+        renamed = [_split_group_label(label)[1] for label in labels]
+        sub_matrix.index = renamed
+        sub_matrix.columns = renamed
+        with sector_tab:
+            _render_matrix_heatmap(
+                sub_matrix,
+                title=sector,
+                compact=True,
+                annotate_values=True,
+                size_scale=1.0,
+                fixed_fig_size=5.4,
+                annotation_font_size=7.0,
+            )
+    if skipped:
+        st.caption(
+            "Skipped sectors with fewer than two sub-sectors: "
+            + ", ".join(sorted(skipped))
+            + "."
+        )
+
+
 def _render_mp_outlier_eigenvectors(
     eigenvector_frame: pd.DataFrame,
     spectrum_frame: pd.DataFrame,
@@ -806,6 +911,13 @@ def _render_mp_outlier_eigenvectors(
     if eigenvector_frame.empty or spectrum_frame.empty:
         st.info("No eigenvector data available.")
         return
+
+    ticker_font_size = 12
+    sector_font_size = 13
+    title_font_size = 14
+    axis_label_font_size = 12
+    y_tick_font_size = 11
+
     try:
         mp_law = marchenko_pastur_law(num_assets=num_assets, sample_size=sample_size, variance=1.0)
     except ValueError as exc:
@@ -817,45 +929,131 @@ def _render_mp_outlier_eigenvectors(
     if outlier_spectrum.empty:
         st.info("No correlation eigenvalue is outside the Marchenko-Pastur bulk on this date.")
         return
+
     display_eigenvector_frame = eigenvector_frame.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
+    ticker_labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in display_eigenvector_frame.index]
+    sector_labels = [str(item[0]) if isinstance(item, tuple) else "" for item in display_eigenvector_frame.index]
+    sub_sector_labels = [str(item[1]) if isinstance(item, tuple) and len(item) > 1 else "" for item in display_eigenvector_frame.index]
+
     subplot_count = len(outlier_spectrum)
-    fig, axes = plt.subplots(subplot_count, 1, sharex=True, figsize=(18.0, max(3.0 * subplot_count, 3.8)), dpi=180)
+    positions = np.arange(len(display_eigenvector_frame.index))
+
+    sector_boundaries: list[int] = []
+    sub_sector_boundaries: list[int] = []
+    sector_centers: list[float] = []
+    sector_names: list[str] = []
+    if ticker_labels:
+        start = 0
+        current_sector = sector_labels[0]
+        for idx in range(1, len(ticker_labels) + 1):
+            if idx == len(ticker_labels) or sector_labels[idx] != current_sector:
+                sector_centers.append(start + (idx - start - 1) / 2.0)
+                sector_names.append(current_sector)
+                if idx < len(ticker_labels):
+                    start = idx
+                    current_sector = sector_labels[idx]
+    for idx in range(1, len(ticker_labels)):
+        if sector_labels[idx] != sector_labels[idx - 1]:
+            sector_boundaries.append(idx)
+        if sector_labels[idx] != sector_labels[idx - 1] or sub_sector_labels[idx] != sub_sector_labels[idx - 1]:
+            sub_sector_boundaries.append(idx)
+
+    fig_width = 18.0
+    fig_height = max(3.0 * subplot_count, 3.8)
+    fig, axes = plt.subplots(subplot_count, 1, sharex=True, figsize=(fig_width, fig_height), dpi=180)
     if subplot_count == 1:
         axes = [axes]
-    positions = np.arange(len(display_eigenvector_frame.index))
-    labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in display_eigenvector_frame.index]
+
     for ax, (_, spectrum_row) in zip(axes, outlier_spectrum.iterrows()):
         rank = int(pd.to_numeric(spectrum_row["rank"], errors="coerce"))
+        eigenvalue = float(pd.to_numeric(spectrum_row["eigenvalue"], errors="coerce"))
         column_name = f"corr_ev{rank}"
         if column_name not in display_eigenvector_frame.columns:
             continue
         weights = pd.to_numeric(display_eigenvector_frame[column_name], errors="coerce").to_numpy(dtype=float)
         ax.axhline(0.0, color="#666666", linewidth=0.9, alpha=0.7)
-        ax.vlines(positions, 0.0, weights, color="#2C6E91", linewidth=1.0, alpha=0.9)
-        ax.set_ylabel("Weight")
-        ax.set_title(f"Rank {rank} | eigenvalue={float(pd.to_numeric(spectrum_row['eigenvalue'], errors='coerce')):.4f}", loc="left")
+        ax.plot(positions, weights, color="#2C6E91", linewidth=0.45, alpha=0.9, zorder=1)
+        positive_mask = np.isfinite(weights) & (weights >= 0.0)
+        negative_mask = np.isfinite(weights) & (weights < 0.0)
+        ax.vlines(positions[positive_mask], 0.0, weights[positive_mask], color="#2E8B57", linewidth=1.2, alpha=0.9)
+        ax.vlines(positions[negative_mask], 0.0, weights[negative_mask], color="#C44E52", linewidth=1.2, alpha=0.9)
+        ax.scatter(positions[positive_mask], weights[positive_mask], color="#2E8B57", s=16, marker="s", zorder=3)
+        ax.scatter(positions[negative_mask], weights[negative_mask], color="#C44E52", s=16, marker="s", zorder=3)
+        for boundary in sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=1.1, alpha=0.9)
+        for boundary in sub_sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=0.6, alpha=0.28)
+        ax.set_ylabel("Weight", fontsize=axis_label_font_size)
+        ax.tick_params(axis="y", labelsize=y_tick_font_size)
+        ax.set_title(f"Rank {rank} | eigenvalue={eigenvalue:.4f}", loc="left", fontsize=title_font_size)
         ax.grid(True, axis="y", alpha=0.18)
+        if sector_centers:
+            top_ax = ax.secondary_xaxis("top")
+            top_ax.set_xticks(sector_centers)
+            top_ax.set_xticklabels(sector_names, fontsize=sector_font_size)
+            top_ax.tick_params(length=0, pad=2)
+
     axes[-1].set_xticks(positions)
-    axes[-1].set_xticklabels(labels, rotation=90, fontsize=9)
+    axes[-1].set_xticklabels(ticker_labels, rotation=90, fontsize=ticker_font_size)
+    axes[-1].set_xlabel("Tickers sorted by sector, sub-sector, then alphabetical order", fontsize=axis_label_font_size)
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
+    st.caption(
+        f"Shown eigenvectors correspond to correlation eigenvalues above MP lambda+ = {float(mp_law.lambda_plus):.4f}. "
+        "They are displayed exactly as returned by the diagonalization; sector boundaries are dark and sub-sector boundaries are lighter."
+    )
 
 
 def _render_weight_subplots(weight_frame: pd.DataFrame, spectrum_frame: pd.DataFrame, *, title_prefix: str) -> None:
     if weight_frame.empty:
         st.info("No portfolio weight data available.")
         return
+
+    ticker_font_size = 12
+    sector_font_size = 13
+    title_font_size = 14
+    axis_label_font_size = 12
+    y_tick_font_size = 11
+
     display_frame = weight_frame.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
+    ticker_labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in display_frame.index]
+    sector_labels = [str(item[0]) if isinstance(item, tuple) else "" for item in display_frame.index]
+    sub_sector_labels = [str(item[1]) if isinstance(item, tuple) and len(item) > 1 else "" for item in display_frame.index]
+
     spectrum_lookup = spectrum_frame.copy()
     if "rank" in spectrum_lookup.columns:
         spectrum_lookup["rank"] = pd.to_numeric(spectrum_lookup["rank"], errors="coerce")
         spectrum_lookup = spectrum_lookup.dropna(subset=["rank"]).set_index("rank")
+
     subplot_count = display_frame.shape[1]
-    fig, axes = plt.subplots(subplot_count, 1, sharex=True, figsize=(18.0, max(3.0 * subplot_count, 3.8)), dpi=180)
+    positions = np.arange(len(display_frame.index))
+
+    sector_boundaries: list[int] = []
+    sub_sector_boundaries: list[int] = []
+    sector_centers: list[float] = []
+    sector_names: list[str] = []
+    if ticker_labels:
+        start = 0
+        current_sector = sector_labels[0]
+        for idx in range(1, len(ticker_labels) + 1):
+            if idx == len(ticker_labels) or sector_labels[idx] != current_sector:
+                sector_centers.append(start + (idx - start - 1) / 2.0)
+                sector_names.append(current_sector)
+                if idx < len(ticker_labels):
+                    start = idx
+                    current_sector = sector_labels[idx]
+    for idx in range(1, len(ticker_labels)):
+        if sector_labels[idx] != sector_labels[idx - 1]:
+            sector_boundaries.append(idx)
+        if sector_labels[idx] != sector_labels[idx - 1] or sub_sector_labels[idx] != sub_sector_labels[idx - 1]:
+            sub_sector_boundaries.append(idx)
+
+    fig_width = 18.0
+    fig_height = max(3.0 * subplot_count, 3.8)
+    fig, axes = plt.subplots(subplot_count, 1, sharex=True, figsize=(fig_width, fig_height), dpi=180)
     if subplot_count == 1:
         axes = [axes]
-    positions = np.arange(len(display_frame.index))
-    labels = [str(item[-1]) if isinstance(item, tuple) else str(item) for item in display_frame.index]
+
     for ax, column_name in zip(axes, display_frame.columns):
         weights = pd.to_numeric(display_frame[column_name], errors="coerce").to_numpy(dtype=float)
         rank = int(str(column_name).removeprefix("corr_ev")) if str(column_name).startswith("corr_ev") else None
@@ -864,12 +1062,30 @@ def _render_weight_subplots(weight_frame: pd.DataFrame, spectrum_frame: pd.DataF
             eigenvalue = float(pd.to_numeric(spectrum_lookup.loc[rank, "eigenvalue"], errors="coerce"))
             title = f"{title_prefix} {rank} | eigenvalue={eigenvalue:.4f}"
         ax.axhline(0.0, color="#666666", linewidth=0.9, alpha=0.7)
-        ax.vlines(positions, 0.0, weights, color="#2C6E91", linewidth=1.0, alpha=0.9)
-        ax.set_ylabel("Weight")
-        ax.set_title(title, loc="left")
+        ax.plot(positions, weights, color="#2C6E91", linewidth=0.45, alpha=0.9, zorder=1)
+        positive_mask = np.isfinite(weights) & (weights >= 0.0)
+        negative_mask = np.isfinite(weights) & (weights < 0.0)
+        ax.vlines(positions[positive_mask], 0.0, weights[positive_mask], color="#2E8B57", linewidth=1.2, alpha=0.9)
+        ax.vlines(positions[negative_mask], 0.0, weights[negative_mask], color="#C44E52", linewidth=1.2, alpha=0.9)
+        ax.scatter(positions[positive_mask], weights[positive_mask], color="#2E8B57", s=16, marker="s", zorder=3)
+        ax.scatter(positions[negative_mask], weights[negative_mask], color="#C44E52", s=16, marker="s", zorder=3)
+        for boundary in sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=1.1, alpha=0.9)
+        for boundary in sub_sector_boundaries:
+            ax.axvline(boundary - 0.5, color="black", linewidth=0.6, alpha=0.28)
+        ax.set_ylabel("Weight", fontsize=axis_label_font_size)
+        ax.tick_params(axis="y", labelsize=y_tick_font_size)
+        ax.set_title(title, loc="left", fontsize=title_font_size)
         ax.grid(True, axis="y", alpha=0.18)
+        if sector_centers:
+            top_ax = ax.secondary_xaxis("top")
+            top_ax.set_xticks(sector_centers)
+            top_ax.set_xticklabels(sector_names, fontsize=sector_font_size)
+            top_ax.tick_params(length=0, pad=2)
+
     axes[-1].set_xticks(positions)
-    axes[-1].set_xticklabels(labels, rotation=90, fontsize=9)
+    axes[-1].set_xticklabels(ticker_labels, rotation=90, fontsize=ticker_font_size)
+    axes[-1].set_xlabel("Tickers sorted by sector, sub-sector, then alphabetical order", fontsize=axis_label_font_size)
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
 
@@ -895,10 +1111,31 @@ def _render_eigenvalue_distribution_with_mp(
     grid, density = mp_law.density_grid(num_points=512, padding=0.08)
     fig, ax = plt.subplots(figsize=(10.5, 4.8))
     bin_count = min(36, max(10, int(np.sqrt(eigenvalues.size) * 2.0)))
-    ax.hist(eigenvalues, bins=bin_count, density=True, alpha=0.55, color="#4C78A8", edgecolor="white", label="Correlation eigenvalues")
+    hist_values, _, _ = ax.hist(
+        eigenvalues,
+        bins=bin_count,
+        density=True,
+        alpha=0.55,
+        color="#4C78A8",
+        edgecolor="white",
+        label="Correlation eigenvalues",
+    )
     ax.plot(grid, density, color="#F58518", linewidth=2.0, label="Marchenko-Pastur density")
     ax.axvline(mp_law.lambda_minus, color="#54A24B", linestyle="--", linewidth=1.5, label="MP bulk lower bound")
     ax.axvline(mp_law.lambda_plus, color="#E45756", linestyle="--", linewidth=1.5, label="MP bulk upper bound")
+    y_max = float(max(np.max(hist_values) if len(hist_values) else 0.0, np.max(density) if len(density) else 0.0, 1e-6))
+    signal_eigenvalues = np.sort(eigenvalues[eigenvalues > mp_law.lambda_plus])
+    if signal_eigenvalues.size:
+        marker_height = 0.28 * y_max
+        ax.vlines(signal_eigenvalues, 0.0, marker_height, colors="#B279A2", linewidth=1.5, alpha=0.8)
+        ax.scatter(
+            signal_eigenvalues,
+            np.full_like(signal_eigenvalues, marker_height),
+            color="#B279A2",
+            s=22,
+            zorder=3,
+            label="Signal eigenvalues",
+        )
     ax.set_title("Correlation eigenvalue distribution vs Marchenko-Pastur")
     ax.set_xlabel("Eigenvalue")
     ax.set_ylabel("Density")
@@ -906,6 +1143,11 @@ def _render_eigenvalue_distribution_with_mp(
     ax.grid(alpha=0.15)
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
+    st.caption(
+        "Noise bulk: "
+        f"[{mp_law.lambda_minus:.4f}, {mp_law.lambda_plus:.4f}]"
+        f" | Signal eigenvalues above lambda+: {signal_eigenvalues.size}/{eigenvalues.size}"
+    )
 
 
 def _artifacts_block(files: dict[str, Path]) -> None:
@@ -914,6 +1156,108 @@ def _artifacts_block(files: dict[str, Path]) -> None:
         return
     rows = [{"name": key, "path": str(value)} for key, value in files.items()]
     _render_compact_table(pd.DataFrame(rows), priority=["name", "path"])
+
+
+def _sector_color_lookup(ranking_frame: pd.DataFrame) -> dict[str, str]:
+    sectors = [
+        str(value)
+        for value in pd.Index(ranking_frame.get("sector", pd.Series(dtype=object))).fillna("Unknown").unique().tolist()
+    ]
+    colors: dict[str, str] = {}
+    for idx, sector in enumerate(sectors):
+        colors[sector] = GRAPH_COLOR_PALETTE[idx % len(GRAPH_COLOR_PALETTE)]
+    return colors
+
+
+def _build_pyvis_graph_html(
+    adjacency_matrix: pd.DataFrame,
+    ranking_frame: pd.DataFrame,
+    *,
+    max_edges: int | None = None,
+    height: int = 760,
+) -> tuple[str | None, str | None]:
+    try:
+        from pyvis.network import Network
+    except ImportError:
+        return None, "Optional dependency `pyvis` is not installed."
+
+    weights = adjacency_matrix.apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float)
+    ranking_lookup = ranking_frame.set_index("ticker").copy()
+    color_lookup = _sector_color_lookup(ranking_frame)
+    coreness_series = pd.to_numeric(ranking_lookup.get("coreness"), errors="coerce").fillna(0.0)
+    degree_series = pd.to_numeric(ranking_lookup.get("weighted_degree"), errors="coerce").fillna(0.0)
+    max_coreness = max(float(coreness_series.max()), 1e-12)
+    max_degree = max(float(degree_series.max()), 1e-12)
+
+    net = Network(height=f"{int(height)}px", width="100%", bgcolor="#FAF7F2", font_color="#1F2933", notebook=False)
+    net.barnes_hut(gravity=-18000, central_gravity=0.18, spring_length=165, spring_strength=0.02, damping=0.9)
+
+    for ticker in weights.index:
+        ticker_key = str(ticker)
+        row = ranking_lookup.loc[ticker_key] if ticker_key in ranking_lookup.index else None
+        sector = str(row.get("sector", "Unknown")) if row is not None else "Unknown"
+        sub_sector = str(row.get("sub_sector", "Unknown")) if row is not None else "Unknown"
+        coreness = float(pd.to_numeric(row.get("coreness", 0.0), errors="coerce")) if row is not None else 0.0
+        degree = float(pd.to_numeric(row.get("weighted_degree", 0.0), errors="coerce")) if row is not None else 0.0
+        core_rank = int(pd.to_numeric(row.get("core_rank_desc", 0), errors="coerce")) if row is not None else 0
+        coreness_ratio = coreness / max_coreness
+        node_size = 12.0 + 26.0 * (coreness / max_coreness)
+        border_width = 1.0 + 5.0 * coreness_ratio
+        x_position = float((0.5 - coreness_ratio) * 1100.0)
+        y_position = float((hash(ticker_key) % 1000) - 500)
+        net.add_node(
+            ticker_key,
+            label=ticker_key,
+            title=(
+                f"<b>{ticker_key}</b><br>"
+                f"sector: {sector}<br>"
+                f"sub-sector: {sub_sector}<br>"
+                f"coreness: {coreness:.4f}<br>"
+                f"weighted degree: {degree:.4f}<br>"
+                f"core rank: {core_rank}"
+            ),
+            color=color_lookup.get(sector, "#577590"),
+            size=node_size,
+            borderWidth=border_width,
+            x=x_position,
+            y=y_position,
+        )
+
+    edge_rows: list[tuple[str, str, float]] = []
+    labels = list(weights.index)
+    for left_idx, left in enumerate(labels):
+        for right_idx in range(left_idx + 1, len(labels)):
+            right = labels[right_idx]
+            value = float(weights.iat[left_idx, right_idx])
+            if not np.isfinite(value) or value <= 0.0:
+                continue
+            edge_rows.append((str(left), str(right), value))
+    edge_rows.sort(key=lambda item: item[2], reverse=True)
+    if max_edges is not None and max_edges > 0:
+        edge_rows = edge_rows[: int(max_edges)]
+    max_edge_weight = max((item[2] for item in edge_rows), default=1.0)
+    for source, target, value in edge_rows:
+        net.add_edge(
+            source,
+            target,
+            value=value,
+            width=1.0 + 6.0 * (value / max_edge_weight),
+            title=f"weight: {value:.4f}",
+            color="#7B8794",
+        )
+
+    net.set_options(
+        """
+        {
+          "interaction": {"hover": true, "navigationButtons": true, "keyboard": true},
+          "physics": {"stabilization": {"iterations": 250}},
+          "nodes": {"shape": "dot", "borderWidth": 1.5},
+          "edges": {"smooth": false, "color": {"inherit": false}},
+          "configure": {"enabled": false}
+        }
+        """
+    )
+    return net.generate_html(notebook=False), None
 
 
 def _request_block(request: Any, config_defaults: dict[str, Any], resolved: dict[str, Any] | None = None) -> None:
@@ -992,6 +1336,7 @@ def _render_snapshot_result(result: Any, *, config_defaults: dict[str, Any]) -> 
         st.subheader("Features at inspection date")
         _render_colored_frame(result.feature_frame, max_rows=200, max_cols=result.feature_frame.shape[1], cmap="RdYlBu_r")
     with matrices_tab:
+        cleaned_tab, delta_tab, sector_tab, sub_sector_tab = st.tabs(["Cleaned", "Delta", "Sector", "Sub-sector"])
         if result.matrix_type == "covariance":
             sample_matrix = result.sample_covariance
             baseline_matrix = result.empirical_cleaned_covariance
@@ -1002,127 +1347,122 @@ def _render_snapshot_result(result: Any, *, config_defaults: dict[str, Any]) -> 
             baseline_matrix = result.empirical_cleaned_correlation
             cleaned_matrix = result.cleaned_correlation
             primary_label = "Correlation"
-        st.subheader(f"Cleaned {primary_label.lower()} heatmap")
-        _render_matrix_heatmap(cleaned_matrix, title=f"Cleaned {primary_label.lower()}", universe=result.universe)
-        st.subheader("Cleaner effect vs empirical baseline")
-        _render_matrix_heatmap(
-            cleaned_matrix - baseline_matrix,
-            title=f"Cleaned minus empirical baseline {primary_label.lower()}",
-            universe=result.universe,
-        )
-        left, center, right = st.columns(3)
-        with left:
-            st.caption("Cleaned preview")
-            _render_colored_frame(cleaned_matrix, max_rows=30, max_cols=30)
-        with center:
-            st.caption("Empirical baseline preview")
-            _render_colored_frame(baseline_matrix, max_rows=30, max_cols=30)
-        with right:
-            st.caption("Sample preview")
-            _render_colored_frame(sample_matrix, max_rows=30, max_cols=30)
-        st.subheader("Sector equal-weight portfolio correlation")
-        _render_matrix_heatmap(
-            result.sample_sector_ew_correlation,
-            title="Sector EW portfolio correlation",
-            annotate_values=True,
-        )
-        with st.expander("Open grouped details", expanded=False):
-            group_left, group_center, group_right = st.columns(3)
-            with group_left:
-                st.caption("Sector membership")
-                _render_compact_table(result.sector_membership, priority=["group", "sector", "num_tickers", "ticker"])
-            with group_center:
-                st.caption("Sector pair counts")
-                _render_colored_frame(result.sector_pair_counts, max_rows=40, max_cols=40, cmap="Blues")
-            with group_right:
-                st.caption("Sub-sector pair counts")
-                _render_colored_frame(result.sub_sector_pair_counts, max_rows=40, max_cols=40, cmap="Blues")
+        with cleaned_tab:
+            st.subheader(f"Cleaned {primary_label.lower()} heatmap")
+            _render_matrix_heatmap(cleaned_matrix, title=f"Cleaned {primary_label.lower()}", universe=result.universe)
+        with delta_tab:
+            st.subheader("Cleaner effect vs empirical baseline")
+            _render_matrix_heatmap(
+                cleaned_matrix - baseline_matrix,
+                title=f"Cleaned minus empirical baseline {primary_label.lower()}",
+                universe=result.universe,
+            )
+        with sector_tab:
+            st.subheader("Sector equal-weight portfolio correlation")
+            _render_matrix_heatmap(
+                result.sample_sector_ew_correlation,
+                title="Sector EW portfolio correlation",
+                annotate_values=True,
+            )
+        with sub_sector_tab:
+            st.subheader("Intra-sector sub-sector equal-weight correlations")
+            _render_sub_sector_sector_heatmaps(result.sample_sub_sector_ew_correlation)
     with spectrum_tab:
+        scree_tab, mp_tab, table_tab = st.tabs(["Scree", "MP distribution", "Table"])
         spectrum_frame = result.covariance_spectrum if result.matrix_type == "covariance" else result.correlation_spectrum
         empirical_matrix = result.sample_covariance if result.matrix_type == "covariance" else result.sample_correlation
         empirical_eigenvalues = np.linalg.eigvalsh(empirical_matrix.to_numpy(dtype=float))[::-1]
         spectrum_table = spectrum_frame.copy()
         spectrum_table["empirical_eigenvalue"] = empirical_eigenvalues[: len(spectrum_table)]
-        st.subheader(f"{MATRIX_TYPE_LABELS.get(result.matrix_type, result.matrix_type)} scree plot")
-        scale = st.radio("Eigenvalue scale", ["Linear", "Log"], horizontal=True, key="matrix_inspection::snapshot::spectrum_scale")
-        chart = (
-            alt.Chart(spectrum_table)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("rank:Q", title="Rank"),
-                y=alt.Y(
-                    "eigenvalue:Q",
-                    title="Eigenvalue",
-                    scale=alt.Scale(type="log") if scale == "Log" else alt.Scale(type="linear"),
-                ),
-                tooltip=[
-                    alt.Tooltip("rank:Q", title="Rank"),
-                    alt.Tooltip("eigenvalue:Q", title="Eigenvalue", format=".6f"),
-                    alt.Tooltip("empirical_eigenvalue:Q", title="Empirical eigenvalue", format=".6f"),
-                    alt.Tooltip("variance_share:Q", title="Variance share", format=".4f"),
-                    alt.Tooltip("cumulative_variance_share:Q", title="Cum. variance", format=".4f"),
-                ],
+        with scree_tab:
+            st.subheader(f"{MATRIX_TYPE_LABELS.get(result.matrix_type, result.matrix_type)} scree plot")
+            scale = st.radio("Eigenvalue scale", ["Linear", "Log"], horizontal=True, key="matrix_inspection::snapshot::spectrum_scale")
+            chart = (
+                alt.Chart(spectrum_table)
+                .mark_line(point=True)
+                .encode(
+                    x=alt.X("rank:Q", title="Rank"),
+                    y=alt.Y(
+                        "eigenvalue:Q",
+                        title="Eigenvalue",
+                        scale=alt.Scale(type="log") if scale == "Log" else alt.Scale(type="linear"),
+                    ),
+                    tooltip=[
+                        alt.Tooltip("rank:Q", title="Rank"),
+                        alt.Tooltip("eigenvalue:Q", title="Eigenvalue", format=".6f"),
+                        alt.Tooltip("empirical_eigenvalue:Q", title="Empirical eigenvalue", format=".6f"),
+                        alt.Tooltip("variance_share:Q", title="Variance share", format=".4f"),
+                        alt.Tooltip("cumulative_variance_share:Q", title="Cum. variance", format=".4f"),
+                    ],
+                )
+                .properties(height=320)
             )
-            .properties(height=320)
-        )
-        st.altair_chart(chart, width="stretch")
-        _render_compact_table(
-            spectrum_table,
-            priority=["rank", "eigenvalue", "empirical_eigenvalue", "variance_share", "cumulative_variance_share"],
-            max_rows=40,
-        )
-        if result.matrix_type == "correlation":
-            _render_eigenvalue_distribution_with_mp(
+            st.altair_chart(chart, width="stretch")
+        with mp_tab:
+            if result.matrix_type == "correlation":
+                _render_eigenvalue_distribution_with_mp(
+                    result.correlation_spectrum,
+                    num_assets=result.num_assets,
+                    sample_size=result.sample_size,
+                )
+            else:
+                st.info("Marchenko-Pastur reference is shown for correlation spectra only.")
+        with table_tab:
+            _render_compact_table(
+                spectrum_table,
+                priority=["rank", "eigenvalue", "empirical_eigenvalue", "variance_share", "cumulative_variance_share"],
+                max_rows=40,
+            )
+    with eigenvectors_tab:
+        outliers_tab, portfolios_tab, nav_tab = st.tabs(["Outlier eigenvectors", "Eigenportfolios", "Eigenportfolio NAV"])
+        with outliers_tab:
+            st.subheader("Correlation eigenvectors outside the Marchenko-Pastur bulk")
+            _render_mp_outlier_eigenvectors(
+                result.correlation_eigenvectors,
                 result.correlation_spectrum,
                 num_assets=result.num_assets,
                 sample_size=result.sample_size,
             )
-    with eigenvectors_tab:
-        st.subheader("Correlation eigenvectors outside the Marchenko-Pastur bulk")
-        _render_mp_outlier_eigenvectors(
-            result.correlation_eigenvectors,
-            result.correlation_spectrum,
-            num_assets=result.num_assets,
-            sample_size=result.sample_size,
-        )
-        st.subheader("Eigenportfolios normalized to sum(weights)=1")
-        _render_weight_subplots(
-            result.correlation_eigenportfolios,
-            result.correlation_spectrum,
-            title_prefix="Eigenportfolio",
-        )
-        st.subheader("NAV of selected eigenportfolios")
-        if result.correlation_component_nav.empty or result.correlation_component_nav.shape[1] == 0:
-            st.info("No selected eigenportfolio is available on this date.")
-        else:
-            nav_frame = result.correlation_component_nav
-            benchmark_bundle = _load_universe_benchmark_nav(
-                config_path=result.request.config_path,
-                universe_name=result.universe,
-                request_start=result.request.start,
-                target_index=nav_frame.index,
-                refresh_policy=result.request.refresh_policy,
+        with portfolios_tab:
+            st.subheader("Eigenportfolios normalized to sum(weights)=1")
+            _render_weight_subplots(
+                result.correlation_eigenportfolios,
+                result.correlation_spectrum,
+                title_prefix="Eigenportfolio",
             )
-            fig, axes = plt.subplots(nav_frame.shape[1], 1, sharex=True, figsize=(11, max(3.2 * nav_frame.shape[1], 3.8)), dpi=180)
-            if nav_frame.shape[1] == 1:
-                axes = [axes]
-            for idx, (ax, column_name) in enumerate(zip(axes, nav_frame.columns)):
-                series = pd.to_numeric(nav_frame[column_name], errors="coerce")
-                ax.plot(series.index, series.to_numpy(dtype=float), color="#2C6E91", linewidth=1.8)
-                if idx == 0 and benchmark_bundle is not None:
-                    benchmark_label, benchmark_nav = benchmark_bundle
-                    ax.plot(benchmark_nav.index, pd.to_numeric(benchmark_nav, errors="coerce").to_numpy(dtype=float), color="#C44E52", linewidth=1.6, alpha=0.9, label=benchmark_label)
-                    ax.legend(loc="best")
-                ax.set_ylabel("NAV")
-                ax.set_title(str(column_name), loc="left", fontsize=12)
-                ax.grid(True, alpha=0.22)
-            axes[-1].set_xlabel("Date")
-            fig.tight_layout()
-            st.pyplot(fig, clear_figure=True)
-            _render_compact_table(
-                result.correlation_component_summary,
-                priority=["eigenportfolio", "rank", "variance_share", "cumulative_variance_share", "cagr", "ann_vol", "sharpe"],
-            )
+        with nav_tab:
+            st.subheader("NAV of selected eigenportfolios")
+            if result.correlation_component_nav.empty or result.correlation_component_nav.shape[1] == 0:
+                st.info("No selected eigenportfolio is available on this date.")
+            else:
+                nav_frame = result.correlation_component_nav
+                benchmark_bundle = _load_universe_benchmark_nav(
+                    config_path=result.request.config_path,
+                    universe_name=result.universe,
+                    request_start=result.request.start,
+                    target_index=nav_frame.index,
+                    refresh_policy=result.request.refresh_policy,
+                )
+                fig, axes = plt.subplots(nav_frame.shape[1], 1, sharex=True, figsize=(11, max(3.2 * nav_frame.shape[1], 3.8)), dpi=180)
+                if nav_frame.shape[1] == 1:
+                    axes = [axes]
+                for idx, (ax, column_name) in enumerate(zip(axes, nav_frame.columns)):
+                    series = pd.to_numeric(nav_frame[column_name], errors="coerce")
+                    ax.plot(series.index, series.to_numpy(dtype=float), color="#2C6E91", linewidth=1.8)
+                    if idx == 0 and benchmark_bundle is not None:
+                        benchmark_label, benchmark_nav = benchmark_bundle
+                        ax.plot(benchmark_nav.index, pd.to_numeric(benchmark_nav, errors="coerce").to_numpy(dtype=float), color="#C44E52", linewidth=1.6, alpha=0.9, label=benchmark_label)
+                        ax.legend(loc="best")
+                    ax.set_ylabel("NAV")
+                    ax.set_title(str(column_name), loc="left", fontsize=12)
+                    ax.grid(True, alpha=0.22)
+                axes[-1].set_xlabel("Date")
+                fig.tight_layout()
+                st.pyplot(fig, clear_figure=True)
+                _render_compact_table(
+                    result.correlation_component_summary,
+                    priority=["eigenportfolio", "rank", "variance_share", "cumulative_variance_share", "cagr", "ann_vol", "sharpe"],
+                )
     with config_tab:
         _request_block(
             result.request,
@@ -1134,6 +1474,117 @@ def _render_snapshot_result(result: Any, *, config_defaults: dict[str, Any]) -> 
                 "estimator_method": result.estimator_method,
                 "input_type": result.input_type,
                 "estimator_window": result.estimator_window,
+                "allocation_date": result.allocation_date,
+                "sample_size": result.sample_size,
+                "num_assets": result.num_assets,
+            },
+        )
+    with artifacts_tab:
+        _artifacts_block(result.artifacts.files)
+
+
+def _render_core_periphery_result(result: Any, *, config_defaults: dict[str, Any]) -> None:
+    summary_tab, ranking_tab, graph_tab, matrices_tab, config_tab, artifacts_tab = st.tabs(
+        ["Summary", "Ranking", "Graph", "Matrices", "Config", "Artifacts"]
+    )
+    ordered_tickers = result.ranking_frame.sort_values(
+        ["coreness", "weighted_degree", "ticker"],
+        ascending=[False, False, True],
+        kind="stable",
+    )["ticker"].tolist()
+    with summary_tab:
+        st.subheader("Core-periphery summary")
+        _render_compact_table(
+            result.summary_frame,
+            priority=[
+                "universe",
+                "cleaning_method",
+                "input_type",
+                "estimator_method",
+                "estimator_window",
+                "graph_filter",
+                "allocation_date",
+                "sample_size",
+                "num_assets",
+                "num_edges",
+                "mean_coreness",
+                "max_coreness",
+            ],
+        )
+        top_core, top_periphery = st.columns(2)
+        with top_core:
+            st.caption("Most central tickers")
+            _render_compact_table(
+                result.ranking_frame.sort_values(["coreness", "weighted_degree", "ticker"], ascending=[False, False, True]).head(20),
+                priority=["core_rank_desc", "ticker", "sector", "sub_sector", "coreness", "weighted_degree", "inclusion_order"],
+            )
+        with top_periphery:
+            st.caption("Most peripheral tickers")
+            _render_compact_table(
+                result.ranking_frame.sort_values(["coreness", "weighted_degree", "ticker"], ascending=[True, True, True]).head(20),
+                priority=["periphery_rank_asc", "ticker", "sector", "sub_sector", "coreness", "weighted_degree", "inclusion_order"],
+            )
+    with ranking_tab:
+        st.subheader("Per-ticker core-periphery ranking")
+        _render_compact_table(
+            result.ranking_frame,
+            priority=["core_rank_desc", "periphery_rank_asc", "ticker", "sector", "sub_sector", "coreness", "weighted_degree", "inclusion_order"],
+            max_rows=300,
+        )
+    with graph_tab:
+        st.subheader("Interactive correlation graph")
+        st.caption("Left side is more central, right side more peripheral. Node size and border width also increase with coreness.")
+        nonzero_edge_count = int(np.count_nonzero(np.triu(result.adjacency_matrix.to_numpy(dtype=float), k=1)))
+        if result.graph_filter == "full_graph":
+            default_max_edges = min(max(60, result.num_assets * 3), max(1, nonzero_edge_count))
+            max_edges = st.slider(
+                "Max displayed edges",
+                min_value=1,
+                max_value=max(1, nonzero_edge_count),
+                value=default_max_edges,
+                step=1,
+                key="matrix_inspection::core_periphery::max_edges",
+            )
+        else:
+            max_edges = None
+            st.caption("MST mode displays the full tree because it is already sparse by construction.")
+        graph_html, graph_error = _build_pyvis_graph_html(
+            result.adjacency_matrix,
+            result.ranking_frame,
+            max_edges=max_edges,
+        )
+        if graph_html is None:
+            st.warning(
+                f"{graph_error} Add `pyvis` to the environment to enable interactive graph rendering."
+            )
+        else:
+            components.html(graph_html, height=760, scrolling=False)
+    with matrices_tab:
+        st.subheader("Filtered graph adjacency ordered by coreness")
+        ordered_adjacency = result.adjacency_matrix.reindex(index=ordered_tickers, columns=ordered_tickers)
+        _render_matrix_heatmap(
+            ordered_adjacency,
+            title=f"Adjacency ({CORE_PERIPHERY_GRAPH_FILTER_LABELS.get(result.graph_filter, result.graph_filter)})",
+            compact=True,
+        )
+        st.subheader("Cleaned correlation ordered by coreness")
+        ordered_correlation = result.cleaned_correlation.reindex(index=ordered_tickers, columns=ordered_tickers)
+        _render_matrix_heatmap(
+            ordered_correlation,
+            title="Cleaned correlation ordered by coreness",
+            compact=True,
+        )
+    with config_tab:
+        _request_block(
+            result.request,
+            config_defaults,
+            {
+                "universe": result.universe,
+                "cleaning_method": result.cleaning_method,
+                "input_type": result.input_type,
+                "estimator_method": result.estimator_method,
+                "estimator_window": result.estimator_window,
+                "graph_filter": result.graph_filter,
                 "allocation_date": result.allocation_date,
                 "sample_size": result.sample_size,
                 "num_assets": result.num_assets,
@@ -1365,6 +1816,87 @@ elif usage_mode == "Inspection" and service_name == "Inspect at date":
     result = st.session_state.get(result_key)
     if result is not None:
         _render_snapshot_result(result, config_defaults=config_defaults)
+elif usage_mode == "Inspection" and service_name == "Core-periphery at date":
+    result_key = "matrix_inspection::core_periphery::result"
+    st.info("Core-periphery at date computes a per-ticker coreness score from the cleaned correlation graph on one inspection date.")
+    cleaning_default = config_defaults.get("estimation", {}).get("cleaning_method", MATRIX_INSPECTION_CLEANING_OPTIONS[0])
+    if cleaning_default == "rie":
+        cleaning_default = "rie_spectral"
+    shrinkage_default = float(config_defaults.get("estimation", {}).get("linear_shrinkage", 0.0) or 0.0)
+    inspection_date_default = inspection_defaults.get("snapshot_date")
+    input_type_default = str(inspection_defaults.get("snapshot_input_type", "normalized_returns") or "normalized_returns")
+    estimator_method_default = str(inspection_defaults.get("snapshot_estimator_method", "sample_window") or "sample_window")
+    graph_filter_default = str(inspection_defaults.get("core_periphery_graph_filter", "full_graph") or "full_graph")
+    window_default, num_assets = _universe_covariance_window_default(universe)
+    st.caption(f"Universe suggestion: {window_default} (1.5x {num_assets} assets, rounded up to the nearest 5)")
+    with st.form("matrix_inspection_core_periphery_form"):
+        row1 = st.columns(3)
+        with row1[0]:
+            input_type = st.selectbox(
+                "Input type",
+                MATRIX_INPUT_OPTIONS,
+                index=MATRIX_INPUT_OPTIONS.index(input_type_default) if input_type_default in MATRIX_INPUT_OPTIONS else 0,
+                format_func=lambda value: MATRIX_INPUT_LABELS.get(value, value),
+            )
+        with row1[1]:
+            estimator_method = st.selectbox(
+                "Estimator",
+                MATRIX_ESTIMATOR_OPTIONS,
+                index=MATRIX_ESTIMATOR_OPTIONS.index(estimator_method_default) if estimator_method_default in MATRIX_ESTIMATOR_OPTIONS else 0,
+                format_func=lambda value: MATRIX_ESTIMATOR_LABELS.get(value, value),
+            )
+        with row1[2]:
+            graph_filter = st.selectbox(
+                "Graph filter",
+                CORE_PERIPHERY_GRAPH_FILTER_OPTIONS,
+                index=CORE_PERIPHERY_GRAPH_FILTER_OPTIONS.index(graph_filter_default) if graph_filter_default in CORE_PERIPHERY_GRAPH_FILTER_OPTIONS else 0,
+                format_func=lambda value: CORE_PERIPHERY_GRAPH_FILTER_LABELS.get(value, value),
+            )
+        row2 = st.columns(3)
+        with row2[0]:
+            estimator_window = int(st.number_input("Estimator window", min_value=2, value=int(window_default), step=1))
+        with row2[1]:
+            cleaning_method = st.selectbox(
+                "Cleaning method",
+                MATRIX_INSPECTION_CLEANING_OPTIONS,
+                index=MATRIX_INSPECTION_CLEANING_OPTIONS.index(cleaning_default) if cleaning_default in MATRIX_INSPECTION_CLEANING_OPTIONS else 0,
+            )
+        with row2[2]:
+            linear_shrinkage_intensity = _linear_shrinkage_input(
+                key="matrix_inspection::core_periphery::linear_shrinkage",
+                default_value=shrinkage_default,
+            )
+        row3 = st.columns(2)
+        with row3[0]:
+            use_latest = st.checkbox("Use latest available inspection date", value=inspection_date_default in (None, "", "None"))
+        with row3[1]:
+            inspection_date_selected = st.date_input("Inspection date", value=_parse_default_date(inspection_date_default).date(), disabled=use_latest)
+        output_dir = st.text_input(
+            "Output dir",
+            value=str(inspection_defaults.get("core_periphery_output_dir", "output/matrix_inspection/core_periphery") or "output/matrix_inspection/core_periphery"),
+        )
+        run_clicked = st.form_submit_button("Run core-periphery at date")
+    if run_clicked:
+        request = CorePeripherySnapshotRequest(
+            refresh_policy=_consume_refresh_policy(),
+            config_path=workspace_context.config_path,
+            universe=workspace_context.universe,
+            start=workspace_context.start or None,
+            evaluation_start=workspace_context.evaluation_start or None,
+            evaluation_end=workspace_context.evaluation_end or None,
+            date=None if use_latest else pd.Timestamp(inspection_date_selected).date().isoformat(),
+            cleaning_method=cleaning_method,
+            input_type=input_type,
+            estimator_method=estimator_method,
+            linear_shrinkage_intensity=linear_shrinkage_intensity,
+            estimator_window=int(estimator_window),
+            graph_filter=graph_filter,
+            output_dir=output_dir or None,
+        )
+        st.session_state[result_key] = run_core_periphery_snapshot(request)
+    result = st.session_state.get(result_key)
+    if result is not None:
+        _render_core_periphery_result(result, config_defaults=config_defaults)
 elif usage_mode == "Inspection" and service_name == "Inspect over interval":
     result_key = "matrix_inspection::interval::result"
     st.info("Inspect over interval is the dynamic matrix diagnostic view. Use it when you want to study how spectra and leading eigenmodes evolve over a rebalance interval.")

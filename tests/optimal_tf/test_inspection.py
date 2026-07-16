@@ -17,9 +17,16 @@ from optimal_tf.config import BacktestConfig, EstimationConfig, EvaluationConfig
 from optimal_tf.data_quality import PriceQualityFilterReport  # noqa: E402
 from optimal_tf.estimators.cleaning import CorrelationCleanerResult  # noqa: E402
 from optimal_tf.estimators.rie_spectral import RieSpectralDecomposition  # noqa: E402
-from optimal_tf.services.inspection import _absolute_vector_alignment, _aggregate_matrix_by_groups, _variogram_frame  # noqa: E402
-from optimal_tf.services.inspection import run_inspection_interval, run_inspection_snapshot  # noqa: E402
-from optimal_tf.services.models import InspectionIntervalRequest, InspectionSnapshotRequest  # noqa: E402
+from optimal_tf.services.inspection import (  # noqa: E402
+    _absolute_vector_alignment,
+    _aggregate_matrix_by_groups,
+    _build_core_periphery_adjacency,
+    _core_periphery_coreness,
+    _equal_weight_group_correlation,
+    _variogram_frame,
+)
+from optimal_tf.services.inspection import run_core_periphery_snapshot, run_inspection_interval, run_inspection_snapshot  # noqa: E402
+from optimal_tf.services.models import CorePeripherySnapshotRequest, InspectionIntervalRequest, InspectionSnapshotRequest  # noqa: E402
 
 
 class InspectionTests(unittest.TestCase):
@@ -104,6 +111,67 @@ class InspectionTests(unittest.TestCase):
         self.assertEqual(float(pair_counts.loc["Health", "Health"]), 1.0)
         self.assertEqual(list(membership.columns), ["group", "sector", "num_tickers", "ticker"])
         self.assertEqual(membership.loc[membership["group"] == "Tech", "num_tickers"].iloc[0], 2)
+
+    def test_equal_weight_group_correlation_builds_sub_sector_matrix(self) -> None:
+        returns_frame = pd.DataFrame(
+            {
+                "A": [0.01, 0.02, 0.03],
+                "B": [0.01, 0.02, 0.03],
+                "C": [-0.01, -0.02, -0.03],
+            },
+            index=pd.DatetimeIndex(["2026-01-01", "2026-01-02", "2026-01-03"]),
+        )
+        metadata = pd.DataFrame(
+            {
+                "sector": ["Tech", "Tech", "Health"],
+                "sub_sector": ["Software", "Software", "Biotech"],
+                "category": ["Tech", "Tech", "Health"],
+                "sub_category": ["Software", "Software", "Biotech"],
+            },
+            index=["A", "B", "C"],
+        )
+
+        matrix = _equal_weight_group_correlation(returns_frame, metadata, level="sub_sector")
+
+        self.assertEqual(list(matrix.index), ["Tech | Software", "Health | Biotech"])
+        self.assertEqual(list(matrix.columns), ["Tech | Software", "Health | Biotech"])
+        self.assertAlmostEqual(float(matrix.loc["Tech | Software", "Tech | Software"]), 1.0, places=8)
+        self.assertAlmostEqual(float(matrix.loc["Tech | Software", "Health | Biotech"]), -1.0, places=8)
+
+    def test_build_core_periphery_adjacency_mst_returns_tree(self) -> None:
+        correlation = pd.DataFrame(
+            [
+                [1.0, 0.9, 0.2],
+                [0.9, 1.0, 0.3],
+                [0.2, 0.3, 1.0],
+            ],
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+
+        distance_matrix, adjacency = _build_core_periphery_adjacency(correlation, graph_filter="mst")
+
+        self.assertEqual(distance_matrix.shape, (3, 3))
+        edge_count = int(np.count_nonzero(np.triu(adjacency.to_numpy(dtype=float), k=1)))
+        self.assertEqual(edge_count, 2)
+        self.assertTrue((np.diag(adjacency.to_numpy(dtype=float)) == 0.0).all())
+
+    def test_core_periphery_coreness_is_monotone_by_inclusion(self) -> None:
+        adjacency = pd.DataFrame(
+            [
+                [0.0, 1.0, 0.2],
+                [1.0, 0.0, 0.2],
+                [0.2, 0.2, 0.0],
+            ],
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+
+        ranking = _core_periphery_coreness(adjacency)
+
+        self.assertEqual(list(ranking["inclusion_order"]), [1, 2, 3])
+        coreness = ranking["coreness"].to_numpy(dtype=float)
+        self.assertTrue(np.all(coreness[1:] >= coreness[:-1]))
 
     def test_run_inspection_interval_skips_dates_without_available_sample(self) -> None:
         prices = pd.DataFrame(
@@ -328,6 +396,86 @@ class InspectionTests(unittest.TestCase):
             result.correlation_spectrum["eigenvalue"].to_numpy(dtype=float)[:2],
             np.array([1.05, 0.95]),
         )
+
+    def test_run_core_periphery_snapshot_builds_ranking(self) -> None:
+        prices = pd.DataFrame(
+            {"A": [100.0, 101.0, 102.0], "B": [100.0, 100.5, 101.0], "C": [100.0, 99.5, 99.0]},
+            index=pd.DatetimeIndex(["2015-01-30", "2015-02-27", "2015-03-31"]),
+        )
+        corr = pd.DataFrame(
+            [[1.0, 0.8, 0.2], [0.8, 1.0, 0.3], [0.2, 0.3, 1.0]],
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+        cov = pd.DataFrame(
+            [[0.01, 0.004, 0.001], [0.004, 0.02, 0.002], [0.001, 0.002, 0.03]],
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+        sample_frame = pd.DataFrame(
+            {"A": [0.01, 0.02], "B": [0.01, 0.015], "C": [-0.005, -0.01]},
+            index=pd.DatetimeIndex(["2015-03-30", "2015-03-31"]),
+        )
+        request = CorePeripherySnapshotRequest(
+            cleaning_method="rie_spectral",
+            estimator_window=40,
+            graph_filter="mst",
+            output_dir=None,
+        )
+        config = (
+            UniverseConfig(name="cac40", start="2015-01-01"),
+            EstimationConfig(covariance_window=60, covariance_min_periods=2, cleaning_method="empirical"),
+            BacktestConfig(),
+            object(),
+            EvaluationConfig(rebalance_frequency="monthly", evaluation_start="2015-02-27", evaluation_end="2015-03-31"),
+            object(),
+            OutputConfig(),
+        )
+        selected_vectors = pd.DataFrame(
+            [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            index=["A", "B", "C"],
+            columns=["rank_1", "rank_2", "rank_3"],
+        )
+        selected_result = CorrelationCleanerResult(
+            method="rie_spectral",
+            matrix_type="correlation",
+            sample_size=100,
+            input_matrix=corr,
+            empirical=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.9, 0.6]),
+                eigenvectors=selected_vectors,
+                rank_order=(0, 1, 2),
+            ),
+            cleaned_eigenvalues_by_input_order=np.array([1.5, 0.9, 0.6]),
+            cleaned=RieSpectralDecomposition(
+                eigenvalues=np.array([1.5, 0.9, 0.6]),
+                eigenvectors=selected_vectors,
+                rank_order=(0, 1, 2),
+            ),
+            cleaned_matrix_pre_projection=corr,
+            cleaned_matrix=corr,
+            postprocess_applied=False,
+            postprocess_steps=(),
+            spectral_source="empirical_vectors_plus_xi_hat",
+        )
+
+        with (
+            patch("optimal_tf.services.inspection.load_config", return_value=config),
+            patch(
+                "optimal_tf.services.inspection.load_filtered_prices_for_universe",
+                return_value=(prices, self._quality_report(prices, universe="cac40", start="2015-01-01", reference_start="2015-01-01")),
+            ),
+            patch("optimal_tf.services.inspection.matrix_sample_bundle", return_value=(corr, cov, 2, sample_frame)),
+            patch("optimal_tf.services.inspection.clean_correlation_matrix_rich", return_value=selected_result),
+        ):
+            result = run_core_periphery_snapshot(request)
+
+        self.assertEqual(result.graph_filter, "mst")
+        self.assertEqual(result.num_assets, 3)
+        self.assertEqual(len(result.ranking_frame), 3)
+        self.assertIn("coreness", result.ranking_frame.columns)
+        self.assertIn("sector", result.ranking_frame.columns)
+        self.assertEqual(int(result.summary_frame.loc[0, "num_edges"]), 2)
 
     def test_run_inspection_snapshot_builds_eigen_portfolio_nav_for_mp_outlier_eigenvectors(self) -> None:
         prices = pd.DataFrame(

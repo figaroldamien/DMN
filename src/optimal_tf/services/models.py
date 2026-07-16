@@ -489,6 +489,7 @@ class InspectionSnapshotResult:
     sample_sub_sector_matrix: pd.DataFrame
     empirical_cleaned_sub_sector_matrix: pd.DataFrame
     cleaned_sub_sector_matrix: pd.DataFrame
+    sample_sub_sector_ew_correlation: pd.DataFrame
     sub_sector_pair_counts: pd.DataFrame
     sub_sector_membership: pd.DataFrame
     correlation_spectrum: pd.DataFrame
@@ -500,6 +501,46 @@ class InspectionSnapshotResult:
     correlation_component_summary: pd.DataFrame
     feature_frame: pd.DataFrame
     cleaner_comparison_frame: pd.DataFrame
+    artifacts: RunArtifacts
+    quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
+
+
+@dataclass(frozen=True)
+class CorePeripherySnapshotRequest:
+    config_path: str = "configs/optimal_tf.example.toml"
+    universe: str | None = None
+    start: str | None = None
+    evaluation_start: str | None = None
+    evaluation_end: str | None = None
+    rebalance_frequency: str | None = None
+    date: str | None = None
+    cleaning_method: str | None = None
+    input_type: str | None = None
+    estimator_method: str | None = None
+    linear_shrinkage_intensity: float | None = None
+    estimator_window: int | None = None
+    graph_filter: str = "full_graph"
+    refresh_policy: str = 'auto'
+    output_dir: str | None = None
+
+
+@dataclass(frozen=True)
+class CorePeripherySnapshotResult:
+    request: CorePeripherySnapshotRequest
+    universe: str
+    cleaning_method: str
+    input_type: str
+    estimator_method: str
+    estimator_window: int
+    graph_filter: str
+    allocation_date: pd.Timestamp
+    sample_size: int
+    num_assets: int
+    cleaned_correlation: pd.DataFrame
+    distance_matrix: pd.DataFrame
+    adjacency_matrix: pd.DataFrame
+    ranking_frame: pd.DataFrame
+    summary_frame: pd.DataFrame
     artifacts: RunArtifacts
     quality_report: dict[str, Any] | None = field(default=None, kw_only=True)
 
