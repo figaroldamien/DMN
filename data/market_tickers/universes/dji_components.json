@@ -77,6 +77,13 @@
       "description": "Disney"
     },
     {
+      "ticker": "GOOGL",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Interactive Media & Services",
+      "description": "Alphabet (Class A)"
+    },
+    {
       "ticker": "GS",
       "category": "equity",
       "sector": "Financials",
@@ -95,7 +102,7 @@
       "category": "equity",
       "sector": "Industrials",
       "sub_sector": "Industrial Conglomerates",
-      "description": "Honeywell"
+      "description": "Honeywell Technologies"
     },
     {
       "ticker": "IBM",
@@ -201,13 +208,6 @@
       "sector": "Financials",
       "sub_sector": "Transaction & Payment Processing Services",
       "description": "Visa"
-    },
-    {
-      "ticker": "VZ",
-      "category": "equity",
-      "sector": "Communication Services",
-      "sub_sector": "Integrated Telecommunication Services",
-      "description": "Verizon"
     },
     {
       "ticker": "WMT",

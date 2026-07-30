@@ -1223,7 +1223,6 @@ def _build_pyvis_graph_html(
         ticker_key = str(ticker)
         row = ranking_lookup.loc[ticker_key] if ticker_key in ranking_lookup.index else None
         sector = str(row.get("sector", "Unknown")) if row is not None else "Unknown"
-        sub_sector = str(row.get("sub_sector", "Unknown")) if row is not None else "Unknown"
         coreness = float(pd.to_numeric(row.get("coreness", 0.0), errors="coerce")) if row is not None else 0.0
         degree = float(pd.to_numeric(row.get("weighted_degree", 0.0), errors="coerce")) if row is not None else 0.0
         core_rank = int(pd.to_numeric(row.get("core_rank_desc", 0), errors="coerce")) if row is not None else 0
@@ -1236,11 +1235,10 @@ def _build_pyvis_graph_html(
             ticker_key,
             label=ticker_key,
             title=(
-                f"<b>{ticker_key}</b><br>"
-                f"sector: {sector}<br>"
-                f"sub-sector: {sub_sector}<br>"
-                f"coreness: {coreness:.4f}<br>"
-                f"weighted degree: {degree:.4f}<br>"
+                f"{ticker_key}\n"
+                f"sector: {sector}\n"
+                f"coreness: {coreness:.4f}\n"
+                f"weighted degree: {degree:.4f}\n"
                 f"core rank: {core_rank}"
             ),
             color=color_lookup.get(ticker_key if color_mode == "coreness" else sector, "#577590"),
@@ -1298,6 +1296,85 @@ def _request_block(request: Any, config_defaults: dict[str, Any], resolved: dict
     with right:
         st.caption("Resolved context")
         st.json(_json_safe(resolved or {}), expanded=2)
+
+
+def _core_periphery_display_frame(result: Any) -> pd.DataFrame:
+    selected_ranking = (
+        result.full_graph_ranking_frame.copy()
+        if result.graph_filter == "full_graph"
+        else result.mst_ranking_frame.copy()
+    )
+    other_ranking = (
+        result.mst_ranking_frame.copy()
+        if result.graph_filter == "full_graph"
+        else result.full_graph_ranking_frame.copy()
+    )
+    components = UNIVERSE_COMPONENTS.get(result.universe, {})
+    selected_ranking = selected_ranking.rename(
+        columns={
+            "core_rank_desc": "selected_core_rank",
+            "coreness": "selected_coreness",
+        }
+    )
+    other_ranking = other_ranking.rename(
+        columns={
+            "core_rank_desc": "other_core_rank",
+            "coreness": "other_coreness",
+        }
+    )
+    ranking = selected_ranking.merge(
+        other_ranking.loc[:, ["ticker", "other_core_rank", "other_coreness"]],
+        on="ticker",
+        how="left",
+    )
+    ranking["coreness_delta"] = pd.to_numeric(ranking["selected_coreness"], errors="coerce") - pd.to_numeric(
+        ranking["other_coreness"], errors="coerce"
+    )
+    ranking["ticker_label"] = ranking["ticker"].map(
+        lambda ticker: (
+            f"{ticker} | {str(components.get(str(ticker), {}).get('description', '') or '')}".rstrip(" |")
+        )
+    )
+    return ranking
+
+
+def _render_core_periphery_table(frame: pd.DataFrame, *, max_rows: int | None = None) -> None:
+    table = frame.copy()
+    display_order = [
+        "selected_core_rank",
+        "other_core_rank",
+        "ticker_label",
+        "sector",
+        "selected_coreness",
+        "other_coreness",
+        "coreness_delta",
+    ]
+    existing_columns = [column for column in display_order if column in table.columns]
+    table = table.loc[:, existing_columns]
+    numeric_columns = ["selected_core_rank", "other_core_rank", "selected_coreness", "other_coreness", "coreness_delta"]
+    for column in numeric_columns:
+        if column in table.columns:
+            table[column] = pd.to_numeric(table[column], errors="coerce")
+    if max_rows is not None:
+        table = table.head(max_rows)
+    st.dataframe(
+        table,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "selected_core_rank": st.column_config.NumberColumn("Rank", width="small", format="%d"),
+            "other_core_rank": st.column_config.NumberColumn("Other\nrank", width="small", format="%d"),
+            "ticker_label": st.column_config.TextColumn("Ticker | Name", width="large"),
+            "sector": st.column_config.TextColumn("Sector", width="small"),
+            "selected_coreness": st.column_config.NumberColumn("Core-\nness", width="small", format="%.4f"),
+            "other_coreness": st.column_config.NumberColumn("Other\ncore.", width="small", format="%.4f"),
+            "coreness_delta": st.column_config.NumberColumn("Delta", width="small", format="%.4f"),
+        },
+    )
+
+
+def _graph_filter_display_name(value: str) -> str:
+    return CORE_PERIPHERY_GRAPH_FILTER_LABELS.get(value, value)
 
 
 def _load_universe_benchmark_nav(
@@ -1514,6 +1591,10 @@ def _render_core_periphery_result(result: Any, *, config_defaults: dict[str, Any
     summary_tab, ranking_tab, graph_tab, matrices_tab, config_tab, artifacts_tab = st.tabs(
         ["Summary", "Ranking", "Graph", "Matrices", "Config", "Artifacts"]
     )
+    ranking_display = _core_periphery_display_frame(result)
+    selected_filter_label = _graph_filter_display_name(result.graph_filter)
+    other_filter = "mst" if result.graph_filter == "full_graph" else "full_graph"
+    other_filter_label = _graph_filter_display_name(other_filter)
     ordered_tickers_desc = result.ranking_frame.sort_values(
         ["coreness", "weighted_degree", "ticker"],
         ascending=[False, False, True],
@@ -1545,24 +1626,20 @@ def _render_core_periphery_result(result: Any, *, config_defaults: dict[str, Any
         )
         top_core, top_periphery = st.columns(2)
         with top_core:
-            st.caption("Most central tickers")
-            _render_compact_table(
-                result.ranking_frame.sort_values(["coreness", "weighted_degree", "ticker"], ascending=[False, False, True]).head(20),
-                priority=["core_rank_desc", "ticker", "sector", "sub_sector", "coreness", "weighted_degree", "inclusion_order"],
+            st.caption(f"Most central tickers | {selected_filter_label} vs {other_filter_label}")
+            _render_core_periphery_table(
+                ranking_display.sort_values(["selected_coreness", "ticker"], ascending=[False, True], kind="stable"),
+                max_rows=20,
             )
         with top_periphery:
-            st.caption("Most peripheral tickers")
-            _render_compact_table(
-                result.ranking_frame.sort_values(["coreness", "weighted_degree", "ticker"], ascending=[True, True, True]).head(20),
-                priority=["periphery_rank_asc", "ticker", "sector", "sub_sector", "coreness", "weighted_degree", "inclusion_order"],
+            st.caption(f"Most peripheral tickers | {selected_filter_label} vs {other_filter_label}")
+            _render_core_periphery_table(
+                ranking_display.sort_values(["selected_coreness", "ticker"], ascending=[True, True], kind="stable"),
+                max_rows=20,
             )
     with ranking_tab:
-        st.subheader("Per-ticker core-periphery ranking")
-        _render_compact_table(
-            result.ranking_frame,
-            priority=["core_rank_desc", "periphery_rank_asc", "ticker", "sector", "sub_sector", "coreness", "weighted_degree", "inclusion_order"],
-            max_rows=300,
-        )
+        st.subheader(f"Per-ticker core-periphery ranking | {selected_filter_label} vs {other_filter_label}")
+        _render_core_periphery_table(ranking_display, max_rows=300)
     with graph_tab:
         st.subheader("Interactive correlation graph")
         st.caption("Left side is more central, right side more peripheral. Node size and border width also increase with coreness.")

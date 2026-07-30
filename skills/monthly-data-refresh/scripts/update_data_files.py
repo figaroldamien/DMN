@@ -49,6 +49,12 @@ METADATA_OVERRIDES: dict[str, dict[str, dict[str, str]]] = {
             "sub_sector": "Retail REITs",
         },
     },
+    "dji": {
+        "GOOGL": {
+            "sector": "Communication Services",
+            "sub_sector": "Interactive Media & Services",
+        },
+    },
     "eurostoxx600": {
         "LIFCO-B.ST": {
             "sector": "Industrials",
@@ -429,11 +435,79 @@ def _normalize_symbol_with_existing(symbol: str, existing_map: dict[str, dict[st
 
 
 def refresh_nasdaq100(existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    url = "https://en.wikipedia.org/wiki/Nasdaq-100"
-    table = _pick_table_with_columns(url, ("ticker", "company"))
-    cols = {str(c).strip().lower(): c for c in table.columns}
-    ticker_col = cols[next(k for k in cols if "ticker" in k)]
-    name_col = cols[next(k for k in cols if "company" in k)]
+    sources = [
+        {
+            "url": "https://en.wikipedia.org/wiki/Nasdaq-100",
+            "ticker_tokens": ("ticker",),
+            "name_tokens": ("company", "security"),
+            "sector_tokens": ("gics sector", "icb industry"),
+            "sub_sector_tokens": ("gics sub-industry", "icb subsector"),
+        },
+        {
+            "url": "https://www.nasdaq.com/solutions/global-indexes/nasdaq-100/companies",
+            "ticker_tokens": ("symbol",),
+            "name_tokens": ("company name", "company", "nom de l'entreprise"),
+            "sector_tokens": (),
+            "sub_sector_tokens": (),
+        },
+        {
+            "url": "https://www.nasdaq.com/fr-fr/solutions/global-indexes/nasdaq-100/companies",
+            "ticker_tokens": ("symbol", "symbole"),
+            "name_tokens": ("company name", "company", "nom de l'entreprise"),
+            "sector_tokens": (),
+            "sub_sector_tokens": (),
+        },
+    ]
+
+    table = None
+    cols: dict[str, Any] = {}
+    sector_col = None
+    sub_sector_col = None
+    last_error: Exception | None = None
+
+    for source in sources:
+        try:
+            html = _fetch_text(source["url"])
+            tables = pd.read_html(StringIO(html))
+        except Exception as exc:
+            last_error = exc
+            continue
+
+        for candidate in tables:
+            candidate_cols = {str(c).strip().lower(): c for c in candidate.columns}
+            has_ticker = any(any(token in key for token in source["ticker_tokens"]) for key in candidate_cols)
+            has_name = any(any(token in key for token in source["name_tokens"]) for key in candidate_cols)
+            if not (has_ticker and has_name):
+                continue
+            table = candidate
+            cols = candidate_cols
+            sector_col = next(
+                (
+                    cols[key]
+                    for key in cols
+                    if any(token in key for token in source["sector_tokens"])
+                ),
+                None,
+            )
+            sub_sector_col = next(
+                (
+                    cols[key]
+                    for key in cols
+                    if any(token in key for token in source["sub_sector_tokens"])
+                ),
+                None,
+            )
+            break
+        if table is not None:
+            break
+
+    if table is None:
+        if last_error is not None:
+            raise ValueError(f"No matching Nasdaq-100 constituent table found. Last source error: {last_error}")
+        raise ValueError("No matching Nasdaq-100 constituent table found.")
+
+    ticker_col = cols[next(k for k in cols if any(token in k for token in ("ticker", "symbol", "symbole")))]
+    name_col = cols[next(k for k in cols if any(token in k for token in ("company", "security", "company name", "nom de l'entreprise")))]
 
     existing_map = {r["ticker"]: r for r in existing}
     rows: list[dict[str, Any]] = []
@@ -443,12 +517,14 @@ def refresh_nasdaq100(existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not ticker or ticker == "NAN":
             continue
         base = existing_map.get(ticker, {})
+        sector_value = str(row[sector_col]).strip() if sector_col is not None else ""
+        sub_sector_value = str(row[sub_sector_col]).strip() if sub_sector_col is not None else ""
         rows.append(
             {
                 "ticker": ticker,
                 "category": base.get("category", "equity"),
-                "sector": base.get("sector"),
-                "sub_sector": base.get("sub_sector"),
+                "sector": sector_value or base.get("sector"),
+                "sub_sector": sub_sector_value or base.get("sub_sector"),
                 "description": str(row[name_col]).strip(),
             }
         )
@@ -620,6 +696,11 @@ def print_completeness(label: str, summary: CompletenessSummary) -> None:
         print(f"  missing examples: {', '.join(summary.missing_examples)}")
 
 
+def print_refresh_warning(label: str, exc: Exception) -> None:
+    print(f"  ! refresh warning for {label}: {exc}")
+    print("  ! keeping existing constituents for this universe")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Monthly updater for market component JSON files.")
     parser.add_argument(
@@ -664,16 +745,20 @@ def main() -> int:
         new_rows = canonicalize_rows(existing)
         universe_name = name.replace('_components.json', '')
 
-        if name == "nasdaq100_components.json" and "nasdaq100" in args.refresh:
-            new_rows = refresh_nasdaq100(existing)
-        elif name == "cac40_components.json" and "cac40" in args.refresh:
-            new_rows = refresh_cac40(existing)
-        elif name == "eurostoxx50_components.json" and "eurostoxx50" in args.refresh:
-            new_rows = refresh_eurostoxx50(existing)
-        elif name == "sp500_components.json" and "sp500" in args.refresh:
-            new_rows = refresh_sp500(existing)
-        elif name == "dji_components.json" and "dji" in args.refresh:
-            new_rows = refresh_dji(existing)
+        try:
+            if name == "nasdaq100_components.json" and "nasdaq100" in args.refresh:
+                new_rows = refresh_nasdaq100(existing)
+            elif name == "cac40_components.json" and "cac40" in args.refresh:
+                new_rows = refresh_cac40(existing)
+            elif name == "eurostoxx50_components.json" and "eurostoxx50" in args.refresh:
+                new_rows = refresh_eurostoxx50(existing)
+            elif name == "sp500_components.json" and "sp500" in args.refresh:
+                new_rows = refresh_sp500(existing)
+            elif name == "dji_components.json" and "dji" in args.refresh:
+                new_rows = refresh_dji(existing)
+        except Exception as exc:
+            print_refresh_warning(name, exc)
+            new_rows = canonicalize_rows(existing)
 
         new_rows = normalize_ticker_mappings(universe_name, new_rows)
         new_rows = apply_metadata_overrides(universe_name, new_rows)

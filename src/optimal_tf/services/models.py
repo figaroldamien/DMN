@@ -540,6 +540,8 @@ class CorePeripherySnapshotResult:
     distance_matrix: pd.DataFrame
     adjacency_matrix: pd.DataFrame
     ranking_frame: pd.DataFrame
+    full_graph_ranking_frame: pd.DataFrame
+    mst_ranking_frame: pd.DataFrame
     summary_frame: pd.DataFrame
     artifacts: RunArtifacts
     quality_report: dict[str, Any] | None = field(default=None, kw_only=True)

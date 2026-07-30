@@ -525,13 +525,6 @@
       "description": "Citigroup"
     },
     {
-      "ticker": "CAG",
-      "category": "equity",
-      "sector": "Consumer Staples",
-      "sub_sector": "Packaged Foods & Meats",
-      "description": "Conagra Brands"
-    },
-    {
       "ticker": "CAH",
       "category": "equity",
       "sector": "Health Care",
@@ -789,13 +782,6 @@
       "sector": "Financials",
       "sub_sector": "Transaction & Payment Processing Services",
       "description": "Corpay"
-    },
-    {
-      "ticker": "CPB",
-      "category": "equity",
-      "sector": "Consumer Staples",
-      "sub_sector": "Packaged Foods & Meats",
-      "description": "Campbell's Company (The)"
     },
     {
       "ticker": "CPRT",
@@ -1092,6 +1078,13 @@
       "description": "eBay Inc."
     },
     {
+      "ticker": "ECHO",
+      "category": "equity",
+      "sector": "Communication Services",
+      "sub_sector": "Wireless Telecommunication Services",
+      "description": "EchoStar"
+    },
+    {
       "ticker": "ECL",
       "category": "equity",
       "sector": "Materials",
@@ -1365,6 +1358,13 @@
       "description": "Comfort Systems USA"
     },
     {
+      "ticker": "FLEX",
+      "category": "equity",
+      "sector": "Information Technology",
+      "sub_sector": "Electronic Manufacturing Services",
+      "description": "Flex Ltd."
+    },
+    {
       "ticker": "FOX",
       "category": "equity",
       "sector": "Communication Services",
@@ -1487,7 +1487,7 @@
       "ticker": "GNRC",
       "category": "equity",
       "sector": "Industrials",
-      "sub_sector": "Electrical Components & Equipment",
+      "sub_sector": "Heavy Electrical Equipment",
       "description": "Generac"
     },
     {
@@ -1600,7 +1600,14 @@
       "category": "equity",
       "sector": "Industrials",
       "sub_sector": "Industrial Conglomerates",
-      "description": "Honeywell"
+      "description": "Honeywell Technologies"
+    },
+    {
+      "ticker": "HONA",
+      "category": "equity",
+      "sector": "Industrials",
+      "sub_sector": "Aerospace & Defense",
+      "description": "Honeywell Aerospace"
     },
     {
       "ticker": "HOOD",
@@ -2226,6 +2233,13 @@
       "description": "Marsh McLennan"
     },
     {
+      "ticker": "MRVL",
+      "category": "equity",
+      "sector": "Information Technology",
+      "sub_sector": "Semiconductors",
+      "description": "Marvell Technology"
+    },
+    {
       "ticker": "MS",
       "category": "equity",
       "sector": "Financials",
@@ -2618,13 +2632,6 @@
       "description": "Insulet Corporation"
     },
     {
-      "ticker": "POOL",
-      "category": "equity",
-      "sector": "Consumer Discretionary",
-      "sub_sector": "Distributors",
-      "description": "Pool Corporation"
-    },
-    {
       "ticker": "PPG",
       "category": "equity",
       "sector": "Materials",
@@ -2798,13 +2805,6 @@
       "sector": "Health Care",
       "sub_sector": "Health Care Equipment",
       "description": "Revvity"
-    },
-    {
-      "ticker": "SATS",
-      "category": "equity",
-      "sector": "Communication Services",
-      "sub_sector": "Wireless Telecommunication Services",
-      "description": "EchoStar"
     },
     {
       "ticker": "SBAC",

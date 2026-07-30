@@ -957,6 +957,20 @@ def _core_periphery_coreness(adjacency: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _enrich_core_periphery_ranking(
+    ranking_frame: pd.DataFrame,
+    metadata: pd.DataFrame,
+) -> pd.DataFrame:
+    enriched = ranking_frame.merge(
+        metadata.reset_index()[["ticker", "sector", "sub_sector"]],
+        on="ticker",
+        how="left",
+    )
+    enriched["core_rank_desc"] = enriched["coreness"].rank(method="dense", ascending=False).astype(int)
+    enriched["periphery_rank_asc"] = enriched["coreness"].rank(method="dense", ascending=True).astype(int)
+    return enriched.sort_values(["coreness", "weighted_degree", "ticker"], ascending=[False, False, True], kind="stable").reset_index(drop=True)
+
+
 def _spectrum_frame(eigenvalues: np.ndarray, *, label: str) -> pd.DataFrame:
     total = float(np.sum(eigenvalues))
     cumulative = np.cumsum(eigenvalues)
@@ -1529,19 +1543,12 @@ def run_core_periphery_snapshot(request: CorePeripherySnapshotRequest) -> CorePe
     cleaned_corr = selected_cleaner.cleaned_matrix
     metadata, sorted_tickers = _sorted_metadata(universe.name, list(cleaned_corr.index))
     sorted_cleaned_corr = _sorted_matrix(cleaned_corr, sorted_tickers)
-    distance_matrix, adjacency_matrix = _build_core_periphery_adjacency(
-        sorted_cleaned_corr,
-        graph_filter=graph_filter,
-    )
-    ranking_frame = _core_periphery_coreness(adjacency_matrix)
-    ranking_frame = ranking_frame.merge(
-        metadata.reset_index()[["ticker", "sector", "sub_sector"]],
-        on="ticker",
-        how="left",
-    )
-    ranking_frame["core_rank_desc"] = ranking_frame["coreness"].rank(method="dense", ascending=False).astype(int)
-    ranking_frame["periphery_rank_asc"] = ranking_frame["coreness"].rank(method="dense", ascending=True).astype(int)
-    ranking_frame = ranking_frame.sort_values(["coreness", "weighted_degree", "ticker"], ascending=[False, False, True], kind="stable").reset_index(drop=True)
+    distance_matrix, adjacency_matrix = _build_core_periphery_adjacency(sorted_cleaned_corr, graph_filter=graph_filter)
+    _distance_full, adjacency_full = _build_core_periphery_adjacency(sorted_cleaned_corr, graph_filter="full_graph")
+    _distance_mst, adjacency_mst = _build_core_periphery_adjacency(sorted_cleaned_corr, graph_filter="mst")
+    full_graph_ranking_frame = _enrich_core_periphery_ranking(_core_periphery_coreness(adjacency_full), metadata)
+    mst_ranking_frame = _enrich_core_periphery_ranking(_core_periphery_coreness(adjacency_mst), metadata)
+    ranking_frame = full_graph_ranking_frame if graph_filter == "full_graph" else mst_ranking_frame
     summary_frame = pd.DataFrame(
         [
             {
@@ -1568,11 +1575,15 @@ def run_core_periphery_snapshot(request: CorePeripherySnapshotRequest) -> CorePe
         distance_path = outdir / "distance_matrix.csv"
         adjacency_path = outdir / "adjacency_matrix.csv"
         ranking_path = outdir / "core_periphery_ranking.csv"
+        full_ranking_path = outdir / "core_periphery_ranking_full_graph.csv"
+        mst_ranking_path = outdir / "core_periphery_ranking_mst.csv"
         summary_path = outdir / "summary_frame.csv"
         sorted_cleaned_corr.to_csv(cleaned_corr_path)
         distance_matrix.to_csv(distance_path)
         adjacency_matrix.to_csv(adjacency_path)
         ranking_frame.to_csv(ranking_path, index=False)
+        full_graph_ranking_frame.to_csv(full_ranking_path, index=False)
+        mst_ranking_frame.to_csv(mst_ranking_path, index=False)
         summary_frame.to_csv(summary_path, index=False)
         request_path = write_request_json(outdir, request)
         summary_json_path = write_json(
@@ -1598,6 +1609,8 @@ def run_core_periphery_snapshot(request: CorePeripherySnapshotRequest) -> CorePe
                 "distance_matrix": distance_path,
                 "adjacency_matrix": adjacency_path,
                 "core_periphery_ranking": ranking_path,
+                "core_periphery_ranking_full_graph": full_ranking_path,
+                "core_periphery_ranking_mst": mst_ranking_path,
                 "summary_frame": summary_path,
             }
         )
@@ -1621,6 +1634,8 @@ def run_core_periphery_snapshot(request: CorePeripherySnapshotRequest) -> CorePe
         distance_matrix=distance_matrix,
         adjacency_matrix=adjacency_matrix,
         ranking_frame=ranking_frame,
+        full_graph_ranking_frame=full_graph_ranking_frame,
+        mst_ranking_frame=mst_ranking_frame,
         summary_frame=summary_frame,
         quality_report=quality_report,
         artifacts=RunArtifacts(root_dir=outdir, files=files),
