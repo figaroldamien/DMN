@@ -11,10 +11,10 @@ This document is the living design log for the `optimal_tf` project. It tracks:
 - how the current modules fit together.
 
 See also:
-- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for functional requirements,
-- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_usage.md) for user-facing commands and config guidance,
-- [optimal_tf_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_dashboard.md) for the local Streamlit UI,
-- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md) for strategy descriptions and current variants.
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_specifications.md) for functional requirements,
+- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/optimal_tf_usage.md) for user-facing commands and config guidance,
+- [optimal_tf_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/apps/optimal_tf_dashboard.md) for the local Streamlit UI,
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_strategies.md) for strategy descriptions and current variants.
 
 Documentation stance:
 - `optimal_tf_specifications.md` is now organized as a contract-first document with separate sections for normative requirements, current implementation, and known gaps,

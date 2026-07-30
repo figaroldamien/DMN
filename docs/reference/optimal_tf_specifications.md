@@ -132,7 +132,7 @@ Every strategy must satisfy this contract:
 ### Current implementation
 
 Current strategy names exposed by the system are documented in:
-- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md)
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_strategies.md)
 
 Current covariance-estimation convention:
 - the standard covariance path computes correlations on a fixed historical window,
@@ -146,7 +146,7 @@ Configuration invariant for that path:
 ### Known gaps and planned changes
 
 Strategy-specific evolution is tracked in:
-- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md)
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_strategies.md)
 
 ## Single-Date Allocation Requirements
 

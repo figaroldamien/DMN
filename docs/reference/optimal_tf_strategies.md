@@ -13,17 +13,17 @@ It should be updated:
 
 Workflow note:
 - material strategy evolutions should also be logged in
-  `docs/strategy_evolution_log.md`,
+  `docs/research/strategy_evolution_log.md`,
 - durable methodological or architectural choices should be captured in
   `docs/adr/`.
 
 See also:
-- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for the functional contract that strategies must satisfy,
-- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_architecture.md) for design rationale and module layout,
-- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_usage.md) for CLI and config usage,
-- [strategy_evolution_log.md](/Users/damien.figarol/trading_app_lab/docs/strategy_evolution_log.md) for the running change log of strategy evolutions and deferred ideas,
-- [agnostic_strategy_test_synthesis.md](/Users/damien.figarol/trading_app_lab/docs/agnostic_strategy_test_synthesis.md) for the running empirical test log of the Eq. 8 lab,
-- [agnostic_arp_phi_synthesis.md](/Users/damien.figarol/trading_app_lab/docs/agnostic_arp_phi_synthesis.md) for the dedicated `ARP_AGNOSTIC` `phi` sensitivity study.
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_specifications.md) for the functional contract that strategies must satisfy,
+- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_architecture.md) for design rationale and module layout,
+- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/optimal_tf_usage.md) for CLI and config usage,
+- [strategy_evolution_log.md](/Users/damien.figarol/trading_app_lab/docs/research/strategy_evolution_log.md) for the running change log of strategy evolutions and deferred ideas,
+- [agnostic_strategy_test_synthesis.md](/Users/damien.figarol/trading_app_lab/docs/research/agnostic_strategy_test_synthesis.md) for the running empirical test log of the Eq. 8 lab,
+- [agnostic_arp_phi_synthesis.md](/Users/damien.figarol/trading_app_lab/docs/research/agnostic_arp_phi_synthesis.md) for the dedicated `ARP_AGNOSTIC` `phi` sensitivity study.
 
 Implementation note:
 - production and baseline strategy code now lives primarily under

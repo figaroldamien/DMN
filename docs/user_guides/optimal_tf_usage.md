@@ -11,10 +11,10 @@ It should be updated:
 - or whenever explicitly requested.
 
 See also:
-- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for the functional scope,
-- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_architecture.md) for design decisions and module layout,
-- [optimal_tf_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_dashboard.md) for the local Streamlit UI,
-- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md) for strategy descriptions.
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_specifications.md) for the functional scope,
+- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_architecture.md) for design decisions and module layout,
+- [optimal_tf_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/apps/optimal_tf_dashboard.md) for the local Streamlit UI,
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_strategies.md) for strategy descriptions.
 
 ## Project Location
 

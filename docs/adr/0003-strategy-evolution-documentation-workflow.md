@@ -29,8 +29,8 @@ explicit workflow requiring that strategy evolutions be logged as they happen.
 From now on, each material strategy evolution must be documented in the repo.
 
 Required documentation workflow:
-- log the change in `docs/strategy_evolution_log.md`
-- update `docs/optimal_tf_strategies.md` when the public behavior, meaning, or positioning of a strategy changes
+- log the change in `docs/research/strategy_evolution_log.md`
+- update `docs/reference/optimal_tf_strategies.md` when the public behavior, meaning, or positioning of a strategy changes
 - add or update an ADR when the change introduces a durable architectural or methodological decision that should remain stable across future iterations
 
 A "material strategy evolution" includes:
@@ -64,6 +64,6 @@ Trade-offs:
 ## Next Steps
 
 Immediate project convention:
-1. use `docs/strategy_evolution_log.md` as the running journal
-2. keep `docs/optimal_tf_strategies.md` as the current-state reference
+1. use `docs/research/strategy_evolution_log.md` as the running journal
+2. keep `docs/reference/optimal_tf_strategies.md` as the current-state reference
 3. reserve ADRs for decisions that shape the long-term project structure or methodology

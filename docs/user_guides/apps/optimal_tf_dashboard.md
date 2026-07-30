@@ -1,6 +1,6 @@
 # `optimal_tf` Streamlit Dashboard
 
-Last updated: 2026-05-27
+Last updated: 2026-07-16
 
 ## Purpose
 
@@ -14,9 +14,12 @@ It focuses on:
 - how the dashboard relates to the Python service layer.
 
 See also:
-- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_usage.md) for CLI usage,
-- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_architecture.md) for package layout and design,
-- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for functional scope.
+- [optimal_tf_usage.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/optimal_tf_usage.md) for CLI usage,
+- [optimal_tf_architecture.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_architecture.md) for package layout and design,
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_specifications.md) for functional scope,
+- [market_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/apps/market_dashboard.md) for market synthesis and fork inspection,
+- [portfolio_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/apps/portfolio_dashboard.md) for fork-based portfolio exploration,
+- [matrix_inspection_dashboard.md](/Users/damien.figarol/trading_app_lab/docs/user_guides/apps/matrix_inspection_dashboard.md) for matrix and core-periphery diagnostics.
 
 ## Location
 
@@ -49,13 +52,33 @@ cd /Users/damien.figarol/trading_app_lab
 
 ## App Structure
 
-The dashboard is organized around 4 usage modes:
+The dashboard is organized around 5 usage modes:
+- `Workspace`
+- `Run`
+- `Compare`
+- `Search`
 - `Guide`
-- `Standard`
-- `Tuning`
-- `Inspection`
 
 Each mode exposes one or more services.
+
+### Workspace
+
+Purpose:
+- edit the shared TOML workspace directly from the UI,
+- make persistent changes to defaults without leaving Streamlit.
+
+Available services:
+- `Config editor`
+
+What this page changes:
+- universe defaults,
+- evaluation window defaults,
+- strategy defaults,
+- output path defaults.
+
+What it does not do:
+- it does not run a backtest,
+- it does not produce artifacts by itself.
 
 ### Guide
 
@@ -71,19 +94,18 @@ Note:
 - market synthesis has been moved out of `optimal_tf_dashboard`,
 - use `apps/market_dashboard.py` for market-specific views.
 
-### Standard
+### Run
 
 Purpose:
 - use `optimal_tf` in its normal packaged form,
 - rely mainly on the TOML config,
 - override only a few important parameters when needed.
 
-Available services:
+Current services:
 - `Allocation`
 - `Evaluation`
-- `Compare`
 
-Main standard overrides currently exposed:
+Main run overrides currently exposed:
 - `Universe`
 - `Start date`
 - `Strategy`
@@ -92,51 +114,61 @@ Main standard overrides currently exposed:
 - `Rebalance frequency` when relevant
 - `Long only` when relevant
 
-### Tuning
+### Compare
 
 Purpose:
-- run controlled research experiments,
-- vary one or several discrete parameters,
-- compare scenarios in a research workflow.
+- compare controlled alternatives under one shared market and backtest context.
 
-Available services:
+- Current services:
+- `Compare`
 - `Vary cleaning`
 - `Vary window`
 - `Vary strategy`
+- `Vary frequency`
+
+Typical use:
+- hold most assumptions fixed,
+- vary one dimension deliberately,
+- compare outputs in one comparison family.
+
+### Search
+
+Purpose:
+- explore broader strategy or parameter spaces,
+- search before narrowing down to one comparison or one operational run.
+
+Current services:
+- `Strategy testbed`
 - `Hyperparameter tuning`
 
-Design note:
-- `Hyperparameter tuning` is now the generic backend for tuning,
-- `Vary cleaning`, `Vary window`, and `Vary strategy` remain available as focused UX shortcuts built on top of that backend.
+#### Strategy testbed
+
+Purpose:
+- focused sandbox for one strategy configuration,
+- explicit controls for signal, `Q`, `phi`, normalization and execution assumptions.
+
+Typical use:
+- shape one agnostic recipe interactively,
+- inspect one candidate before moving to comparison or search.
 
 #### Hyperparameter tuning
 
-This is the most general tuning view.
+This is the broadest search view.
 
 It can combine:
 - several `strategies`,
 - several `cleaning methods`,
-- several `covariance windows`.
+- several `covariance windows`,
+- several `rebalance frequencies`.
 
 Default behavior:
-- if you keep the default UI selections, the dashboard can explore a broad grid,
-- the app writes a tabular result set rather than a NAV comparison chart.
+- it evaluates a grid rather than a single main scenario,
+- the main UI result is tabular rather than a single NAV comparison chart.
 
 Current output in the UI:
-- `Results` tab
-- `Skipped` tab
-- `Config` tab
-
-`Results` shows a compact table centered on:
-- `strategy`
-- `method`
-- `covariance_window`
-- main performance metrics such as `sharpe`, `total_return`, `total_return_gross`,
-  `total_return_cost_drag`, `ann_return`, `ann_vol`, `mdd`, `avg_turnover`,
-  `avg_turnover_per_rebalance`, `total_cost`, `avg_cost_per_rebalance`,
-  `final_nav`
-
-`Skipped` shows combinations that were intentionally ignored.
+- `Results`
+- `Skipped`
+- `Config`
 
 Current skip rule:
 - `rie*` methods require `covariance_window > number of assets`,
@@ -148,23 +180,6 @@ Artifacts written by the backend may include:
 - `skipped_configs.csv`
 - `request.json`
 - `summary.json`
-
-### Inspection
-
-Purpose:
-- understand the estimated correlation structure and eigenvectors,
-- inspect what the cleaning pipeline is doing,
-- analyze factor structure rather than just performance.
-
-Available services:
-- `Spectrum by cleaner`
-- `Spectrum by window`
-- `Eigenvector inspection`
-
-Typical use cases:
-- compare eigenvalue spectra across cleaning methods,
-- compare eigenvalue spectra across windows,
-- inspect selected eigenvectors by sector, sub-sector, or ticker.
 
 ## Parameters Shown In The UI
 
@@ -209,8 +224,8 @@ Current strategy selector behavior:
 - single-strategy services use the same grouped selector layout as the
   multi-strategy services, but with exclusive checkboxes,
 - the selector is split into two blocks:
-  - `Baselines + Legacy`
-  - `Agnostic Eq. 8`
+  - `Classiques`
+  - agnostic families exposed by the app
 - the agnostic block is intentionally wider because the recipe names are longer,
 - examples of exposed agnostic recipes include `ARP_AGNOSTIC`,
   `MARKOWITZ_AGNOSTIC`, `ATF_AGNOSTIC`, `PHI_25`, and `PHI_50`,
@@ -235,10 +250,13 @@ Current service groups:
   - `run_vary_cleaning`
   - `run_vary_window`
   - `run_vary_strategy`
+  - `run_vary_frequency`
 - `spectral.py`
   - spectrum analysis services
 - `inspection.py`
-  - eigenvector inspection services
+  - matrix and eigenvector diagnostics exposed through the dedicated matrix app
+- `market.py`
+  - market synthesis backend used by the dedicated market app
 
 Design consequence:
 - the dashboard should stay mostly declarative,
@@ -258,6 +276,12 @@ Known limitations:
 ## Recommended Workflow
 
 A practical workflow is:
+- set persistent defaults in `Workspace / Config editor`,
+- use `Guide / Strategy guide` if you need orientation,
+- use `Run / Allocation` or `Run / Evaluation` for one concrete answer,
+- use `Compare` when one dimension should vary under shared assumptions,
+- use `Search` when you want to explore a wider design space before narrowing down,
+- switch to the dedicated apps when the task becomes market-specific, fork-specific, or matrix-specific.
 1. adjust or choose a TOML config,
 2. launch the dashboard,
 3. use `Standard` mode for normal runs,

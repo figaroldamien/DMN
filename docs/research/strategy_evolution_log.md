@@ -14,8 +14,8 @@ It should be updated whenever we:
 - decide to pause, reject, or defer a strategy idea after analysis
 
 See also:
-- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_strategies.md) for the current-state description of strategies
-- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/optimal_tf_specifications.md) for the functional contract
+- [optimal_tf_strategies.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_strategies.md) for the current-state description of strategies
+- [optimal_tf_specifications.md](/Users/damien.figarol/trading_app_lab/docs/reference/optimal_tf_specifications.md) for the functional contract
 - [adr/0003-strategy-evolution-documentation-workflow.md](/Users/damien.figarol/trading_app_lab/docs/adr/0003-strategy-evolution-documentation-workflow.md) for the documentation rule
 
 ## Entry Template
