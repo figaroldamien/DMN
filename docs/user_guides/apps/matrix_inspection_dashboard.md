@@ -168,6 +168,11 @@ Result tabs:
 - `Config`
 - `Artifacts`
 
+Spectrum trends includes:
+- leading eigenvalues over time,
+- Marchenko-Pastur outlier counts above `lambda+` and below `lambda-`,
+- eigenvalue variogram.
+
 ## Parameters Shown In The UI
 
 Result pages expose:

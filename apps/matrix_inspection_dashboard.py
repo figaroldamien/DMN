@@ -1732,7 +1732,19 @@ def _render_interval_result(result: Any, *, config_defaults: dict[str, Any]) -> 
         st.subheader("Interval summary")
         _render_compact_table(
             result.summary_frame,
-            priority=["date", "sample_size", "num_assets", "leading_eigenvalue", "second_eigenvalue", "third_eigenvalue", "bulk_outlier_count", "mp_lambda_plus"],
+            priority=[
+                "date",
+                "sample_size",
+                "num_assets",
+                "leading_eigenvalue",
+                "second_eigenvalue",
+                "third_eigenvalue",
+                "mp_upper_outlier_count",
+                "mp_lower_outlier_count",
+                "mp_lambda_minus",
+                "mp_lambda_plus",
+                "bulk_outlier_count",
+            ],
         )
     with trends_tab:
         st.subheader(f"{MATRIX_TYPE_LABELS.get(result.matrix_type, result.matrix_type)} leading eigenvalues over time")
@@ -1743,6 +1755,24 @@ def _render_interval_result(result: Any, *, config_defaults: dict[str, Any]) -> 
             series_labels={"eigenvalue": "eigenvalue"},
             title_prefix="Eigenvalue rank",
         )
+        st.subheader("Marchenko-Pastur outlier counts")
+        mp_outlier_columns = ["mp_upper_outlier_count", "mp_lower_outlier_count"]
+        if all(column in result.summary_frame.columns for column in mp_outlier_columns):
+            mp_outlier_frame = result.summary_frame[["date", *mp_outlier_columns]].copy()
+            mp_outlier_frame["date"] = pd.to_datetime(mp_outlier_frame["date"])
+            mp_outlier_frame = mp_outlier_frame.set_index("date").sort_index()
+            st.caption("Above lambda+")
+            _render_line_chart(
+                mp_outlier_frame[["mp_upper_outlier_count"]].rename(columns={"mp_upper_outlier_count": "above lambda+"}),
+                height=220,
+            )
+            st.caption("Below lambda-")
+            _render_line_chart(
+                mp_outlier_frame[["mp_lower_outlier_count"]].rename(columns={"mp_lower_outlier_count": "below lambda-"}),
+                height=220,
+            )
+        else:
+            st.info("No Marchenko-Pastur outlier trend data available.")
         st.subheader("Eigenvalue variogram")
         _render_rank_chart_grid(
             result.variogram_frame,

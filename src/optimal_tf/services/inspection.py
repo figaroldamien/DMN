@@ -1743,7 +1743,9 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
         mp = marchenko_pastur_law(len(sorted_cleaned_corr), sample_size, variance=1.0)
         num_assets = int(len(sorted_tickers))
 
-        bulk_outlier_count = int(np.sum(np.linalg.eigvalsh(sorted_cleaned_corr.to_numpy(dtype=float)) > mp.lambda_plus))
+        correlation_eigenvalues = np.linalg.eigvalsh(sorted_cleaned_corr.to_numpy(dtype=float))
+        mp_upper_outlier_count = int(np.sum(correlation_eigenvalues > mp.lambda_plus))
+        mp_lower_outlier_count = int(np.sum(correlation_eigenvalues < mp.lambda_minus))
         summary_rows.append(
             {
                 "date": matrix_date.strftime("%Y-%m-%d"),
@@ -1753,7 +1755,10 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
                 "leading_eigenvalue": float(eigenvalues[0]) if len(eigenvalues) else 0.0,
                 "second_eigenvalue": float(eigenvalues[1]) if len(eigenvalues) > 1 else np.nan,
                 "third_eigenvalue": float(eigenvalues[2]) if len(eigenvalues) > 2 else np.nan,
-                "bulk_outlier_count": bulk_outlier_count,
+                "bulk_outlier_count": mp_upper_outlier_count,
+                "mp_upper_outlier_count": mp_upper_outlier_count,
+                "mp_lower_outlier_count": mp_lower_outlier_count,
+                "mp_lambda_minus": float(mp.lambda_minus),
                 "mp_lambda_plus": float(mp.lambda_plus),
             }
         )
@@ -1768,8 +1773,13 @@ def run_inspection_interval(request: InspectionIntervalRequest) -> InspectionInt
                     "cumulative_variance_share": float(cumulative[rank - 1] / total) if total else 0.0,
                     "num_assets": num_assets,
                     "sample_size": int(sample_size),
+                    "mp_lambda_minus": float(mp.lambda_minus),
                     "mp_lambda_plus": float(mp.lambda_plus),
-                    "is_mp_outlier": bool(rank <= bulk_outlier_count),
+                    "mp_upper_outlier_count": mp_upper_outlier_count,
+                    "mp_lower_outlier_count": mp_lower_outlier_count,
+                    "is_mp_upper_outlier": bool(rank <= mp_upper_outlier_count),
+                    "is_mp_lower_outlier": bool(rank > len(eigenvalues) - mp_lower_outlier_count),
+                    "is_mp_outlier": bool(rank <= mp_upper_outlier_count),
                 }
             )
 

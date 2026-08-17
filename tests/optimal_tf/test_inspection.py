@@ -179,7 +179,7 @@ class InspectionTests(unittest.TestCase):
             index=pd.DatetimeIndex(["2015-01-30", "2015-02-27"]),
         )
         corr = pd.DataFrame(
-            [[1.0, 0.2], [0.2, 1.0]],
+            [[1.0, 0.99], [0.99, 1.0]],
             index=["A", "B"],
             columns=["A", "B"],
         )
@@ -218,7 +218,7 @@ class InspectionTests(unittest.TestCase):
                 "optimal_tf.services.inspection.matrix_sample_bundle",
                 side_effect=[
                     ValueError("No correlation sample available on 2015-01-30 for covariance_window=60."),
-                    (corr, cov, 2, sample_frame),
+                    (corr, cov, 100, sample_frame),
                 ],
             ),
         ):
@@ -226,6 +226,12 @@ class InspectionTests(unittest.TestCase):
 
         self.assertEqual(list(result.summary_frame["date"]), ["2015-02-27"])
         self.assertEqual(result.observation_dates, (pd.Timestamp("2015-02-27"),))
+        self.assertEqual(int(result.summary_frame.loc[0, "mp_upper_outlier_count"]), 1)
+        self.assertEqual(int(result.summary_frame.loc[0, "mp_lower_outlier_count"]), 1)
+        self.assertLess(float(result.summary_frame.loc[0, "mp_lambda_minus"]), float(result.summary_frame.loc[0, "mp_lambda_plus"]))
+        self.assertTrue({"mp_lambda_minus", "mp_upper_outlier_count", "mp_lower_outlier_count"}.issubset(result.spectrum_frame.columns))
+        self.assertEqual(int(result.spectrum_frame.loc[0, "mp_upper_outlier_count"]), 1)
+        self.assertEqual(int(result.spectrum_frame.loc[0, "mp_lower_outlier_count"]), 1)
         self.assertIn("lag", result.variogram_frame.columns)
         self.assertTrue(np.isfinite(result.eigenvector_similarity_frame["abs_alignment_anchor"]).all())
 
